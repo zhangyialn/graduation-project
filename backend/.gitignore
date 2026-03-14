@@ -1,0 +1,3 @@
+# 把 venv 目录添加到 .gitignore 文件中
+venv/
+

@@ -6,6 +6,9 @@ from routes import userBlueprint, vehicleBlueprint, applicationBlueprint, approv
 app = Flask(__name__)
 CORS(app)
 
+# 配置JSON返回中文
+app.json.ensure_ascii = False
+
 # 配置数据库
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:123456@localhost:3306/graduation-project'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False

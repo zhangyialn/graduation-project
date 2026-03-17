@@ -1,5 +1,5 @@
 # 用户相关路由
-from flask import Blueprint, request, jsonify
+from flask import Blueprint
 from controllers.userController import get_users, get_user, create_user, update_user, delete_user, get_departments, create_department
 
 userBlueprint = Blueprint('user', __name__, url_prefix='/api/users')

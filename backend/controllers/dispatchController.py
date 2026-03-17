@@ -1,9 +1,11 @@
 # 调度管理控制器
 from flask import request, jsonify
 from models.index import db, Dispatch, Vehicle, Driver, CarApplication
+from flask_jwt_extended import jwt_required
 
 
 # 获取所有调度
+@jwt_required()
 def get_dispatches():
     try:
         # 支持按状态筛选
@@ -18,6 +20,7 @@ def get_dispatches():
 
 
 # 获取单个调度
+@jwt_required()
 def get_dispatch(id):
     try:
         dispatch = Dispatch.query.get(id)
@@ -29,6 +32,7 @@ def get_dispatch(id):
 
 
 # 创建调度（分配车辆和司机）
+@jwt_required()
 def create_dispatch():
     try:
         data = request.json
@@ -113,6 +117,7 @@ def create_dispatch():
 
 
 # 开始出车
+@jwt_required()
 def start_dispatch(id):
     try:
         dispatch = Dispatch.query.get(id)
@@ -131,6 +136,7 @@ def start_dispatch(id):
 
 
 # 取消调度
+@jwt_required()
 def cancel_dispatch(id):
     try:
         dispatch = Dispatch.query.get(id)
@@ -166,6 +172,7 @@ def cancel_dispatch(id):
 
 
 # 获取待调度列表（已批准但未调度的申请）
+@jwt_required()
 def get_pending_dispatches():
     try:
         applications = CarApplication.query.filter_by(status='approved').all()

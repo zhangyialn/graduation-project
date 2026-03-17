@@ -1,9 +1,11 @@
 # 车辆和司机管理控制器
 from flask import request, jsonify
 from models.index import db, Vehicle, Driver
+from flask_jwt_extended import jwt_required
 
 
 # 获取所有车辆
+@jwt_required()
 def get_vehicles():
     try:
         vehicles = Vehicle.query.all()
@@ -13,6 +15,7 @@ def get_vehicles():
 
 
 # 获取单个车辆
+@jwt_required()
 def get_vehicle(id):
     try:
         vehicle = Vehicle.query.get(id)
@@ -24,6 +27,7 @@ def get_vehicle(id):
 
 
 # 创建车辆
+@jwt_required()
 def create_vehicle():
     try:
         data = request.json
@@ -44,6 +48,7 @@ def create_vehicle():
 
 
 # 更新车辆
+@jwt_required()
 def update_vehicle(id):
     try:
         vehicle = Vehicle.query.get(id)
@@ -66,6 +71,7 @@ def update_vehicle(id):
 
 
 # 删除车辆
+@jwt_required()
 def delete_vehicle(id):
     try:
         vehicle = Vehicle.query.get(id)
@@ -81,6 +87,7 @@ def delete_vehicle(id):
 
 
 # 获取可用车辆列表
+@jwt_required()
 def get_available_vehicles():
     try:
         vehicles = Vehicle.query.filter_by(status='available').all()
@@ -92,6 +99,7 @@ def get_available_vehicles():
 # ==================== 司机管理接口 ====================
 
 # 获取所有司机
+@jwt_required()
 def get_drivers():
     try:
         drivers = Driver.query.all()
@@ -101,6 +109,7 @@ def get_drivers():
 
 
 # 创建司机
+@jwt_required()
 def create_driver():
     try:
         data = request.json
@@ -118,6 +127,7 @@ def create_driver():
 
 
 # 更新司机
+@jwt_required()
 def update_driver(id):
     try:
         driver = Driver.query.get(id)
@@ -137,6 +147,7 @@ def update_driver(id):
 
 
 # 删除司机
+@jwt_required()
 def delete_driver(id):
     try:
         driver = Driver.query.get(id)
@@ -152,6 +163,7 @@ def delete_driver(id):
 
 
 # 获取可用司机列表
+@jwt_required()
 def get_available_drivers():
     try:
         drivers = Driver.query.filter_by(status='available').all()

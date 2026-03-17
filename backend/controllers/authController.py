@@ -1,0 +1,141 @@
+# 认证控制器
+from flask import request, jsonify, current_app
+from models.index import db, User
+from flask_bcrypt import check_password_hash, generate_password_hash
+from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity
+
+
+# 用户注册
+def register():
+    try:
+        data = request.json
+        
+        # 检查用户名是否已存在
+        if User.query.filter_by(username=data['username']).first():
+            return jsonify({'success': False, 'message': '用户名已存在'}), 400
+        
+        # 检查邮箱是否已存在
+        if User.query.filter_by(email=data['email']).first():
+            return jsonify({'success': False, 'message': '邮箱已存在'}), 400
+        
+        # 加密密码
+        hashed_password = generate_password_hash(data['password']).decode('utf-8')
+        
+        # 创建用户
+        user = User(
+            username=data['username'],
+            password=hashed_password,
+            name=data['name'],
+            email=data['email'],
+            phone=data['phone'],
+            department_id=data['department_id'],
+            role=data.get('role', 'user')
+        )
+        
+        db.session.add(user)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '注册成功',
+            'data': user.to_dict()
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# 用户登录
+def login():
+    try:
+        data = request.json
+        user = User.query.filter_by(username=data['username']).first()
+        
+        if not user:
+            return jsonify({'success': False, 'message': '用户名或密码错误'}), 401
+        
+        # 验证密码
+        if not check_password_hash(user.password, data['password']):
+            return jsonify({'success': False, 'message': '用户名或密码错误'}), 401
+        
+        # 创建访问令牌和刷新令牌
+        access_token = create_access_token(identity=user.id)
+        refresh_token = create_refresh_token(identity=user.id)
+        
+        return jsonify({
+            'success': True,
+            'message': '登录成功',
+            'data': {
+                'access_token': access_token,
+                'refresh_token': refresh_token,
+                'user': user.to_dict()
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# 刷新令牌
+@jwt_required()
+def refresh():
+    try:
+        current_user_id = get_jwt_identity()
+        access_token = create_access_token(identity=current_user_id)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'access_token': access_token
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# 获取当前用户信息
+@jwt_required()
+def get_current_user():
+    try:
+        current_user_id = get_jwt_identity()
+        user = User.query.get(current_user_id)
+        
+        if not user:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+        
+        return jsonify({
+            'success': True,
+            'data': user.to_dict()
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# 修改密码
+@jwt_required()
+def change_password():
+    try:
+        current_user_id = get_jwt_identity()
+        user = User.query.get(current_user_id)
+        
+        if not user:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+        
+        data = request.json
+        
+        # 验证旧密码
+        if not check_password_hash(user.password, data['old_password']):
+            return jsonify({'success': False, 'message': '旧密码错误'}), 400
+        
+        # 加密新密码
+        hashed_password = generate_password_hash(data['new_password']).decode('utf-8')
+        user.password = hashed_password
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '密码修改成功'
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500

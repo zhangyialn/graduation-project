@@ -1,9 +1,11 @@
 # 审批记录控制器
 from flask import request, jsonify
 from models.index import db, Approval, User, CarApplication
+from flask_jwt_extended import jwt_required
 
 
 # 获取所有审批记录
+@jwt_required()
 def get_approvals():
     try:
         # 支持按状态筛选
@@ -18,6 +20,7 @@ def get_approvals():
 
 
 # 获取单个审批记录
+@jwt_required()
 def get_approval(id):
     try:
         approval = Approval.query.get(id)
@@ -29,6 +32,7 @@ def get_approval(id):
 
 
 # 获取某申请的所有审批记录
+@jwt_required()
 def get_application_approvals(application_id):
     try:
         approvals = Approval.query.filter_by(application_id=application_id).all()
@@ -38,6 +42,7 @@ def get_application_approvals(application_id):
 
 
 # 获取某审批人的所有审批记录
+@jwt_required()
 def get_approver_approvals(approver_id):
     try:
         approvals = Approval.query.filter_by(approver_id=approver_id).all()
@@ -47,6 +52,7 @@ def get_approver_approvals(approver_id):
 
 
 # 获取审批统计（按审批人统计）
+@jwt_required()
 def get_approval_statistics():
     try:
         from sqlalchemy import func

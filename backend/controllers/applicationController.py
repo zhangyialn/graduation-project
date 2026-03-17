@@ -1,9 +1,11 @@
 # 用车申请控制器
 from flask import request, jsonify
 from models.index import db, CarApplication
+from flask_jwt_extended import jwt_required
 
 
 # 获取所有申请
+@jwt_required()
 def get_applications():
     try:
         # 支持按状态筛选
@@ -18,6 +20,7 @@ def get_applications():
 
 
 # 获取单个申请
+@jwt_required()
 def get_application(id):
     try:
         application = CarApplication.query.get(id)
@@ -29,6 +32,7 @@ def get_application(id):
 
 
 # 创建用车申请
+@jwt_required()
 def create_application():
     try:
         data = request.json
@@ -50,6 +54,7 @@ def create_application():
 
 
 # 更新申请
+@jwt_required()
 def update_application(id):
     try:
         application = CarApplication.query.get(id)
@@ -75,6 +80,7 @@ def update_application(id):
 
 
 # 取消申请
+@jwt_required()
 def cancel_application(id):
     try:
         application = CarApplication.query.get(id)
@@ -94,6 +100,7 @@ def cancel_application(id):
 
 
 # 获取我的申请列表
+@jwt_required()
 def get_my_applications(user_id):
     try:
         applications = CarApplication.query.filter_by(applicant_id=user_id).all()
@@ -103,6 +110,7 @@ def get_my_applications(user_id):
 
 
 # 获取待审批列表（部门领导使用）
+@jwt_required()
 def get_pending_applications(department_id):
     try:
         applications = CarApplication.query.filter_by(

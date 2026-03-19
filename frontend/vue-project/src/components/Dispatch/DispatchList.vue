@@ -1,77 +1,103 @@
 <template>
-  <div class="dispatch-container">
-    <h2>调度管理</h2>
-    <button @click="showAddForm = !showAddForm" class="btn btn-primary">
-      {{ showAddForm ? '取消' : '添加调度' }}
-    </button>
-    
-    <!-- 添加调度表单 -->
-    <div v-if="showAddForm" class="add-form">
-      <h3>添加调度</h3>
-      <form @submit.prevent="handleAddDispatch">
-        <div class="form-group">
-          <label for="application_id">申请ID</label>
-          <input type="number" id="application_id" v-model="newDispatch.application_id" required>
-        </div>
-        <div class="form-group">
-          <label for="vehicle_id">车辆ID</label>
-          <input type="number" id="vehicle_id" v-model="newDispatch.vehicle_id" required>
-        </div>
-        <div class="form-group">
-          <label for="driver_id">司机ID</label>
-          <input type="number" id="driver_id" v-model="newDispatch.driver_id" required>
-        </div>
-        <button type="submit" class="btn btn-success">保存</button>
-      </form>
-    </div>
+  <el-card class="dispatch-list-card" shadow="hover">
+    <template #header>
+      <div class="card-header">
+        <el-icon class="header-icon"><DataAnalysis /></el-icon>
+        <h2>调度管理</h2>
+        <el-button type="primary" @click="openAddDialog">
+          <el-icon><Plus /></el-icon>
+          添加调度
+        </el-button>
+      </div>
+    </template>
     
     <!-- 调度列表 -->
-    <table class="table">
-      <thead>
-        <tr>
-          <th>调度ID</th>
-          <th>申请ID</th>
-          <th>车辆ID</th>
-          <th>司机ID</th>
-          <th>状态</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="dispatch in dispatches" :key="dispatch.id">
-          <td>{{ dispatch.id }}</td>
-          <td>{{ dispatch.application_id }}</td>
-          <td>{{ dispatch.vehicle_id }}</td>
-          <td>{{ dispatch.driver_id }}</td>
-          <td>{{ dispatch.status }}</td>
-          <td>
-            <button @click="startDispatch(dispatch.id)" class="btn btn-success" v-if="dispatch.status === 'pending'">开始</button>
-            <button @click="cancelDispatch(dispatch.id)" class="btn btn-danger">取消</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <el-table :data="dispatches" style="width: 100%" border>
+      <el-table-column prop="id" label="调度ID" width="80" />
+      <el-table-column prop="application_id" label="申请ID" width="100" />
+      <el-table-column prop="vehicle_id" label="车辆ID" width="100" />
+      <el-table-column prop="driver_id" label="司机ID" width="100" />
+      <el-table-column prop="status" label="状态" width="100">
+        <template #default="scope">
+          <el-tag :type="statusType(scope.row.status)">{{ scope.row.status }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="200" fixed="right">
+        <template #default="scope">
+          <el-button type="success" size="small" @click="startDispatch(scope.row.id)" v-if="scope.row.status === 'pending'">
+            <el-icon><Check /></el-icon>
+            开始
+          </el-button>
+          <el-button type="danger" size="small" @click="cancelDispatch(scope.row.id)">
+            <el-icon><Close /></el-icon>
+            取消
+          </el-button>
+        </template>
+      </el-table-column>
+    </el-table>
     
-    <div class="error-message" v-if="error">{{ error }}</div>
-  </div>
+    <!-- 添加调度对话框 -->
+    <el-dialog v-model="dialogVisible" title="添加调度" width="400px">
+      <el-form :model="form" :rules="rules" ref="dispatchForm" label-width="100px">
+        <el-form-item label="申请ID" prop="application_id">
+          <el-input v-model.number="form.application_id" placeholder="请输入申请ID" />
+        </el-form-item>
+        <el-form-item label="车辆ID" prop="vehicle_id">
+          <el-input v-model.number="form.vehicle_id" placeholder="请输入车辆ID" />
+        </el-form-item>
+        <el-form-item label="司机ID" prop="driver_id">
+          <el-input v-model.number="form.driver_id" placeholder="请输入司机ID" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="dialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="handleAddDispatch" :loading="loading">保存</el-button>
+        </span>
+      </template>
+    </el-dialog>
+    
+    <el-alert v-if="error" :title="error" type="error" show-icon class="error-alert" />
+  </el-card>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import axios from 'axios';
+import { DataAnalysis, Plus, Check, Close } from '@element-plus/icons-vue';
 
 const dispatches = ref([]);
-const showAddForm = ref(false);
+const dialogVisible = ref(false);
 const error = ref('');
+const loading = ref(false);
 
-const newDispatch = ref({
+const form = reactive({
   application_id: '',
   vehicle_id: '',
   driver_id: ''
 });
 
+const rules = reactive({
+  application_id: [{ required: true, message: '请输入申请ID', trigger: 'blur' }],
+  vehicle_id: [{ required: true, message: '请输入车辆ID', trigger: 'blur' }],
+  driver_id: [{ required: true, message: '请输入司机ID', trigger: 'blur' }]
+});
+
+const dispatchForm = ref(null);
+
+const statusType = (status) => {
+  const typeMap = {
+    pending: 'warning',
+    in_progress: 'info',
+    completed: 'success',
+    cancelled: 'danger'
+  };
+  return typeMap[status] || 'info';
+};
+
 const fetchDispatches = async () => {
   try {
+    loading.value = true;
     const token = localStorage.getItem('token');
     const response = await axios.get('http://localhost:5000/api/dispatches', {
       headers: {
@@ -81,26 +107,34 @@ const fetchDispatches = async () => {
     dispatches.value = response.data.data;
   } catch (err) {
     error.value = err.response?.data?.message || '获取调度失败';
+  } finally {
+    loading.value = false;
   }
+};
+
+const openAddDialog = () => {
+  form.application_id = '';
+  form.vehicle_id = '';
+  form.driver_id = '';
+  dialogVisible.value = true;
 };
 
 const handleAddDispatch = async () => {
   try {
+    await dispatchForm.value.validate();
+    loading.value = true;
     const token = localStorage.getItem('token');
-    await axios.post('http://localhost:5000/api/dispatches', newDispatch.value, {
+    await axios.post('http://localhost:5000/api/dispatches', form, {
       headers: {
         Authorization: `Bearer ${token}`
       }
     });
+    dialogVisible.value = false;
     fetchDispatches();
-    showAddForm.value = false;
-    newDispatch.value = {
-      application_id: '',
-      vehicle_id: '',
-      driver_id: ''
-    };
   } catch (err) {
     error.value = err.response?.data?.message || '添加调度失败';
+  } finally {
+    loading.value = false;
   }
 };
 
@@ -138,306 +172,32 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.dispatch-container {
-  padding: 2rem;
+.dispatch-list-card {
   max-width: 1200px;
   margin: 0 auto;
-}
-
-.add-form {
-  background: white;
-  padding: 1.5rem;
   border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  margin: 1rem 0;
 }
 
-.form-group {
-  margin-bottom: 1rem;
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
+.header-icon {
+  font-size: 1.5rem;
+  margin-right: 0.75rem;
+  color: #409EFF;
 }
 
-input {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  background: white;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  margin: 1rem 0;
-}
-
-.table th, .table td {
-  padding: 1rem;
-  text-align: left;
-  border-bottom: 1px solid #ddd;
-}
-
-.table th {
-  background-color: #f8f9fa;
+.card-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
   font-weight: 600;
+  flex: 1;
 }
 
-.btn {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 4px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  margin-right: 0.5rem;
-}
-
-.btn-primary {
-  background-color: #007bff;
-  color: white;
-}
-
-.btn-success {
-  background-color: #28a745;
-  color: white;
-}
-
-.btn-danger {
-  background-color: #dc3545;
-  color: white;
-}
-
-.error-message {
+.error-alert {
   margin-top: 1rem;
-  color: #dc3545;
-  font-size: 0.875rem;
-}
-</style><template>
-  <div class="dispatch-container">
-    <h2>调度管理</h2>
-    <button @click="showAddForm = !showAddForm" class="btn btn-primary">
-      {{ showAddForm ? '取消' : '添加调度' }}
-    </button>
-    
-    <!-- 添加调度表单 -->
-    <div v-if="showAddForm" class="add-form">
-      <h3>添加调度</h3>
-      <form @submit.prevent="handleAddDispatch">
-        <div class="form-group">
-          <label for="application_id">申请ID</label>
-          <input type="number" id="application_id" v-model="newDispatch.application_id" required>
-        </div>
-        <div class="form-group">
-          <label for="vehicle_id">车辆ID</label>
-          <input type="number" id="vehicle_id" v-model="newDispatch.vehicle_id" required>
-        </div>
-        <div class="form-group">
-          <label for="driver_id">司机ID</label>
-          <input type="number" id="driver_id" v-model="newDispatch.driver_id" required>
-        </div>
-        <button type="submit" class="btn btn-success">保存</button>
-      </form>
-    </div>
-    
-    <!-- 调度列表 -->
-    <table class="table">
-      <thead>
-        <tr>
-          <th>调度ID</th>
-          <th>申请ID</th>
-          <th>车辆ID</th>
-          <th>司机ID</th>
-          <th>状态</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="dispatch in dispatches" :key="dispatch.id">
-          <td>{{ dispatch.id }}</td>
-          <td>{{ dispatch.application_id }}</td>
-          <td>{{ dispatch.vehicle_id }}</td>
-          <td>{{ dispatch.driver_id }}</td>
-          <td>{{ dispatch.status }}</td>
-          <td>
-            <button @click="startDispatch(dispatch.id)" class="btn btn-success" v-if="dispatch.status === 'pending'">开始</button>
-            <button @click="cancelDispatch(dispatch.id)" class="btn btn-danger">取消</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    
-    <div class="error-message" v-if="error">{{ error }}</div>
-  </div>
-</template>
-
-<script setup>
-import { ref, onMounted } from 'vue';
-import axios from 'axios';
-
-const dispatches = ref([]);
-const showAddForm = ref(false);
-const error = ref('');
-
-const newDispatch = ref({
-  application_id: '',
-  vehicle_id: '',
-  driver_id: ''
-});
-
-const fetchDispatches = async () => {
-  try {
-    const token = localStorage.getItem('token');
-    const response = await axios.get('http://localhost:5000/api/dispatches', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
-    dispatches.value = response.data.data;
-  } catch (err) {
-    error.value = err.response?.data?.message || '获取调度失败';
-  }
-};
-
-const handleAddDispatch = async () => {
-  try {
-    const token = localStorage.getItem('token');
-    await axios.post('http://localhost:5000/api/dispatches', newDispatch.value, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
-    fetchDispatches();
-    showAddForm.value = false;
-    newDispatch.value = {
-      application_id: '',
-      vehicle_id: '',
-      driver_id: ''
-    };
-  } catch (err) {
-    error.value = err.response?.data?.message || '添加调度失败';
-  }
-};
-
-const startDispatch = async (id) => {
-  try {
-    const token = localStorage.getItem('token');
-    await axios.post(`http://localhost:5000/api/dispatches/${id}/start`, {}, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
-    fetchDispatches();
-  } catch (err) {
-    error.value = err.response?.data?.message || '开始调度失败';
-  }
-};
-
-const cancelDispatch = async (id) => {
-  try {
-    const token = localStorage.getItem('token');
-    await axios.post(`http://localhost:5000/api/dispatches/${id}/cancel`, {}, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
-    fetchDispatches();
-  } catch (err) {
-    error.value = err.response?.data?.message || '取消调度失败';
-  }
-};
-
-onMounted(() => {
-  fetchDispatches();
-});
-</script>
-
-<style scoped>
-.dispatch-container {
-  padding: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.add-form {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  margin: 1rem 0;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-}
-
-input {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  background: white;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  margin: 1rem 0;
-}
-
-.table th, .table td {
-  padding: 1rem;
-  text-align: left;
-  border-bottom: 1px solid #ddd;
-}
-
-.table th {
-  background-color: #f8f9fa;
-  font-weight: 600;
-}
-
-.btn {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 4px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  margin-right: 0.5rem;
-}
-
-.btn-primary {
-  background-color: #007bff;
-  color: white;
-}
-
-.btn-success {
-  background-color: #28a745;
-  color: white;
-}
-
-.btn-danger {
-  background-color: #dc3545;
-  color: white;
-}
-
-.error-message {
-  margin-top: 1rem;
-  color: #dc3545;
-  font-size: 0.875rem;
 }
 </style>

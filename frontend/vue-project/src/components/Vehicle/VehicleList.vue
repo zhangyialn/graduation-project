@@ -1,141 +1,192 @@
 <template>
-  <div class="vehicle-container">
-    <h2>车辆管理</h2>
-    <button @click="showAddForm = !showAddForm" class="btn btn-primary">
-      {{ showAddForm ? '取消' : '添加车辆' }}
-    </button>
-    
-    <!-- 添加车辆表单 -->
-    <div v-if="showAddForm" class="add-form">
-      <h3>添加车辆</h3>
-      <form @submit.prevent="handleAddVehicle">
-        <div class="form-group">
-          <label for="plate_number">车牌号</label>
-          <input type="text" id="plate_number" v-model="newVehicle.plate_number" required>
-        </div>
-        <div class="form-group">
-          <label for="model">车型</label>
-          <input type="text" id="model" v-model="newVehicle.model" required>
-        </div>
-        <div class="form-group">
-          <label for="status">状态</label>
-          <select id="status" v-model="newVehicle.status">
-            <option value="available">可用</option>
-            <option value="in_use">使用中</option>
-            <option value="maintenance">维护中</option>
-          </select>
-        </div>
-        <button type="submit" class="btn btn-success">保存</button>
-      </form>
-    </div>
+  <el-card class="vehicle-list-card" shadow="hover">
+    <template #header>
+      <div class="card-header">
+        <el-icon class="header-icon"><Van /></el-icon>
+        <h2>车辆管理</h2>
+        <el-button type="primary" @click="openVehicleDialog">
+          <el-icon><Plus /></el-icon>
+          添加车辆
+        </el-button>
+      </div>
+    </template>
     
     <!-- 车辆列表 -->
-    <table class="table">
-      <thead>
-        <tr>
-          <th>车辆ID</th>
-          <th>车牌号</th>
-          <th>车型</th>
-          <th>状态</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="vehicle in vehicles" :key="vehicle.id">
-          <td>{{ vehicle.id }}</td>
-          <td>{{ vehicle.plate_number }}</td>
-          <td>{{ vehicle.model }}</td>
-          <td>{{ vehicle.status }}</td>
-          <td>
-            <button @click="editVehicle(vehicle)" class="btn btn-info">编辑</button>
-            <button @click="deleteVehicle(vehicle.id)" class="btn btn-danger">删除</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <el-table :data="vehicles" style="width: 100%" border>
+      <el-table-column prop="id" label="车辆ID" width="80" />
+      <el-table-column prop="plate_number" label="车牌号" width="120" />
+      <el-table-column prop="model" label="车型" width="120" />
+      <el-table-column prop="status" label="状态" width="100">
+        <template #default="scope">
+          <el-tag :type="vehicleStatusType(scope.row.status)">{{ scope.row.status }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="180" fixed="right">
+        <template #default="scope">
+          <el-button type="primary" size="small" @click="openVehicleDialog(scope.row)">
+            <el-icon><Edit /></el-icon>
+            编辑
+          </el-button>
+          <el-button type="danger" size="small" @click="deleteVehicle(scope.row.id)">
+            <el-icon><Delete /></el-icon>
+            删除
+          </el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+    
+    <!-- 车辆对话框 -->
+    <el-dialog v-model="vehicleDialogVisible" :title="vehicleDialogTitle" width="400px">
+      <el-form :model="vehicleForm" :rules="vehicleRules" ref="vehicleFormRef" label-width="100px">
+        <el-form-item label="车牌号" prop="plate_number">
+          <el-input v-model="vehicleForm.plate_number" placeholder="请输入车牌号" />
+        </el-form-item>
+        <el-form-item label="车型" prop="model">
+          <el-input v-model="vehicleForm.model" placeholder="请输入车型" />
+        </el-form-item>
+        <el-form-item label="状态" prop="status">
+          <el-select v-model="vehicleForm.status" placeholder="请选择状态">
+            <el-option label="可用" value="available" />
+            <el-option label="使用中" value="in_use" />
+            <el-option label="维护中" value="maintenance" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="vehicleDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="saveVehicle" :loading="loading">保存</el-button>
+        </span>
+      </template>
+    </el-dialog>
     
     <!-- 司机管理 -->
-    <h3>司机管理</h3>
-    <button @click="showAddDriverForm = !showAddDriverForm" class="btn btn-primary">
-      {{ showAddDriverForm ? '取消' : '添加司机' }}
-    </button>
-    
-    <!-- 添加司机表单 -->
-    <div v-if="showAddDriverForm" class="add-form">
-      <h4>添加司机</h4>
-      <form @submit.prevent="handleAddDriver">
-        <div class="form-group">
-          <label for="name">姓名</label>
-          <input type="text" id="name" v-model="newDriver.name" required>
-        </div>
-        <div class="form-group">
-          <label for="license">驾驶证号</label>
-          <input type="text" id="license" v-model="newDriver.license" required>
-        </div>
-        <div class="form-group">
-          <label for="status">状态</label>
-          <select id="status" v-model="newDriver.status">
-            <option value="available">可用</option>
-            <option value="busy">忙碌</option>
-          </select>
-        </div>
-        <button type="submit" class="btn btn-success">保存</button>
-      </form>
+    <div class="driver-section">
+      <div class="section-header">
+        <el-icon class="header-icon"><UserFilled /></el-icon>
+        <h3>司机管理</h3>
+        <el-button type="primary" @click="openDriverDialog">
+          <el-icon><Plus /></el-icon>
+          添加司机
+        </el-button>
+      </div>
+      
+      <!-- 司机列表 -->
+      <el-table :data="drivers" style="width: 100%" border>
+        <el-table-column prop="id" label="司机ID" width="80" />
+        <el-table-column prop="name" label="姓名" width="100" />
+        <el-table-column prop="license" label="驾驶证号" />
+        <el-table-column prop="status" label="状态" width="100">
+          <template #default="scope">
+            <el-tag :type="driverStatusType(scope.row.status)">{{ scope.row.status }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="180" fixed="right">
+          <template #default="scope">
+            <el-button type="primary" size="small" @click="openDriverDialog(scope.row)">
+              <el-icon><Edit /></el-icon>
+              编辑
+            </el-button>
+            <el-button type="danger" size="small" @click="deleteDriver(scope.row.id)">
+              <el-icon><Delete /></el-icon>
+              删除
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
     </div>
     
-    <!-- 司机列表 -->
-    <table class="table">
-      <thead>
-        <tr>
-          <th>司机ID</th>
-          <th>姓名</th>
-          <th>驾驶证号</th>
-          <th>状态</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="driver in drivers" :key="driver.id">
-          <td>{{ driver.id }}</td>
-          <td>{{ driver.name }}</td>
-          <td>{{ driver.license }}</td>
-          <td>{{ driver.status }}</td>
-          <td>
-            <button @click="editDriver(driver)" class="btn btn-info">编辑</button>
-            <button @click="deleteDriver(driver.id)" class="btn btn-danger">删除</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <!-- 司机对话框 -->
+    <el-dialog v-model="driverDialogVisible" :title="driverDialogTitle" width="400px">
+      <el-form :model="driverForm" :rules="driverRules" ref="driverFormRef" label-width="100px">
+        <el-form-item label="姓名" prop="name">
+          <el-input v-model="driverForm.name" placeholder="请输入姓名" />
+        </el-form-item>
+        <el-form-item label="驾驶证号" prop="license">
+          <el-input v-model="driverForm.license" placeholder="请输入驾驶证号" />
+        </el-form-item>
+        <el-form-item label="状态" prop="status">
+          <el-select v-model="driverForm.status" placeholder="请选择状态">
+            <el-option label="可用" value="available" />
+            <el-option label="忙碌" value="busy" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="driverDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="saveDriver" :loading="loading">保存</el-button>
+        </span>
+      </template>
+    </el-dialog>
     
-    <div class="error-message" v-if="error">{{ error }}</div>
-  </div>
+    <el-alert v-if="error" :title="error" type="error" show-icon class="error-alert" />
+  </el-card>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import axios from 'axios';
+import { Van, Plus, Edit, Delete, UserFilled } from '@element-plus/icons-vue';
 
 const vehicles = ref([]);
 const drivers = ref([]);
-const showAddForm = ref(false);
-const showAddDriverForm = ref(false);
+const vehicleDialogVisible = ref(false);
+const driverDialogVisible = ref(false);
+const vehicleDialogTitle = ref('添加车辆');
+const driverDialogTitle = ref('添加司机');
 const error = ref('');
+const loading = ref(false);
 
-const newVehicle = ref({
+const vehicleForm = reactive({
+  id: null,
   plate_number: '',
   model: '',
   status: 'available'
 });
 
-const newDriver = ref({
+const vehicleRules = reactive({
+  plate_number: [{ required: true, message: '请输入车牌号', trigger: 'blur' }],
+  model: [{ required: true, message: '请输入车型', trigger: 'blur' }],
+  status: [{ required: true, message: '请选择状态', trigger: 'change' }]
+});
+
+const driverForm = reactive({
+  id: null,
   name: '',
   license: '',
   status: 'available'
 });
 
+const driverRules = reactive({
+  name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
+  license: [{ required: true, message: '请输入驾驶证号', trigger: 'blur' }],
+  status: [{ required: true, message: '请选择状态', trigger: 'change' }]
+});
+
+const vehicleFormRef = ref(null);
+const driverFormRef = ref(null);
+
+const vehicleStatusType = (status) => {
+  const typeMap = {
+    available: 'success',
+    in_use: 'warning',
+    maintenance: 'info'
+  };
+  return typeMap[status] || 'info';
+};
+
+const driverStatusType = (status) => {
+  const typeMap = {
+    available: 'success',
+    busy: 'warning'
+  };
+  return typeMap[status] || 'info';
+};
+
 const fetchVehicles = async () => {
   try {
+    loading.value = true;
     const token = localStorage.getItem('token');
     const response = await axios.get('http://localhost:5000/api/vehicles', {
       headers: {
@@ -145,11 +196,14 @@ const fetchVehicles = async () => {
     vehicles.value = response.data.data;
   } catch (err) {
     error.value = err.response?.data?.message || '获取车辆失败';
+  } finally {
+    loading.value = false;
   }
 };
 
 const fetchDrivers = async () => {
   try {
+    loading.value = true;
     const token = localStorage.getItem('token');
     const response = await axios.get('http://localhost:5000/api/vehicles/drivers', {
       headers: {
@@ -159,52 +213,101 @@ const fetchDrivers = async () => {
     drivers.value = response.data.data;
   } catch (err) {
     error.value = err.response?.data?.message || '获取司机失败';
+  } finally {
+    loading.value = false;
   }
 };
 
-const handleAddVehicle = async () => {
+const openVehicleDialog = (vehicle = null) => {
+  if (vehicle) {
+    vehicleForm.id = vehicle.id;
+    vehicleForm.plate_number = vehicle.plate_number;
+    vehicleForm.model = vehicle.model;
+    vehicleForm.status = vehicle.status;
+    vehicleDialogTitle.value = '编辑车辆';
+  } else {
+    vehicleForm.id = null;
+    vehicleForm.plate_number = '';
+    vehicleForm.model = '';
+    vehicleForm.status = 'available';
+    vehicleDialogTitle.value = '添加车辆';
+  }
+  vehicleDialogVisible.value = true;
+};
+
+const openDriverDialog = (driver = null) => {
+  if (driver) {
+    driverForm.id = driver.id;
+    driverForm.name = driver.name;
+    driverForm.license = driver.license;
+    driverForm.status = driver.status;
+    driverDialogTitle.value = '编辑司机';
+  } else {
+    driverForm.id = null;
+    driverForm.name = '';
+    driverForm.license = '';
+    driverForm.status = 'available';
+    driverDialogTitle.value = '添加司机';
+  }
+  driverDialogVisible.value = true;
+};
+
+const saveVehicle = async () => {
   try {
+    await vehicleFormRef.value.validate();
+    loading.value = true;
     const token = localStorage.getItem('token');
-    await axios.post('http://localhost:5000/api/vehicles', newVehicle.value, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    if (vehicleForm.id) {
+      // 编辑车辆
+      await axios.put(`http://localhost:5000/api/vehicles/${vehicleForm.id}`, vehicleForm, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+    } else {
+      // 添加车辆
+      await axios.post('http://localhost:5000/api/vehicles', vehicleForm, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+    }
+    vehicleDialogVisible.value = false;
     fetchVehicles();
-    showAddForm.value = false;
-    newVehicle.value = {
-      plate_number: '',
-      model: '',
-      status: 'available'
-    };
   } catch (err) {
-    error.value = err.response?.data?.message || '添加车辆失败';
+    error.value = err.response?.data?.message || '保存失败';
+  } finally {
+    loading.value = false;
   }
 };
 
-const handleAddDriver = async () => {
+const saveDriver = async () => {
   try {
+    await driverFormRef.value.validate();
+    loading.value = true;
     const token = localStorage.getItem('token');
-    await axios.post('http://localhost:5000/api/vehicles/drivers', newDriver.value, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    if (driverForm.id) {
+      // 编辑司机
+      await axios.put(`http://localhost:5000/api/vehicles/drivers/${driverForm.id}`, driverForm, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+    } else {
+      // 添加司机
+      await axios.post('http://localhost:5000/api/vehicles/drivers', driverForm, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+    }
+    driverDialogVisible.value = false;
     fetchDrivers();
-    showAddDriverForm.value = false;
-    newDriver.value = {
-      name: '',
-      license: '',
-      status: 'available'
-    };
   } catch (err) {
-    error.value = err.response?.data?.message || '添加司机失败';
+    error.value = err.response?.data?.message || '保存失败';
+  } finally {
+    loading.value = false;
   }
-};
-
-const editVehicle = (vehicle) => {
-  // 编辑车辆逻辑
-  console.log('编辑车辆:', vehicle);
 };
 
 const deleteVehicle = async (id) => {
@@ -219,11 +322,6 @@ const deleteVehicle = async (id) => {
   } catch (err) {
     error.value = err.response?.data?.message || '删除车辆失败';
   }
-};
-
-const editDriver = (driver) => {
-  // 编辑司机逻辑
-  console.log('编辑司机:', driver);
 };
 
 const deleteDriver = async (id) => {
@@ -247,91 +345,56 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.vehicle-container {
-  padding: 2rem;
+.vehicle-list-card {
   max-width: 1200px;
   margin: 0 auto;
-}
-
-.add-form {
-  background: white;
-  padding: 1.5rem;
   border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  margin: 1rem 0;
 }
 
-.form-group {
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header-icon {
+  font-size: 1.5rem;
+  margin-right: 0.75rem;
+  color: #409EFF;
+}
+
+.card-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  flex: 1;
+}
+
+.driver-section {
+  margin-top: 2rem;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 1rem;
 }
 
-label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-}
-
-input, select {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  background: white;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  margin: 1rem 0;
-}
-
-.table th, .table td {
-  padding: 1rem;
-  text-align: left;
-  border-bottom: 1px solid #ddd;
-}
-
-.table th {
-  background-color: #f8f9fa;
+.section-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
   font-weight: 600;
+  flex: 1;
+  display: flex;
+  align-items: center;
 }
 
-.btn {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 4px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
+.section-header .header-icon {
   margin-right: 0.5rem;
-  margin-bottom: 0.5rem;
 }
 
-.btn-primary {
-  background-color: #007bff;
-  color: white;
-}
-
-.btn-success {
-  background-color: #28a745;
-  color: white;
-}
-
-.btn-info {
-  background-color: #17a2b8;
-  color: white;
-}
-
-.btn-danger {
-  background-color: #dc3545;
-  color: white;
-}
-
-.error-message {
+.error-alert {
   margin-top: 1rem;
-  color: #dc3545;
-  font-size: 0.875rem;
 }
 </style>

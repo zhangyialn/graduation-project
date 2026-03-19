@@ -1,13 +1,11 @@
 # config.py
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
 # 加载环境变量
-load_dotenv()
+load_dotenv(find_dotenv())
 
 class Config:
-    # 基本配置
-    SECRET_KEY = os.getenv('SECRET_KEY', 'your-secret-key-change-this-in-production')
     
     # 数据库配置
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'mysql+pymysql://root:123456@localhost:3306/graduation-project')
@@ -18,6 +16,3 @@ class Config:
     JWT_ACCESS_TOKEN_EXPIRES = 3600
     JWT_REFRESH_TOKEN_EXPIRES = 604800
     
-    # JSON配置
-    JSON_AS_ASCII = False
-    RESTFUL_JSON = {'ensure_ascii': False}

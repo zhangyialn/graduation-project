@@ -6,7 +6,6 @@ from flask_jwt_extended import jwt_required
 
 
 # 部门用车频率统计
-@jwt_required()
 def get_department_usage():
     try:
         # 按部门统计用车次数
@@ -34,7 +33,6 @@ def get_department_usage():
 
 
 # 部门费用统计
-@jwt_required()
 def get_department_expenses():
     try:
         # 获取时间范围参数
@@ -81,7 +79,6 @@ def get_department_expenses():
 
 
 # 车辆使用统计
-@jwt_required()
 def get_vehicle_usage():
     try:
         # 统计每辆车的使用次数和总里程
@@ -112,7 +109,6 @@ def get_vehicle_usage():
 
 
 # 月度用车统计
-@jwt_required()
 def get_monthly_stats():
     try:
         year = request.args.get('year', func.year(func.now()))
@@ -148,7 +144,6 @@ def get_monthly_stats():
 
 
 # 司机工作量统计
-@jwt_required()
 def get_driver_workload():
     try:
         # 统计每个司机的出车次数和总里程

@@ -5,7 +5,6 @@ from flask_jwt_extended import jwt_required
 
 
 # 获取所有用户
-@jwt_required()
 def get_users():
     try:
         users = User.query.all()
@@ -15,7 +14,6 @@ def get_users():
 
 
 # 获取单个用户
-@jwt_required()
 def get_user(id):
     try:
         user = User.query.get(id)
@@ -27,7 +25,6 @@ def get_user(id):
 
 
 # 创建用户
-@jwt_required()
 def create_user():
     try:
         data = request.json
@@ -49,7 +46,6 @@ def create_user():
 
 
 # 更新用户
-@jwt_required()
 def update_user(id):
     try:
         user = User.query.get(id)
@@ -71,7 +67,6 @@ def update_user(id):
 
 
 # 删除用户
-@jwt_required()
 def delete_user(id):
     try:
         user = User.query.get(id)
@@ -87,7 +82,6 @@ def delete_user(id):
 
 
 # 部门管理接口
-@jwt_required()
 def get_departments():
     try:
         departments = Department.query.all()
@@ -96,7 +90,6 @@ def get_departments():
         return jsonify({'success': False, 'message': str(e)})
 
 
-@jwt_required()
 def create_department():
     try:
         data = request.json

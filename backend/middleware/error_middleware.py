@@ -1,7 +1,6 @@
 # 错误处理中间件
 from flask import jsonify
 from werkzeug.exceptions import HTTPException
-from flask_jwt_extended import InvalidTokenError, NoAuthorizationError
 import logging
 
 
@@ -41,20 +40,7 @@ def register_error_handlers(app):
             'message': '请求方法不允许'
         }), 405
     
-    # JWT错误
-    @app.errorhandler(InvalidTokenError)
-    def invalid_token_error(error):
-        return jsonify({
-            'success': False,
-            'message': '无效的令牌'
-        }), 401
-    
-    @app.errorhandler(NoAuthorizationError)
-    def no_authorization_error(error):
-        return jsonify({
-            'success': False,
-            'message': '缺少认证令牌'
-        }), 401
+    # JWT错误 - 使用通用异常处理
     
     # 通用HTTP错误
     @app.errorhandler(HTTPException)

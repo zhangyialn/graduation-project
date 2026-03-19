@@ -1,11 +1,9 @@
 # 出车记录和费用管理控制器
 from flask import request, jsonify
 from models.index import db, Trip, Expense, Dispatch, Vehicle, Driver, FuelPrice
-from flask_jwt_extended import jwt_required
 
 
 # 获取所有出车记录
-@jwt_required()
 def get_trips():
     try:
         trips = Trip.query.all()
@@ -15,7 +13,6 @@ def get_trips():
 
 
 # 获取单个出车记录
-@jwt_required()
 def get_trip(id):
     try:
         trip = Trip.query.get(id)
@@ -27,7 +24,6 @@ def get_trip(id):
 
 
 # 创建出车记录
-@jwt_required()
 def create_trip():
     try:
         data = request.json
@@ -52,7 +48,6 @@ def create_trip():
 
 
 # 结束出车（用户或司机填写油耗和里程）
-@jwt_required()
 def end_trip(id):
     try:
         trip = Trip.query.get(id)
@@ -133,7 +128,6 @@ def end_trip(id):
 
 
 # 获取费用详情
-@jwt_required()
 def get_trip_expense(id):
     try:
         expense = Expense.query.filter_by(trip_id=id).first()
@@ -145,7 +139,6 @@ def get_trip_expense(id):
 
 
 # 更新费用（用于添加过路费等其他费用）
-@jwt_required()
 def update_trip_expense(id):
     try:
         expense = Expense.query.filter_by(trip_id=id).first()
@@ -166,7 +159,6 @@ def update_trip_expense(id):
 # ==================== 燃油价格管理 ====================
 
 # 获取燃油价格列表
-@jwt_required()
 def get_fuel_prices():
     try:
         prices = FuelPrice.query.all()
@@ -176,7 +168,6 @@ def get_fuel_prices():
 
 
 # 添加燃油价格
-@jwt_required()
 def create_fuel_price():
     try:
         data = request.json

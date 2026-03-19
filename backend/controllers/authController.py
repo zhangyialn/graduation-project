@@ -76,7 +76,6 @@ def login():
 
 
 # 刷新令牌
-@jwt_required()
 def refresh():
     try:
         current_user_id = get_jwt_identity()
@@ -93,7 +92,6 @@ def refresh():
 
 
 # 获取当前用户信息
-@jwt_required()
 def get_current_user():
     try:
         current_user_id = get_jwt_identity()
@@ -111,7 +109,6 @@ def get_current_user():
 
 
 # 修改密码
-@jwt_required()
 def change_password():
     try:
         current_user_id = get_jwt_identity()

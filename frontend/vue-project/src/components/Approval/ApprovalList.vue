@@ -1,5 +1,5 @@
 <template>
-  <el-card class="approval-list-card" shadow="hover">
+    <el-card class="approval-list-card" shadow="hover">
     <template #header>
       <div class="card-header">
         <el-icon class="header-icon"><Check /></el-icon>

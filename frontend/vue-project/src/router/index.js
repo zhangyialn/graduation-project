@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import Login from '../components/Auth/Login.vue';
-import Register from '../components/Auth/Register.vue';
+import ForgotPassword from '../components/Auth/ForgotPassword.vue';
 import Dashboard from '../views/Dashboard.vue';
 import CreateApplication from '../components/Application/CreateApplication.vue';
 import ApplicationList from '../components/Application/ApplicationList.vue';
@@ -19,10 +19,11 @@ const routes = [
     component: Login
   },
   {
-    path: '/register',
-    name: 'Register',
-    component: Register
+    path: '/forgot-password',
+    name: 'ForgotPassword',
+    component: ForgotPassword
   },
+
   {
     path: '/dashboard',
     name: 'Dashboard',

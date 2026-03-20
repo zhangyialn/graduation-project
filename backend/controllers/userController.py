@@ -28,9 +28,14 @@ def get_user(id):
 def create_user():
     try:
         data = request.json
+        # 如果没有提供密码，使用默认密码（手机号或工号）
+        default_password = data.get('password')
+        if not default_password:
+            default_password = data.get('phone', data.get('username', '123456'))
+        
         user = User(
             username=data['username'],
-            password=data['password'],
+            password=default_password,
             name=data['name'],
             email=data['email'],
             phone=data['phone'],
@@ -39,7 +44,7 @@ def create_user():
         )
         db.session.add(user)
         db.session.commit()
-        return jsonify({'success': True, 'data': user.to_dict()})
+        return jsonify({'success': True, 'data': user.to_dict(), 'message': f'用户创建成功，默认密码为：{default_password}'})
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)})

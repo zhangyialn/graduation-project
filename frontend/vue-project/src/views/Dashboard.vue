@@ -110,7 +110,7 @@ watch(route, () => {
 <style scoped>
 .dashboard-container {
   height: 100vh;
-  background-color: #f5f7fa;
+  background-color: #f4f7ed;
 }
 
 .sidebar {
@@ -169,7 +169,10 @@ watch(route, () => {
 }
 
 .main-content {
-  padding: 1.5rem;
+  padding: 0;
   overflow-y: auto;
+  background-color: #f4f7ed;
+  min-height: calc(100vh - 60px);
+  width: 100%;
 }
 </style>

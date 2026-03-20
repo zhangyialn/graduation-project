@@ -18,9 +18,11 @@
           <el-button type="primary" class="login-btn" @click="handleLogin" :loading="loading">
             登录
           </el-button>
-          <el-button class="register-btn" @click="$router.push('/register')">
-            注册
-          </el-button>
+        </el-form-item>
+        <el-form-item>
+          <el-link type="primary" @click="$router.push('/forgot-password')">
+            忘记密码？
+          </el-link>
         </el-form-item>
       </el-form>
       <el-alert v-if="error" :title="error" type="error" show-icon class="error-alert" />
@@ -68,7 +70,7 @@ const handleLogin = async () => {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-color: #f4f7ed;
 }
 
 .login-card {

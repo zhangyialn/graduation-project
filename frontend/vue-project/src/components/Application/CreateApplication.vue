@@ -106,29 +106,166 @@ const resetForm = () => {
 
 <style scoped>
 .application-card {
-  max-width: 800px;
+  max-width: 900px;
   margin: 0 auto;
-  border-radius: 8px;
+  border-radius: 12px;
+  border: 1px solid #e5ddd2;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+  transition: all 0.3s ease;
+  background-color: #ffffff;
+}
+
+.application-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  border-color: #6b8e23;
 }
 
 .card-header {
   display: flex;
   align-items: center;
+  background: linear-gradient(135deg, #f4f7ed 0%, #eff3e6 100%);
+  padding: 1.5rem;
+  border-bottom: 1px solid #e5ddd2;
 }
 
 .header-icon {
-  font-size: 1.5rem;
-  margin-right: 0.75rem;
-  color: #409EFF;
+  font-size: 1.75rem;
+  margin-right: 1rem;
+  color: #6b8e23;
 }
 
 .card-header h2 {
   margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  background: linear-gradient(135deg, #6b8e23 0%, #556b2f 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-.error-alert, .success-alert {
-  margin-top: 1rem;
+:deep(.el-card__body) {
+  padding: 2rem;
+  background-color: #ffffff;
+}
+
+:deep(.el-form-item) {
+  margin-bottom: 22px;
+}
+
+:deep(.el-form-item__label) {
+  color: #2d3436;
+  font-weight: 600;
+  font-size: 0.95rem;
+  font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+}
+
+:deep(.el-input__wrapper) {
+  background-color: #fefdfb;
+  border: 1px solid #e5ddd2;
+  border-radius: 8px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: all 0.3s ease;
+}
+
+:deep(.el-input__wrapper:hover) {
+  border-color: #d4c5b9;
+  background-color: #ffffff;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05), 0 0 0 3px rgba(107, 142, 35, 0.1);
+}
+
+:deep(.el-input__wrapper.is-focus) {
+  border-color: #6b8e23;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(107, 142, 35, 0.15);
+  outline: none;
+}
+
+:deep(.el-input__prefix) {
+  color: #8b7355;
+}
+
+:deep(.el-input-number .el-input__wrapper) {
+  background-color: #fefdfb;
+  border: 1px solid #e5ddd2;
+  border-radius: 8px;
+}
+
+:deep(.el-date-editor) {
+  width: 100%;
+}
+
+:deep(.el-date-editor .el-input__wrapper) {
+  background-color: #fefdfb;
+  border: 1px solid #e5ddd2;
+  border-radius: 8px;
+}
+
+:deep(.el-button.is-primary) {
+  height: 40px !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  background: linear-gradient(135deg, #6b8e23 0%, #556b2f 100%) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  transition: all 0.3s ease !important;
+  margin-right: 0.75rem;
+  color: #ffffff !important;
+  font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif !important;
+}
+
+:deep(.el-button.is-primary:hover) {
+  box-shadow: 0 8px 20px rgba(107, 142, 35, 0.3) !important;
+  transform: translateY(-2px);
+  background: linear-gradient(135deg, #556b2f 0%, #3d5a1f 100%) !important;
+}
+
+:deep(.el-button:not(.is-primary)) {
+  height: 40px !important;
+  width: 100% !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  background-color: #f0f3eb !important;
+  border: 1px solid #d4dcc9 !important;
+  color: #6b8e23 !important;
+  border-radius: 8px !important;
+  transition: all 0.3s ease !important;
+  font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif !important;
+}
+
+:deep(.el-button:not(.is-primary):hover) {
+  background-color: #e5edd8 !important;
+  border-color: #c5cdb6 !important;
+  color: #556b2f !important;
+  transform: translateY(-2px);
+}
+
+.error-alert {
+  margin-top: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid #fde2e4;
+  background-color: #fef0f0;
+  animation: slideDown 0.3s ease;
+}
+
+.success-alert {
+  margin-top: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid #c6e2ff;
+  background-color: #f0f9ff;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

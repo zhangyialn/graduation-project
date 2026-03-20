@@ -153,44 +153,193 @@ const handleResetPassword = async () => {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background-color: #f4f7ed;
+  background: linear-gradient(135deg, #f4f7ed 0%, #eff3e6 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.forgot-password-container::before {
+  content: '';
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(107, 142, 35, 0.1) 0%, transparent 70%);
+  border-radius: 50%;
+  top: -100px;
+  right: -100px;
+  pointer-events: none;
 }
 
 .forgot-password-card {
   width: 100%;
   max-width: 500px;
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  background-color: #ffffff;
+  position: relative;
+  z-index: 1;
+  transition: all 0.3s ease;
+}
+
+.forgot-password-card:hover {
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.15);
+  transform: translateY(-4px);
 }
 
 .forgot-password-header {
   text-align: center;
-  padding: 1rem 0;
+  padding: 2rem 0 1.5rem;
+  background: linear-gradient(135deg, #f4f7ed 0%, #eff3e6 100%);
+  border-bottom: 1px solid #e5ddd2;
 }
 
 .forgot-password-header h2 {
   margin: 1rem 0 0;
-  color: #303133;
+  color: #2d3436;
   font-size: 1.5rem;
-  font-weight: 600;
+  font-weight: 700;
+  font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  background: linear-gradient(135deg, #6b8e23 0%, #556b2f 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-.steps {
+:deep(.el-steps) {
   margin: 2rem 0;
 }
 
+:deep(.el-step__title) {
+  color: #2d3436;
+  font-weight: 500;
+}
+
+:deep(.el-step.is-process .el-step__title) {
+  color: #6b8e23;
+  font-weight: 600;
+}
+
+:deep(.el-step.is-finish .el-step__title) {
+  color: #2d3436;
+}
+
+:deep(.el-step__head) {
+  background-color: transparent;
+}
+
+:deep(.el-step.is-process .el-step__head.is-process) {
+  color: #6b8e23;
+}
+
+:deep(.el-form-item) {
+  margin-bottom: 20px;
+}
+
+:deep(.el-form-item__label) {
+  color: #2d3436;
+  font-weight: 600;
+}
+
 .forgot-form {
-  margin-top: 2rem;
+  margin-top: 1.5rem;
+}
+
+:deep(.el-input__wrapper) {
+  background-color: #fefdfb;
+  border: 1px solid #e5ddd2;
+  border-radius: 8px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s ease;
+}
+
+:deep(.el-input__wrapper:hover) {
+  border-color: #d4c5b9;
+  background-color: #ffffff;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 3px rgba(107, 142, 35, 0.1);
+}
+
+:deep(.el-input__wrapper.is-focus) {
+  border-color: #6b8e23;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(107, 142, 35, 0.15);
+}
+
+:deep(.el-input__prefix) {
+  color: #6b8e23;
 }
 
 .submit-btn {
   width: 100%;
-  margin-bottom: 0.5rem;
+  margin-bottom: 1rem;
+  height: 40px;
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  background: linear-gradient(135deg, #6b8e23 0%, #556b2f 100%) !important;
+  border: none !important;
+  border-radius: 8px;
+  color: #ffffff !important;
+  transition: all 0.3s ease;
+}
+
+.submit-btn:hover {
+  box-shadow: 0 8px 20px rgba(107, 142, 35, 0.3) !important;
+  transform: translateY(-2px);
+  background: linear-gradient(135deg, #556b2f 0%, #3d5a1f 100%) !important;
+}
+
+:deep(.back-btn) {
+  width: 100% !important;
+  height: 40px !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif !important;
+  background-color: #f0f3eb !important;
+  border: 1px solid #d4dcc9 !important;
+  color: #6b8e23 !important;
+  border-radius: 8px !important;
+  transition: all 0.3s ease !important;
+}
+
+:deep(.back-btn:hover) {
+  background-color: #e5ede0 !important;
+  border-color: #c0cbb8 !important;
+  color: #556b2f !important;
+  transform: translateY(-2px);
 }
 
 .back-btn {
   width: 100%;
+  height: 40px;
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  background-color: #f0f3eb;
+  border: 1px solid #d4dcc9;
+  color: #6b8e23;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.back-btn:hover {
+  background-color: #e5ede0;
+  border-color: #c0cbb8;
+  transform: translateY(-2px);
+}
+
+:deep(.el-result) {
+  padding: 0;
+}
+
+:deep(.el-result__title) {
+  color: #2d3436;
+  font-weight: 600;
+}
+
+:deep(.el-result__subtitle) {
+  color: #6b8e23;
 }
 
 .success-step {
@@ -199,6 +348,21 @@ const handleResetPassword = async () => {
 }
 
 .error-alert {
-  margin-top: 1rem;
+  margin-top: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid #fde2e4;
+  background-color: #fef0f0;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

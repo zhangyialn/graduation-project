@@ -1,5 +1,5 @@
-# 把 venv 目录添加到 .gitignore 文件中
-venv/
+# 把 .venv 目录添加到 .gitignore 文件中
+.venv/
 
 # 把 __pycache__ 目录添加到 .gitignore 文件中
 __pycache__/

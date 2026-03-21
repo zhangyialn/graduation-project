@@ -65,6 +65,11 @@ def end_trip(id):
         trip.actual_end_time = data.get('actual_end_time')
         trip.ended_by = data['ended_by']
         trip.status = 'completed'
+
+        mileage = float(trip.end_mileage) - float(trip.start_mileage)
+        if mileage < 0:
+            return jsonify({'success': False, 'message': '结束里程不能小于起始里程'}), 400
+        trip.distance_km = mileage
         
         # 获取调度信息
         dispatch = Dispatch.query.get(trip.dispatch_id)
@@ -83,22 +88,28 @@ def end_trip(id):
             dispatch.status = 'completed'
         
         # 计算费用
-        fuel_price = FuelPrice.query.filter_by(
+        latest_price = FuelPrice.query.filter_by(
             fuel_type=vehicle.fuel_type if vehicle else '汽油'
         ).order_by(FuelPrice.effective_date.desc()).first()
-        
-        fuel_price_value = fuel_price.price if fuel_price else 0
-        
-        # 计算燃油费用
-        fuel_consumed = trip.start_fuel - trip.end_mileage
-        fuel_cost = fuel_consumed * fuel_price_value
-        
-        # 计算维护费用（假设每公里0.1元）
-        mileage = trip.end_mileage - trip.start_mileage
-        maintenance_cost = mileage * 0.1
+
+        request_fuel_price = data.get('fuel_price')
+        fuel_price_value = float(request_fuel_price) if request_fuel_price is not None else float(latest_price.price) if latest_price else 0.0
+
+        request_cost_per_km = data.get('cost_per_km')
+        if request_cost_per_km is not None:
+            cost_per_km = float(request_cost_per_km)
+        elif vehicle and vehicle.fuel_consumption_per_100km is not None:
+            cost_per_km = float(vehicle.fuel_consumption_per_100km) / 100 * fuel_price_value
+        else:
+            cost_per_km = 0.0
+
+        fuel_cost = mileage * cost_per_km
+
+        # 维护费用（可由前端传入，默认 0）
+        maintenance_cost = float(data.get('maintenance_cost', 0))
         
         # 其他费用
-        other_cost = data.get('other_cost', 0)
+        other_cost = float(data.get('other_cost', 0))
         
         # 总费用
         total_cost = fuel_cost + maintenance_cost + other_cost
@@ -106,6 +117,8 @@ def end_trip(id):
         # 创建费用记录
         expense = Expense(
             trip_id=id,
+            mileage_km=mileage,
+            cost_per_km=cost_per_km,
             fuel_cost=fuel_cost,
             maintenance_cost=maintenance_cost,
             other_cost=other_cost,
@@ -147,7 +160,8 @@ def update_trip_expense(id):
         
         data = request.json
         expense.other_cost = data.get('other_cost', expense.other_cost)
-        expense.total_cost = expense.fuel_cost + expense.maintenance_cost + expense.other_cost
+        expense.maintenance_cost = data.get('maintenance_cost', expense.maintenance_cost)
+        expense.total_cost = float(expense.fuel_cost) + float(expense.maintenance_cost) + float(expense.other_cost)
         
         db.session.commit()
         return jsonify({'success': True, 'data': expense.to_dict()})

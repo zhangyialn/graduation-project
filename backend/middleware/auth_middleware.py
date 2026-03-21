@@ -31,8 +31,15 @@ def role_required(required_roles):
             
             if not user:
                 return jsonify({'success': False, 'message': '用户不存在'}), 404
-            
-            if user.role not in required_roles:
+
+            allowed_roles = required_roles
+            if isinstance(required_roles, str):
+                allowed_roles = [required_roles]
+
+            user_role = user.role.value if hasattr(user.role, 'value') else user.role
+            allowed_role_values = [role.value if hasattr(role, 'value') else role for role in allowed_roles]
+
+            if user_role not in allowed_role_values:
                 return jsonify({'success': False, 'message': '权限不足'}), 403
             
             return f(*args, **kwargs)
@@ -44,4 +51,6 @@ def role_required(required_roles):
 def get_current_user():
     """获取当前登录用户"""
     current_user_id = get_jwt_identity()
+    if current_user_id is None:
+        return None
     return User.query.get(current_user_id)

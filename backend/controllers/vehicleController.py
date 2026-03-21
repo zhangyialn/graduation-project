@@ -1,13 +1,13 @@
 # 车辆管理控制器
 from flask import request, jsonify
 from models.index import db, Vehicle, Driver
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import get_jwt_identity
 
 
 # 获取所有车辆
 def get_vehicles():
     try:
-        vehicles = Vehicle.query.all()
+        vehicles = Vehicle.query.filter_by(is_deleted=False).all()
         return jsonify({'success': True, 'data': [vehicle.to_dict() for vehicle in vehicles]})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
@@ -17,7 +17,7 @@ def get_vehicles():
 def get_vehicle(id):
     try:
         vehicle = Vehicle.query.get(id)
-        if not vehicle:
+        if not vehicle or vehicle.is_deleted:
             return jsonify({'success': False, 'message': '车辆不存在'})
         return jsonify({'success': True, 'data': vehicle.to_dict()})
     except Exception as e:
@@ -33,8 +33,12 @@ def create_vehicle():
             model=data['model'],
             brand=data['brand'],
             color=data['color'],
+            seat_count=data.get('seat_count', 5),
             purchase_date=data['purchase_date'],
-            fuel_type=data['fuel_type']
+            fuel_type=data['fuel_type'],
+            fuel_consumption_per_100km=data.get('fuel_consumption_per_100km'),
+            annual_inspection_date=data.get('annual_inspection_date'),
+            created_by=get_jwt_identity()
         )
         db.session.add(vehicle)
         db.session.commit()
@@ -48,7 +52,7 @@ def create_vehicle():
 def update_vehicle(id):
     try:
         vehicle = Vehicle.query.get(id)
-        if not vehicle:
+        if not vehicle or vehicle.is_deleted:
             return jsonify({'success': False, 'message': '车辆不存在'})
         
         data = request.json
@@ -58,6 +62,10 @@ def update_vehicle(id):
         vehicle.color = data.get('color', vehicle.color)
         vehicle.status = data.get('status', vehicle.status)
         vehicle.fuel_type = data.get('fuel_type', vehicle.fuel_type)
+        vehicle.seat_count = data.get('seat_count', vehicle.seat_count)
+        vehicle.fuel_consumption_per_100km = data.get('fuel_consumption_per_100km', vehicle.fuel_consumption_per_100km)
+        vehicle.annual_inspection_date = data.get('annual_inspection_date', vehicle.annual_inspection_date)
+        vehicle.last_maintenance_date = data.get('last_maintenance_date', vehicle.last_maintenance_date)
         
         db.session.commit()
         return jsonify({'success': True, 'data': vehicle.to_dict()})
@@ -70,10 +78,12 @@ def update_vehicle(id):
 def delete_vehicle(id):
     try:
         vehicle = Vehicle.query.get(id)
-        if not vehicle:
+        if not vehicle or vehicle.is_deleted:
             return jsonify({'success': False, 'message': '车辆不存在'})
-        
-        db.session.delete(vehicle)
+
+        vehicle.is_deleted = True
+        vehicle.deleted_at = db.func.now()
+        vehicle.deleted_by = get_jwt_identity()
         db.session.commit()
         return jsonify({'success': True, 'message': '车辆删除成功'})
     except Exception as e:
@@ -84,7 +94,7 @@ def delete_vehicle(id):
 # 获取可用车辆列表
 def get_available_vehicles():
     try:
-        vehicles = Vehicle.query.filter_by(status='available').all()
+        vehicles = Vehicle.query.filter_by(status='available', is_deleted=False).all()
         return jsonify({'success': True, 'data': [vehicle.to_dict() for vehicle in vehicles]})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
@@ -95,7 +105,7 @@ def get_available_vehicles():
 # 获取所有司机
 def get_drivers():
     try:
-        drivers = Driver.query.all()
+        drivers = Driver.query.filter_by(is_deleted=False).all()
         return jsonify({'success': True, 'data': [driver.to_dict() for driver in drivers]})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
@@ -108,7 +118,9 @@ def create_driver():
         driver = Driver(
             name=data['name'],
             phone=data['phone'],
-            license_number=data['license_number']
+            license_number=data['license_number'],
+            hire_date=data.get('hire_date'),
+            created_by=get_jwt_identity()
         )
         db.session.add(driver)
         db.session.commit()
@@ -122,13 +134,14 @@ def create_driver():
 def update_driver(id):
     try:
         driver = Driver.query.get(id)
-        if not driver:
+        if not driver or driver.is_deleted:
             return jsonify({'success': False, 'message': '司机不存在'})
         
         data = request.json
         driver.name = data.get('name', driver.name)
         driver.phone = data.get('phone', driver.phone)
         driver.status = data.get('status', driver.status)
+        driver.hire_date = data.get('hire_date', driver.hire_date)
         
         db.session.commit()
         return jsonify({'success': True, 'data': driver.to_dict()})
@@ -141,10 +154,12 @@ def update_driver(id):
 def delete_driver(id):
     try:
         driver = Driver.query.get(id)
-        if not driver:
+        if not driver or driver.is_deleted:
             return jsonify({'success': False, 'message': '司机不存在'})
-        
-        db.session.delete(driver)
+
+        driver.is_deleted = True
+        driver.deleted_at = db.func.now()
+        driver.deleted_by = get_jwt_identity()
         db.session.commit()
         return jsonify({'success': True, 'message': '司机删除成功'})
     except Exception as e:
@@ -155,7 +170,7 @@ def delete_driver(id):
 # 获取可用司机列表
 def get_available_drivers():
     try:
-        drivers = Driver.query.filter_by(status='available').all()
+        drivers = Driver.query.filter_by(status='available', is_deleted=False).all()
         return jsonify({'success': True, 'data': [driver.to_dict() for driver in drivers]})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})

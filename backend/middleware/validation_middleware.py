@@ -14,8 +14,19 @@ def validate_request(required_fields=None, optional_fields=None):
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
+            if request.method in ['POST', 'PUT', 'PATCH'] and not request.is_json:
+                return jsonify({
+                    'success': False,
+                    'message': '请求体必须为 JSON 格式'
+                }), 400
+
             # 获取请求数据
             data = request.get_json() or {}
+            if not isinstance(data, dict):
+                return jsonify({
+                    'success': False,
+                    'message': '请求体必须是 JSON 对象'
+                }), 400
             
             # 验证必填字段
             if required_fields:
@@ -25,6 +36,27 @@ def validate_request(required_fields=None, optional_fields=None):
                         'success': False,
                         'message': f'缺少必填字段: {missing_fields}'
                     }), 400
+
+                empty_fields = [
+                    field for field in required_fields
+                    if field in data and (data[field] is None or (isinstance(data[field], str) and not data[field].strip()))
+                ]
+                if empty_fields:
+                    return jsonify({
+                        'success': False,
+                        'message': f'以下字段不能为空: {empty_fields}'
+                    }), 400
+
+            # 限制允许字段（required + optional）
+            if required_fields is not None or optional_fields is not None:
+                allowed_fields = set(required_fields or []) | set(optional_fields or [])
+                if allowed_fields:
+                    unknown_fields = [field for field in data.keys() if field not in allowed_fields]
+                    if unknown_fields:
+                        return jsonify({
+                            'success': False,
+                            'message': f'存在未允许字段: {unknown_fields}'
+                        }), 400
             
             # 验证字段类型
             validation_errors = []

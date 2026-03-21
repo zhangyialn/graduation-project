@@ -1,4 +1,5 @@
 # 错误处理中间件
+from functools import wraps
 from flask import jsonify
 from werkzeug.exceptions import HTTPException
 import logging
@@ -7,6 +8,7 @@ import logging
 # 通用错误处理装饰器
 def error_handler(f):
     """错误处理装饰器"""
+    @wraps(f)
     def decorated_function(*args, **kwargs):
         try:
             return f(*args, **kwargs)
@@ -23,6 +25,31 @@ def error_handler(f):
 # 注册全局错误处理器
 def register_error_handlers(app):
     """注册全局错误处理器"""
+
+    jwt_manager = app.extensions.get('flask-jwt-extended')
+    if jwt_manager:
+        @jwt_manager.unauthorized_loader
+        def jwt_missing_token(error_message):
+            return jsonify({
+                'success': False,
+                'message': '未提供访问令牌',
+                'error': error_message
+            }), 401
+
+        @jwt_manager.invalid_token_loader
+        def jwt_invalid_token(error_message):
+            return jsonify({
+                'success': False,
+                'message': '访问令牌无效',
+                'error': error_message
+            }), 401
+
+        @jwt_manager.expired_token_loader
+        def jwt_expired_token(jwt_header, jwt_payload):
+            return jsonify({
+                'success': False,
+                'message': '访问令牌已过期'
+            }), 401
     
     # 404错误
     @app.errorhandler(404)

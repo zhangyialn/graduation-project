@@ -28,18 +28,19 @@
           <el-tag :type="statusType(scope.row.status)">{{ scope.row.status }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right">
+      <el-table-column label="操作" width="120" fixed="right">
         <template #default="scope">
-          <el-button type="success" size="small" @click="approveApplication(scope.row.id)">
-            <el-icon><Check /></el-icon>
-            批准
-          </el-button>
-          <el-button type="danger" size="small" @click="rejectApplication(scope.row.id)">
-            <el-icon><Close /></el-icon>
-            拒绝
-          </el-button>
+          <el-tag type="info">仅查看</el-tag>
         </template>
       </el-table-column>
+    </el-table>
+
+    <el-divider>审批统计</el-divider>
+    <el-table :data="approvalStats" style="width: 100%" border>
+      <el-table-column prop="approver_name" label="审批人" />
+      <el-table-column prop="total_count" label="总数" width="100" />
+      <el-table-column prop="approved_count" label="已批准" width="100" />
+      <el-table-column prop="rejected_count" label="已拒绝" width="100" />
     </el-table>
     <el-alert v-if="error" :title="error" type="error" show-icon class="error-alert" />
   </el-card>
@@ -48,9 +49,10 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
-import { Check, Close, Search } from '@element-plus/icons-vue';
+import { Check, Search } from '@element-plus/icons-vue';
 
 const applications = ref([]);
+const approvalStats = ref([]);
 const departmentId = ref(1);
 const error = ref('');
 const loading = ref(false);
@@ -69,7 +71,7 @@ const fetchApplications = async () => {
   try {
     loading.value = true;
     const token = localStorage.getItem('token');
-    const response = await axios.get(`http://localhost:5000/api/applications/pending/${departmentId.value}`, {
+    const response = await axios.get(`/api/applications/pending/${departmentId.value}`, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -82,44 +84,23 @@ const fetchApplications = async () => {
   }
 };
 
-const approveApplication = async (id) => {
+const fetchApprovalStatistics = async () => {
   try {
     const token = localStorage.getItem('token');
-    await axios.post(`http://localhost:5000/api/approvals`, {
-      application_id: id,
-      status: 'approved',
-      comment: '批准用车申请'
-    }, {
+    const response = await axios.get('/api/approvals/statistics', {
       headers: {
         Authorization: `Bearer ${token}`
       }
     });
-    fetchApplications();
+    approvalStats.value = response.data.data || [];
   } catch (err) {
-    error.value = err.response?.data?.message || '审批失败';
-  }
-};
-
-const rejectApplication = async (id) => {
-  try {
-    const token = localStorage.getItem('token');
-    await axios.post(`http://localhost:5000/api/approvals`, {
-      application_id: id,
-      status: 'rejected',
-      comment: '拒绝用车申请'
-    }, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
-    fetchApplications();
-  } catch (err) {
-    error.value = err.response?.data?.message || '审批失败';
+    error.value = err.response?.data?.message || '获取审批统计失败';
   }
 };
 
 onMounted(() => {
   fetchApplications();
+  fetchApprovalStatistics();
 });
 </script>
 

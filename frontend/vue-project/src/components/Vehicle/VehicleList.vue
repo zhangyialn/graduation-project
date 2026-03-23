@@ -75,7 +75,7 @@
       <el-table :data="drivers" style="width: 100%" border>
         <el-table-column prop="id" label="司机ID" width="80" />
         <el-table-column prop="name" label="姓名" width="100" />
-        <el-table-column prop="license" label="驾驶证号" />
+        <el-table-column prop="license_number" label="驾驶证号" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="scope">
             <el-tag :type="driverStatusType(scope.row.status)">{{ scope.row.status }}</el-tag>
@@ -104,6 +104,9 @@
         </el-form-item>
         <el-form-item label="驾驶证号" prop="license">
           <el-input v-model="driverForm.license" placeholder="请输入驾驶证号" />
+        </el-form-item>
+        <el-form-item label="手机号" prop="phone">
+          <el-input v-model="driverForm.phone" placeholder="请输入手机号" />
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-select v-model="driverForm.status" placeholder="请选择状态">
@@ -142,7 +145,13 @@ const vehicleForm = reactive({
   id: null,
   plate_number: '',
   model: '',
-  status: 'available'
+  status: 'available',
+  brand: '',
+  color: '',
+  fuel_type: '',
+  seat_count: 5,
+  purchase_date: '',
+  fuel_consumption_per_100km: null
 });
 
 const vehicleRules = reactive({
@@ -155,12 +164,14 @@ const driverForm = reactive({
   id: null,
   name: '',
   license: '',
+  phone: '',
   status: 'available'
 });
 
 const driverRules = reactive({
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
   license: [{ required: true, message: '请输入驾驶证号', trigger: 'blur' }],
+  phone: [{ required: true, message: '请输入手机号', trigger: 'blur' }],
   status: [{ required: true, message: '请选择状态', trigger: 'change' }]
 });
 
@@ -188,7 +199,7 @@ const fetchVehicles = async () => {
   try {
     loading.value = true;
     const token = localStorage.getItem('token');
-    const response = await axios.get('http://localhost:5000/api/vehicles', {
+    const response = await axios.get('/api/vehicles', {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -205,7 +216,7 @@ const fetchDrivers = async () => {
   try {
     loading.value = true;
     const token = localStorage.getItem('token');
-    const response = await axios.get('http://localhost:5000/api/vehicles/drivers', {
+    const response = await axios.get('/api/vehicles/drivers', {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -224,12 +235,24 @@ const openVehicleDialog = (vehicle = null) => {
     vehicleForm.plate_number = vehicle.plate_number;
     vehicleForm.model = vehicle.model;
     vehicleForm.status = vehicle.status;
+    vehicleForm.brand = vehicle.brand;
+    vehicleForm.color = vehicle.color;
+    vehicleForm.fuel_type = vehicle.fuel_type;
+    vehicleForm.seat_count = vehicle.seat_count;
+    vehicleForm.purchase_date = vehicle.purchase_date;
+    vehicleForm.fuel_consumption_per_100km = vehicle.fuel_consumption_per_100km;
     vehicleDialogTitle.value = '编辑车辆';
   } else {
     vehicleForm.id = null;
     vehicleForm.plate_number = '';
     vehicleForm.model = '';
     vehicleForm.status = 'available';
+    vehicleForm.brand = '';
+    vehicleForm.color = '';
+    vehicleForm.fuel_type = '';
+    vehicleForm.seat_count = 5;
+    vehicleForm.purchase_date = '';
+    vehicleForm.fuel_consumption_per_100km = null;
     vehicleDialogTitle.value = '添加车辆';
   }
   vehicleDialogVisible.value = true;
@@ -239,13 +262,15 @@ const openDriverDialog = (driver = null) => {
   if (driver) {
     driverForm.id = driver.id;
     driverForm.name = driver.name;
-    driverForm.license = driver.license;
+    driverForm.license = driver.license_number;
+    driverForm.phone = driver.phone;
     driverForm.status = driver.status;
     driverDialogTitle.value = '编辑司机';
   } else {
     driverForm.id = null;
     driverForm.name = '';
     driverForm.license = '';
+    driverForm.phone = '';
     driverForm.status = 'available';
     driverDialogTitle.value = '添加司机';
   }
@@ -257,16 +282,27 @@ const saveVehicle = async () => {
     await vehicleFormRef.value.validate();
     loading.value = true;
     const token = localStorage.getItem('token');
+    const vehiclePayload = {
+      plate_number: vehicleForm.plate_number,
+      model: vehicleForm.model,
+      status: vehicleForm.status,
+      brand: vehicleForm.brand || vehicleForm.model || '未知品牌',
+      color: vehicleForm.color || '未填写',
+      purchase_date: vehicleForm.purchase_date || new Date().toISOString().slice(0, 10),
+      fuel_type: vehicleForm.fuel_type || '汽油',
+      seat_count: vehicleForm.seat_count || 5,
+      fuel_consumption_per_100km: vehicleForm.fuel_consumption_per_100km
+    };
     if (vehicleForm.id) {
       // 编辑车辆
-      await axios.put(`http://localhost:5000/api/vehicles/${vehicleForm.id}`, vehicleForm, {
+      await axios.put(`/api/vehicles/${vehicleForm.id}`, vehiclePayload, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
     } else {
       // 添加车辆
-      await axios.post('http://localhost:5000/api/vehicles', vehicleForm, {
+      await axios.post('/api/vehicles', vehiclePayload, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -286,16 +322,22 @@ const saveDriver = async () => {
     await driverFormRef.value.validate();
     loading.value = true;
     const token = localStorage.getItem('token');
+    const driverPayload = {
+      name: driverForm.name,
+      phone: driverForm.phone,
+      license_number: driverForm.license,
+      status: driverForm.status
+    };
     if (driverForm.id) {
       // 编辑司机
-      await axios.put(`http://localhost:5000/api/vehicles/drivers/${driverForm.id}`, driverForm, {
+      await axios.put(`/api/vehicles/drivers/${driverForm.id}`, driverPayload, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
     } else {
       // 添加司机
-      await axios.post('http://localhost:5000/api/vehicles/drivers', driverForm, {
+      await axios.post('/api/vehicles/drivers', driverPayload, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -313,7 +355,7 @@ const saveDriver = async () => {
 const deleteVehicle = async (id) => {
   try {
     const token = localStorage.getItem('token');
-    await axios.delete(`http://localhost:5000/api/vehicles/${id}`, {
+    await axios.delete(`/api/vehicles/${id}`, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -327,7 +369,7 @@ const deleteVehicle = async (id) => {
 const deleteDriver = async (id) => {
   try {
     const token = localStorage.getItem('token');
-    await axios.delete(`http://localhost:5000/api/vehicles/drivers/${id}`, {
+    await axios.delete(`/api/vehicles/drivers/${id}`, {
       headers: {
         Authorization: `Bearer ${token}`
       }

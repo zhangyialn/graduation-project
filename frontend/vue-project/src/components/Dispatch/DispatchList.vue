@@ -24,7 +24,7 @@
       </el-table-column>
       <el-table-column label="操作" width="200" fixed="right">
         <template #default="scope">
-          <el-button type="success" size="small" @click="startDispatch(scope.row.id)" v-if="scope.row.status === 'pending'">
+          <el-button type="success" size="small" @click="startDispatch(scope.row.id)" v-if="scope.row.status === 'scheduled'">
             <el-icon><Check /></el-icon>
             开始
           </el-button>
@@ -40,13 +40,34 @@
     <el-dialog v-model="dialogVisible" title="添加调度" width="400px">
       <el-form :model="form" :rules="rules" ref="dispatchForm" label-width="100px">
         <el-form-item label="申请ID" prop="application_id">
-          <el-input v-model.number="form.application_id" placeholder="请输入申请ID" />
+          <el-select v-model="form.application_id" placeholder="请选择待调度申请" style="width: 100%">
+            <el-option
+              v-for="item in pendingApplications"
+              :key="item.id"
+              :label="`#${item.id} - ${item.purpose}`"
+              :value="item.id"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="车辆ID" prop="vehicle_id">
-          <el-input v-model.number="form.vehicle_id" placeholder="请输入车辆ID" />
+          <el-select v-model="form.vehicle_id" placeholder="请选择可用车辆" style="width: 100%">
+            <el-option
+              v-for="item in availableVehicles"
+              :key="item.id"
+              :label="`#${item.id} - ${item.plate_number}`"
+              :value="item.id"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="司机ID" prop="driver_id">
-          <el-input v-model.number="form.driver_id" placeholder="请输入司机ID" />
+          <el-select v-model="form.driver_id" placeholder="请选择可用司机" style="width: 100%">
+            <el-option
+              v-for="item in availableDrivers"
+              :key="item.id"
+              :label="`#${item.id} - ${item.name}`"
+              :value="item.id"
+            />
+          </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -67,6 +88,9 @@ import axios from 'axios';
 import { DataAnalysis, Plus, Check, Close } from '@element-plus/icons-vue';
 
 const dispatches = ref([]);
+const pendingApplications = ref([]);
+const availableVehicles = ref([]);
+const availableDrivers = ref([]);
 const dialogVisible = ref(false);
 const error = ref('');
 const loading = ref(false);
@@ -87,7 +111,7 @@ const dispatchForm = ref(null);
 
 const statusType = (status) => {
   const typeMap = {
-    pending: 'warning',
+    scheduled: 'warning',
     in_progress: 'info',
     completed: 'success',
     cancelled: 'danger'
@@ -99,7 +123,7 @@ const fetchDispatches = async () => {
   try {
     loading.value = true;
     const token = localStorage.getItem('token');
-    const response = await axios.get('http://localhost:5000/api/dispatches', {
+    const response = await axios.get('/api/dispatches', {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -116,7 +140,52 @@ const openAddDialog = () => {
   form.application_id = '';
   form.vehicle_id = '';
   form.driver_id = '';
+  fetchPendingApplications();
+  fetchAvailableVehicles();
+  fetchAvailableDrivers();
   dialogVisible.value = true;
+};
+
+const fetchPendingApplications = async () => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await axios.get('/api/dispatches/pending', {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+    pendingApplications.value = response.data.data || [];
+  } catch (err) {
+    error.value = err.response?.data?.message || '获取待调度申请失败';
+  }
+};
+
+const fetchAvailableVehicles = async () => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await axios.get('/api/vehicles/available', {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+    availableVehicles.value = response.data.data || [];
+  } catch (err) {
+    error.value = err.response?.data?.message || '获取可用车辆失败';
+  }
+};
+
+const fetchAvailableDrivers = async () => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await axios.get('/api/vehicles/drivers/available', {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+    availableDrivers.value = response.data.data || [];
+  } catch (err) {
+    error.value = err.response?.data?.message || '获取可用司机失败';
+  }
 };
 
 const handleAddDispatch = async () => {
@@ -124,7 +193,20 @@ const handleAddDispatch = async () => {
     await dispatchForm.value.validate();
     loading.value = true;
     const token = localStorage.getItem('token');
-    await axios.post('http://localhost:5000/api/dispatches', form, {
+    const userStr = localStorage.getItem('user');
+    const user = userStr ? JSON.parse(userStr) : null;
+
+    if (!user) {
+      error.value = '用户信息不存在';
+      return;
+    }
+
+    await axios.post('/api/dispatches', {
+      application_id: form.application_id,
+      vehicle_id: form.vehicle_id,
+      driver_id: form.driver_id,
+      dispatcher_id: user.id
+    }, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -141,7 +223,7 @@ const handleAddDispatch = async () => {
 const startDispatch = async (id) => {
   try {
     const token = localStorage.getItem('token');
-    await axios.post(`http://localhost:5000/api/dispatches/${id}/start`, {}, {
+    await axios.post(`/api/dispatches/${id}/start`, {}, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -155,7 +237,7 @@ const startDispatch = async (id) => {
 const cancelDispatch = async (id) => {
   try {
     const token = localStorage.getItem('token');
-    await axios.post(`http://localhost:5000/api/dispatches/${id}/cancel`, {}, {
+    await axios.post(`/api/dispatches/${id}/cancel`, {}, {
       headers: {
         Authorization: `Bearer ${token}`
       }

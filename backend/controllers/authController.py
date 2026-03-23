@@ -136,3 +136,33 @@ def change_password():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# 验证手机号是否匹配用户名（找回密码步骤1）
+def verify_phone():
+    try:
+        data = request.json
+        user = User.query.filter_by(username=data['username'], phone=data['phone']).first()
+        if not user:
+            return jsonify({'success': False, 'message': '用户名与手机号不匹配'}), 400
+        return jsonify({'success': True, 'message': '验证通过'}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# 重置密码（找回密码步骤2）
+def reset_password():
+    try:
+        data = request.json
+        user = User.query.filter_by(username=data['username'], phone=data['phone']).first()
+        if not user:
+            return jsonify({'success': False, 'message': '用户名与手机号不匹配'}), 400
+
+        hashed_password = generate_password_hash(data['new_password']).decode('utf-8')
+        user.password = hashed_password
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': '密码已重置，请使用新密码登录'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500

@@ -32,11 +32,8 @@
       <el-form-item label="目的地" prop="destination">
         <el-input v-model="form.destination" placeholder="请输入目的地" />
       </el-form-item>
-      <el-form-item label="乘车人数" prop="passengers">
-        <el-input-number v-model="form.passengers" :min="1" :max="10" placeholder="请输入乘车人数" />
-      </el-form-item>
-      <el-form-item label="联系电话" prop="contact_phone">
-        <el-input v-model="form.contact_phone" placeholder="请输入联系电话" />
+      <el-form-item label="乘车人数" prop="passenger_count">
+        <el-input-number v-model="form.passenger_count" :min="1" :max="10" placeholder="请输入乘车人数" />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="handleSubmit" :loading="loading">提交申请</el-button>
@@ -61,8 +58,7 @@ const form = reactive({
   start_time: '',
   end_time: '',
   destination: '',
-  passengers: 1,
-  contact_phone: ''
+  passenger_count: 1
 });
 const rules = reactive({
   department_id: [{ required: true, message: '请输入部门ID', trigger: 'blur' }],
@@ -70,8 +66,7 @@ const rules = reactive({
   start_time: [{ required: true, message: '请选择开始时间', trigger: 'change' }],
   end_time: [{ required: true, message: '请选择结束时间', trigger: 'change' }],
   destination: [{ required: true, message: '请输入目的地', trigger: 'blur' }],
-  passengers: [{ required: true, message: '请输入乘车人数', trigger: 'blur' }],
-  contact_phone: [{ required: true, message: '请输入联系电话', trigger: 'blur' }]
+  passenger_count: [{ required: true, message: '请输入乘车人数', trigger: 'blur' }]
 });
 const error = ref('');
 const success = ref('');
@@ -83,7 +78,24 @@ const handleSubmit = async () => {
     await applicationForm.value.validate();
     loading.value = true;
     const token = localStorage.getItem('token');
-    const response = await axios.post('http://localhost:5000/api/applications', form, {
+    const userStr = localStorage.getItem('user');
+    const user = userStr ? JSON.parse(userStr) : null;
+    if (!user) {
+      error.value = '用户信息不存在';
+      return;
+    }
+
+    const payload = {
+      applicant_id: user.id,
+      department_id: form.department_id,
+      purpose: form.purpose,
+      destination: form.destination,
+      passenger_count: form.passenger_count,
+      start_time: form.start_time ? new Date(form.start_time).toISOString() : '',
+      end_time: form.end_time ? new Date(form.end_time).toISOString() : ''
+    };
+
+    await axios.post('/api/applications', payload, {
       headers: {
         Authorization: `Bearer ${token}`
       }

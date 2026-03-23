@@ -59,7 +59,7 @@ const fetchApplications = async () => {
       return;
     }
     
-    const response = await axios.get(`http://localhost:5000/api/applications/my/${user.id}`, {
+    const response = await axios.get(`/api/applications/my/${user.id}`, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -73,7 +73,7 @@ const fetchApplications = async () => {
 const cancelApplication = async (id) => {
   try {
     const token = localStorage.getItem('token');
-    await axios.post(`http://localhost:5000/api/applications/${id}/cancel`, {}, {
+    await axios.post(`/api/applications/${id}/cancel`, {}, {
       headers: {
         Authorization: `Bearer ${token}`
       }

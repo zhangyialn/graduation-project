@@ -52,7 +52,7 @@ const handleLogin = async () => {
   try {
     await loginForm.value.validate();
     loading.value = true;
-    const response = await axios.post('http://localhost:5000/api/auth/login', form);
+    const response = await axios.post('/api/auth/login', form);
     localStorage.setItem('token', response.data.data.access_token);
     localStorage.setItem('user', JSON.stringify(response.data.data.user));
     router.push('/dashboard');

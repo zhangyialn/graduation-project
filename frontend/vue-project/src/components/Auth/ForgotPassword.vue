@@ -15,15 +15,15 @@
       </el-steps>
       
       <el-form :model="form" :rules="rules" ref="forgotForm" label-position="top" class="forgot-form">
-        <!-- 步骤1：验证身份 -->
+        <!-- 步骤1：验证身份（用户名 + 手机号） -->
         <div v-if="currentStep === 0">
           <el-form-item label="用户名" prop="username">
             <el-input v-model="form.username" placeholder="请输入用户名" prefix-icon="User" />
           </el-form-item>
           <el-form-item label="手机号" prop="phone">
-            <el-input v-model="form.phone" placeholder="请输入绑定的手机号" prefix-icon="Phone" />
+            <el-input v-model="form.phone" placeholder="请输入绑定手机号" prefix-icon="Phone" />
           </el-form-item>
-          <el-form-item>
+          <el-form-item class="action-row">
             <el-button type="primary" class="submit-btn" @click="handleVerify" :loading="loading">
               验证
             </el-button>
@@ -41,7 +41,7 @@
           <el-form-item label="确认密码" prop="confirmPassword">
             <el-input v-model="form.confirmPassword" type="password" placeholder="请再次输入新密码" prefix-icon="Lock" show-password />
           </el-form-item>
-          <el-form-item>
+          <el-form-item class="action-row">
             <el-button type="primary" class="submit-btn" @click="handleResetPassword" :loading="loading">
               重置密码
             </el-button>
@@ -74,10 +74,8 @@
 
 <script setup>
 import { ref, reactive } from 'vue';
-import { useRouter } from 'vue-router';
 import axios from 'axios';
 
-const router = useRouter();
 const currentStep = ref(0);
 const error = ref('');
 const loading = ref(false);
@@ -113,16 +111,16 @@ const rules = reactive({
 
 const handleVerify = async () => {
   try {
-    await forgotForm.value.validate();
+    await forgotForm.value.validateField(['username', 'phone']);
     loading.value = true;
-    await axios.post('http://localhost:5000/api/auth/verify', {
+    await axios.post('/api/auth/verify-phone', {
       username: form.username,
       phone: form.phone
     });
     currentStep.value = 1;
     error.value = '';
   } catch (err) {
-    error.value = err.response?.data?.message || '身份验证失败，请检查用户名和手机号';
+    error.value = err.response?.data?.message || '验证失败，请检查输入内容';
   } finally {
     loading.value = false;
   }
@@ -130,12 +128,12 @@ const handleVerify = async () => {
 
 const handleResetPassword = async () => {
   try {
-    await forgotForm.value.validate();
+    await forgotForm.value.validateField(['username', 'phone', 'newPassword', 'confirmPassword']);
     loading.value = true;
-    await axios.post('http://localhost:5000/api/auth/reset-password', {
+    await axios.post('/api/auth/reset-password', {
       username: form.username,
       phone: form.phone,
-      newPassword: form.newPassword
+      new_password: form.newPassword
     });
     currentStep.value = 2;
     error.value = '';
@@ -272,7 +270,7 @@ const handleResetPassword = async () => {
 
 .submit-btn {
   width: 100%;
-  margin-bottom: 1rem;
+  margin-bottom: 0;
   height: 40px;
   font-size: 1rem;
   font-weight: 600;
@@ -290,7 +288,7 @@ const handleResetPassword = async () => {
   background: linear-gradient(135deg, #556b2f 0%, #3d5a1f 100%) !important;
 }
 
-:deep(.back-btn) {
+.back-btn {
   width: 100% !important;
   height: 40px !important;
   font-size: 1rem !important;
@@ -303,30 +301,21 @@ const handleResetPassword = async () => {
   transition: all 0.3s ease !important;
 }
 
-:deep(.back-btn:hover) {
+.back-btn:hover {
   background-color: #e5ede0 !important;
   border-color: #c0cbb8 !important;
   color: #556b2f !important;
   transform: translateY(-2px);
 }
 
-.back-btn {
-  width: 100%;
-  height: 40px;
-  font-size: 1rem;
-  font-weight: 600;
-  font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
-  background-color: #f0f3eb;
-  border: 1px solid #d4dcc9;
-  color: #6b8e23;
-  border-radius: 8px;
-  transition: all 0.3s ease;
+.action-row :deep(.el-form-item__content) {
+  display: flex;
+  gap: 12px;
 }
 
-.back-btn:hover {
-  background-color: #e5ede0;
-  border-color: #c0cbb8;
-  transform: translateY(-2px);
+.action-row .submit-btn,
+.action-row .back-btn {
+  flex: 1 1 0;
 }
 
 :deep(.el-result) {

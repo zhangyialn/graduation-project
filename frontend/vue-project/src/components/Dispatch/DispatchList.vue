@@ -100,7 +100,6 @@
       </template>
     </el-dialog>
     
-    <el-alert v-if="error" :title="error" type="error" show-icon class="error-alert" />
   </el-card>
 </template>
 
@@ -109,6 +108,7 @@ import { ref, reactive, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import axios from 'axios';
 import { DataAnalysis, Plus, Check, Close } from '@element-plus/icons-vue';
 import { useFuelPriceStore } from '../../stores/fuelPrice';
+import { notifyError } from '../../utils/notify';
 
 const dispatches = ref([]);
 const pendingApplications = ref([]);
@@ -336,6 +336,11 @@ watch(() => form.vehicle_id, async () => {
   if (!selectedVehicle.value) return;
   fuelStore.setFuelType(currentFuelType.value);
   await ensureDailyFuelPrice();
+});
+
+watch(error, (message) => {
+  if (!message) return;
+  notifyError(message);
 });
 </script>
 

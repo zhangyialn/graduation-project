@@ -40,16 +40,15 @@
         <el-button class="action-btn" @click="resetForm">重置</el-button>
       </el-form-item>
     </el-form>
-    <el-alert v-if="error" :title="error" type="error" show-icon class="error-alert" />
-    <el-alert v-if="success" :title="success" type="success" show-icon class="success-alert" />
   </el-card>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue';
+import { ref, reactive, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { DocumentAdd } from '@element-plus/icons-vue';
+import { notifyError, notifySuccess } from '../../utils/notify';
 
 const router = useRouter();
 const form = reactive({
@@ -130,6 +129,16 @@ const handleSubmit = async () => {
 const resetForm = () => {
   applicationForm.value.resetFields();
 };
+
+watch(error, (message) => {
+  if (!message) return;
+  notifyError(message);
+});
+
+watch(success, (message) => {
+  if (!message) return;
+  notifySuccess(message);
+});
 </script>
 
 <style scoped>

@@ -16,8 +16,6 @@
       </div>
     </div>
 
-    <el-alert v-if="error" type="error" show-icon :title="error" class="mb" />
-
     <el-tabs v-model="activeTab">
       <el-tab-pane label="我的审批" name="mine">
         <div v-if="isMobile" class="mobile-list">
@@ -62,8 +60,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import axios from 'axios';
+import { notifyError } from '../utils/notify';
 
 const myApprovals = ref([]);
 const allApprovals = ref([]);
@@ -110,6 +109,11 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateWidth);
+});
+
+watch(error, (message) => {
+  if (!message) return;
+  notifyError(message);
 });
 </script>
 

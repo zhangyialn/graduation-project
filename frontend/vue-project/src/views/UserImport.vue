@@ -26,9 +26,6 @@
         </template>
       </el-upload>
 
-      <el-alert v-if="error" type="error" show-icon :title="error" class="mt" />
-      <el-alert v-if="success" type="success" show-icon :title="success" class="mt" />
-
       <div v-if="result" class="result mt">
         <div class="summary">
           <div>批次ID：{{ result.batch_id }}</div>
@@ -47,9 +44,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import axios from 'axios';
 import { UploadFilled } from '@element-plus/icons-vue';
+import { notifyError, notifySuccess } from '../utils/notify';
 
 const fileList = ref([]);
 const fileRef = ref(null);
@@ -92,6 +90,16 @@ const submit = async () => {
     loading.value = false;
   }
 };
+
+watch(error, (message) => {
+  if (!message) return;
+  notifyError(message);
+});
+
+watch(success, (message) => {
+  if (!message) return;
+  notifySuccess(message);
+});
 </script>
 
 <style scoped>

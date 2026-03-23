@@ -47,15 +47,14 @@
       </div>
     </el-skeleton>
 
-    <el-alert v-if="error" :title="error" type="error" show-icon class="mt" />
   </el-card>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
-import { ElMessage } from 'element-plus';
+import { notifyError, notifySuccess } from '../../utils/notify';
 
 const route = useRoute();
 const router = useRouter();
@@ -97,7 +96,7 @@ const submit = async (status) => {
       status,
       comment: form.comment
     }, { headers: tokenHeader() });
-    ElMessage.success(status === 'approved' ? '审批已同意' : '审批已驳回');
+    notifySuccess(status === 'approved' ? '审批已同意' : '审批已驳回');
     await fetchData();
   } catch (err) {
     error.value = err.response?.data?.message || '提交审批失败';
@@ -107,6 +106,11 @@ const submit = async (status) => {
 };
 
 onMounted(fetchData);
+
+watch(error, (message) => {
+  if (!message) return;
+  notifyError(message);
+});
 </script>
 
 <style scoped>

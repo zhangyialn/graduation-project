@@ -5,15 +5,12 @@
         <div class="title">油价管理</div>
         <div class="hint">按地区获取当日油价并回填展示；结束出车时费用使用最新同类型油价 * 油耗</div>
         <div class="hint" v-if="cacheHint">{{ cacheHint }}</div>
+        <div class="hint" v-if="locationHint">{{ locationHint }}</div>
       </div>
       <div class="actions">
         <el-button plain size="small" :loading="loadingRemotePrice" @click="refreshByLocation">重新定位并更新油价</el-button>
       </div>
     </div>
-
-    <el-alert v-if="error" type="error" show-icon :title="error" class="mb" />
-    <el-alert v-if="success" type="success" show-icon :title="success" class="mb" />
-    <el-alert v-if="locationHint" type="info" show-icon :title="locationHint" class="mb" />
 
     <el-form :model="form" label-width="120px" class="form">
       <el-form-item label="地区">
@@ -42,7 +39,10 @@
       <el-table-column prop="created_at" label="创建时间" />
     </el-table>
 
-    <el-alert type="info" show-icon class="mb" title="说明" description="结束出车时，后端会按车辆油耗和最新油价计算 fuel_cost。油价接口每天仅请求一次，结果保存在 Pinia（并持久化到本地），本页不支持手动新增油价。" />
+    <div class="info-note mb">
+      <div class="info-note-title">说明</div>
+      <div class="info-note-text">结束出车时，后端会按车辆油耗和最新油价计算 fuel_cost。油价接口每天仅请求一次，结果保存在 Pinia（并持久化到本地），本页不支持手动新增油价。</div>
+    </div>
   </div>
 </template>
 
@@ -50,6 +50,7 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import axios from 'axios';
 import { useFuelPriceStore } from '../stores/fuelPrice';
+import { notifyError, notifySuccess } from '../utils/notify';
 
 const prices = ref([]);
 const error = ref('');
@@ -173,6 +174,16 @@ onMounted(async () => {
   form.value.region_name = fuelStore.regionName;
   syncPriceFromStore();
 });
+
+watch(error, (message) => {
+  if (!message) return;
+  notifyError(message);
+});
+
+watch(success, (message) => {
+  if (!message) return;
+  notifySuccess(message);
+});
 </script>
 
 <style scoped>
@@ -214,5 +225,23 @@ onMounted(async () => {
 .form {
   margin-bottom: 12px;
   max-width: 480px;
+}
+
+.info-note {
+  border: 1px solid #dfe6d2;
+  background: #f7faef;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.info-note-title {
+  font-weight: 700;
+  color: #2d3436;
+  margin-bottom: 2px;
+}
+
+.info-note-text {
+  color: #4d5b44;
+  line-height: 1.5;
 }
 </style>

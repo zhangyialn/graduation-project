@@ -163,14 +163,14 @@
       </template>
     </el-dialog>
     
-    <el-alert v-if="error" :title="error" type="error" show-icon class="error-alert" />
   </el-card>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onBeforeUnmount, computed } from 'vue';
+import { ref, reactive, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import axios from 'axios';
 import { Van, Plus, Edit, Delete, UserFilled } from '@element-plus/icons-vue';
+import { notifyError } from '../../utils/notify';
 
 const vehicles = ref([]);
 const drivers = ref([]);
@@ -435,6 +435,11 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateWidth);
+});
+
+watch(error, (message) => {
+  if (!message) return;
+  notifyError(message);
 });
 </script>
 

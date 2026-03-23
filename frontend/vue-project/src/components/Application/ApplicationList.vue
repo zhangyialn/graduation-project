@@ -45,14 +45,14 @@
         </template>
       </el-table-column>
     </el-table>
-    <el-alert v-if="error" :title="error" type="error" show-icon class="error-alert" />
   </el-card>
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
+import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import axios from 'axios';
 import { Document, Close } from '@element-plus/icons-vue';
+import { notifyError } from '../../utils/notify';
 
 const applications = ref([]);
 const error = ref('');
@@ -121,6 +121,11 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateWidth);
+});
+
+watch(error, (message) => {
+  if (!message) return;
+  notifyError(message);
 });
 </script>
 

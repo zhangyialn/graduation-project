@@ -14,7 +14,7 @@
         <el-step title="完成" />
       </el-steps>
       
-      <el-form :model="form" :rules="rules" ref="forgotForm" label-position="top" class="forgot-form">
+      <el-form :model="form" :rules="rules" ref="forgotForm" label-position="top" class="forgot-form" :show-message="false">
         <!-- 步骤1：验证身份（用户名 + 手机号） -->
         <div v-if="currentStep === 0">
           <el-form-item label="用户名" prop="username">
@@ -67,7 +67,6 @@
         </div>
       </el-form>
       
-      <el-alert v-if="error" :title="error" type="error" show-icon class="error-alert" />
     </el-card>
   </div>
 </template>
@@ -75,6 +74,7 @@
 <script setup>
 import { ref, reactive } from 'vue';
 import axios from 'axios';
+import { notifyError, notifyWarning } from '../../utils/notify';
 import forgotPasswordAvatar from '../../assets/forgot-password.png';
 
 const currentStep = ref(0);
@@ -121,7 +121,14 @@ const handleVerify = async () => {
     currentStep.value = 1;
     error.value = '';
   } catch (err) {
-    error.value = err.response?.data?.message || '验证失败，请检查输入内容';
+    if (err?.response) {
+      error.value = err.response?.data?.message || '验证失败，请检查输入内容';
+      notifyError(error.value);
+      return;
+    }
+
+    error.value = '';
+    notifyWarning('请先填写用户名和手机号');
   } finally {
     loading.value = false;
   }
@@ -139,7 +146,14 @@ const handleResetPassword = async () => {
     currentStep.value = 2;
     error.value = '';
   } catch (err) {
-    error.value = err.response?.data?.message || '密码重置失败';
+    if (err?.response) {
+      error.value = err.response?.data?.message || '密码重置失败';
+      notifyError(error.value);
+      return;
+    }
+
+    error.value = '';
+    notifyWarning('请先完整填写新密码信息');
   } finally {
     loading.value = false;
   }
@@ -343,14 +357,6 @@ const handleResetPassword = async () => {
 .success-step {
   text-align: center;
   padding: 2rem 0;
-}
-
-.error-alert {
-  margin-top: 1.5rem;
-  border-radius: 8px;
-  border: 1px solid #fde2e4;
-  background-color: #fef0f0;
-  animation: slideDown 0.3s ease;
 }
 
 @keyframes slideDown {

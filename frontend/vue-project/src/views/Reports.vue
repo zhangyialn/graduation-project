@@ -8,8 +8,6 @@
       <el-button type="primary" :loading="loading" @click="fetchAll">刷新数据</el-button>
     </div>
 
-    <el-alert v-if="error" type="error" show-icon :title="error" class="mb" />
-
     <div class="priority-grid">
       <el-card shadow="hover">
         <template #header><div class="card-title">月度用车趋势（重点）</div></template>
@@ -54,6 +52,7 @@
 import { ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue';
 import axios from 'axios';
 import * as echarts from 'echarts';
+import { notifyError } from '../utils/notify';
 
 const loading = ref(false);
 const error = ref('');
@@ -258,6 +257,11 @@ const handleResize = () => {
 watch(expandedPanels, async () => {
   await nextTick();
   renderAllCharts();
+});
+
+watch(error, (message) => {
+  if (!message) return;
+  notifyError(message);
 });
 
 onMounted(async () => {

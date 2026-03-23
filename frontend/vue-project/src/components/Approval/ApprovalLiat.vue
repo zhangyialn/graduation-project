@@ -56,15 +56,15 @@
       <el-table-column prop="rejected_count" label="驳回" width="100" />
     </el-table>
 
-    <el-alert v-if="error" :title="error" type="error" show-icon class="mt" />
   </el-card>
 </template>
 
 <script setup>
-import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { Check } from '@element-plus/icons-vue';
+import { notifyError } from '../../utils/notify';
 
 const router = useRouter();
 const applications = ref([]);
@@ -116,6 +116,11 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateWidth);
+});
+
+watch(error, (message) => {
+  if (!message) return;
+  notifyError(message);
 });
 </script>
 

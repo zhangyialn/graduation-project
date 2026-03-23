@@ -7,7 +7,7 @@
           <h2>公务用车管理系统</h2>
         </div>
       </template>
-      <el-form :model="form" :rules="rules" ref="loginForm" label-position="top">
+      <el-form :model="form" :rules="rules" ref="loginForm" label-position="top" :show-message="false">
         <el-form-item label="用户名" prop="username">
           <el-input v-model="form.username" placeholder="请输入用户名" prefix-icon="User" />
         </el-form-item>
@@ -25,7 +25,6 @@
           </el-link>
         </el-form-item>
       </el-form>
-      <el-alert v-if="error" :title="error" type="error" show-icon class="error-alert" />
     </el-card>
   </div>
 </template>
@@ -34,6 +33,7 @@
 import { ref, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
+import { notifyError, notifyWarning } from '../../utils/notify';
 import carAvatar from '../../assets/car.png';
 
 const router = useRouter();
@@ -58,7 +58,14 @@ const handleLogin = async () => {
     localStorage.setItem('user', JSON.stringify(response.data.data.user));
     router.push('/dashboard');
   } catch (err) {
-    error.value = err.response?.data?.message || '登录失败，请检查用户名和密码';
+    if (err?.response) {
+      error.value = err.response?.data?.message || '登录失败，请检查用户名和密码';
+      notifyError(error.value);
+      return;
+    }
+
+    error.value = '';
+    notifyWarning('请先填写用户名和密码');
   } finally {
     loading.value = false;
   }
@@ -223,14 +230,6 @@ const handleLogin = async () => {
 
 :deep(.el-link.is-underline:hover) {
   color: #556b2f !important;
-}
-
-.error-alert {
-  margin-top: 1rem;
-  border-radius: 8px;
-  border: 1px solid #fde2e4;
-  background-color: #fef0f0;
-  animation: slideDown 0.3s ease;
 }
 
 @keyframes slideDown {

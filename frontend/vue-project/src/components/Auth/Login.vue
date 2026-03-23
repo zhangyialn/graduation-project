@@ -3,7 +3,7 @@
     <el-card class="login-card" shadow="hover">
       <template #header>
         <div class="login-header">
-          <el-avatar :size="60" src="https://img.icons8.com/color/96/000000/car.png" />
+          <el-avatar :size="60" :src="carAvatar" />
           <h2>公务用车管理系统</h2>
         </div>
       </template>
@@ -34,6 +34,7 @@
 import { ref, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
+import carAvatar from '../../assets/car.png';
 
 const router = useRouter();
 const form = reactive({
@@ -71,7 +72,7 @@ const handleLogin = async () => {
   align-items: center;
   min-height: 100vh;
   padding: max(16px, env(safe-area-inset-top)) 12px 16px;
-  background: linear-gradient(135deg, #f4f7ed 0%, #eff3e6 100%);
+  background: #f4f7ed;
   position: relative;
   overflow: hidden;
 }
@@ -81,7 +82,7 @@ const handleLogin = async () => {
   position: absolute;
   width: 400px;
   height: 400px;
-  background: radial-gradient(circle, rgba(107, 142, 35, 0.08) 0%, transparent 70%);
+  background: rgba(107, 142, 35, 0.08);
   border-radius: 50%;
   top: -100px;
   right: -100px;
@@ -93,7 +94,7 @@ const handleLogin = async () => {
   position: absolute;
   width: 300px;
   height: 300px;
-  background: radial-gradient(circle, rgba(139, 111, 71, 0.06) 0%, transparent 70%);
+  background: rgba(139, 111, 71, 0.06);
   border-radius: 50%;
   bottom: -50px;
   left: -50px;
@@ -107,7 +108,7 @@ const handleLogin = async () => {
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
   border: 1px solid #e5ddd2;
-  background-color: #ffffff;
+  background-color: transparent;
   position: relative;
   z-index: 1;
   transition: all 0.3s ease;
@@ -115,13 +116,12 @@ const handleLogin = async () => {
 
 @media (max-width: 768px) {
   .login-container {
-    align-items: stretch;
+    align-items: center;
     padding: max(12px, env(safe-area-inset-top)) 10px 12px;
   }
 
   .login-card {
     max-width: none;
-    min-height: calc(100vh - max(12px, env(safe-area-inset-top)) - 24px);
     border-radius: 14px;
   }
 
@@ -138,20 +138,28 @@ const handleLogin = async () => {
 .login-header {
   text-align: center;
   padding: 2rem 0 1.5rem;
-  background: linear-gradient(135deg, #f4f7ed 0%, #eff3e6 100%);
+  background: transparent;
   border-bottom: 1px solid #e5ddd2;
+}
+
+:deep(.login-card.el-card) {
+  background-color: transparent !important;
+}
+
+:deep(.login-card .el-card__header) {
+  background-color: transparent !important;
+}
+
+:deep(.login-card .el-card__body) {
+  background-color: transparent;
 }
 
 .login-header h2 {
   margin: 1rem 0 0;
-  color: #2d3436;
+  color: #1f2a22;
   font-size: 1.5rem;
   font-weight: 700;
   font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
-  background: linear-gradient(135deg, #6b8e23 0%, #556b2f 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 
 :deep(.el-form-item) {
@@ -194,7 +202,7 @@ const handleLogin = async () => {
   font-size: 1rem !important;
   font-weight: 600 !important;
   font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif !important;
-  background: linear-gradient(135deg, #6b8e23 0%, #556b2f 100%) !important;
+  background: #5f7f24 !important;
   border: none !important;
   border-radius: 8px !important;
   color: #ffffff !important;
@@ -204,7 +212,7 @@ const handleLogin = async () => {
 .login-btn:hover {
   box-shadow: 0 8px 20px rgba(107, 142, 35, 0.3) !important;
   transform: translateY(-2px);
-  background: linear-gradient(135deg, #556b2f 0%, #3d5a1f 100%) !important;
+  background: #4f6c1f !important;
 }
 
 :deep(.el-link) {

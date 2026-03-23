@@ -50,13 +50,14 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
 import axios from 'axios';
 import { Document, Close } from '@element-plus/icons-vue';
 
 const applications = ref([]);
 const error = ref('');
-const isMobile = computed(() => window.innerWidth < 900);
+const screenWidth = ref(window.innerWidth);
+const isMobile = computed(() => screenWidth.value < 900);
 
 const statusType = (status) => {
   const typeMap = {
@@ -109,8 +110,17 @@ const cancelApplication = async (id) => {
   }
 };
 
+const updateWidth = () => {
+  screenWidth.value = window.innerWidth;
+};
+
 onMounted(() => {
   fetchApplications();
+  window.addEventListener('resize', updateWidth);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateWidth);
 });
 </script>
 

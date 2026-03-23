@@ -12,7 +12,23 @@
     </template>
     
     <!-- 调度列表 -->
-    <el-table :data="dispatches" style="width: 100%" border>
+    <div v-if="isMobile" class="mobile-list">
+      <el-card v-for="item in dispatches" :key="item.id" shadow="never" class="mobile-item">
+        <div class="mobile-top">
+          <p class="mobile-title">调度 #{{ item.id }}</p>
+          <el-tag :type="statusType(item.status)">{{ item.status }}</el-tag>
+        </div>
+        <p class="mobile-line">申请ID：{{ item.application_id ?? '-' }}</p>
+        <p class="mobile-line">车辆ID：{{ item.vehicle_id ?? '-' }}</p>
+        <p class="mobile-line">司机ID：{{ item.driver_id ?? '-' }}</p>
+        <div class="mobile-actions">
+          <el-button type="success" size="small" @click="startDispatch(item.id)" v-if="item.status === 'scheduled'">开始</el-button>
+          <el-button type="danger" size="small" @click="cancelDispatch(item.id)">取消</el-button>
+        </div>
+      </el-card>
+    </div>
+
+    <el-table v-else :data="dispatches" style="width: 100%" border>
       <el-table-column prop="id" label="调度ID" width="80" />
       <el-table-column prop="application_id" label="申请ID" width="100" />
       <el-table-column prop="vehicle_id" label="车辆ID" width="100" />
@@ -89,7 +105,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed, watch } from 'vue';
+import { ref, reactive, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import axios from 'axios';
 import { DataAnalysis, Plus, Check, Close } from '@element-plus/icons-vue';
 import { useFuelPriceStore } from '../../stores/fuelPrice';
@@ -101,6 +117,8 @@ const availableDrivers = ref([]);
 const dialogVisible = ref(false);
 const error = ref('');
 const loading = ref(false);
+const screenWidth = ref(window.innerWidth);
+const isMobile = computed(() => screenWidth.value < 900);
 const fuelStore = useFuelPriceStore();
 
 const form = reactive({
@@ -300,9 +318,18 @@ const cancelDispatch = async (id) => {
   }
 };
 
+const updateWidth = () => {
+  screenWidth.value = window.innerWidth;
+};
+
 onMounted(() => {
   fetchDispatches();
   fuelStore.initializeDailyOilPrice().catch(() => null);
+  window.addEventListener('resize', updateWidth);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateWidth);
 });
 
 watch(() => form.vehicle_id, async () => {
@@ -364,7 +391,7 @@ watch(() => form.vehicle_id, async () => {
 }
 
 :deep(.el-button.is-primary) {
-  background: linear-gradient(135deg, #6b8e23 0%, #556b2f 100%) !important;
+  background: #5f7f24 !important;
   border: none !important;
   border-radius: 6px !important;
   color: #ffffff !important;
@@ -376,7 +403,7 @@ watch(() => form.vehicle_id, async () => {
 :deep(.el-button.is-primary:hover) {
   box-shadow: 0 8px 20px rgba(107, 142, 35, 0.3) !important;
   transform: translateY(-2px);
-  background: linear-gradient(135deg, #556b2f 0%, #3d5a1f 100%) !important;
+  background: #4f6c1f !important;
 }
 
 :deep(.el-table) {
@@ -472,7 +499,7 @@ watch(() => form.vehicle_id, async () => {
 }
 
 :deep(.el-dialog__header) {
-  background: linear-gradient(135deg, #f4f7ed 0%, #eff3e6 100%);
+  background: #eef3e5;
   border-bottom: 1px solid #e5ddd2;
 }
 
@@ -520,6 +547,54 @@ watch(() => form.vehicle_id, async () => {
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
+}
+
+.mobile-list {
+  display: grid;
+  gap: 10px;
+}
+
+.mobile-item {
+  border-radius: 10px;
+}
+
+.mobile-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mobile-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.mobile-line {
+  margin: 8px 0 0;
+  color: #4d5b44;
+  font-size: 13px;
+}
+
+.mobile-actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 899px) {
+  .card-header {
+    flex-wrap: wrap;
+  }
+
+  .card-header h2 {
+    min-width: 100%;
+  }
+
+  :deep(.card-header .el-button) {
+    width: 100%;
+    margin-left: 0 !important;
+  }
 }
 
 @keyframes slideDown {

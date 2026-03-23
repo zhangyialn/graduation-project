@@ -41,7 +41,15 @@
     </el-table>
 
     <el-divider>审批统计</el-divider>
-    <el-table :data="approvalStats" border>
+    <div v-if="isMobile" class="mobile-list">
+      <el-card v-for="item in approvalStats" :key="item.approver_name" shadow="never" class="mobile-item">
+        <p class="mobile-title">{{ item.approver_name || '-' }}</p>
+        <p class="mobile-line">总数：{{ item.total_count ?? 0 }}</p>
+        <p class="mobile-line">同意：{{ item.approved_count ?? 0 }}</p>
+        <p class="mobile-line">驳回：{{ item.rejected_count ?? 0 }}</p>
+      </el-card>
+    </div>
+    <el-table v-else :data="approvalStats" border>
       <el-table-column prop="approver_name" label="审批人" />
       <el-table-column prop="total_count" label="总数" width="100" />
       <el-table-column prop="approved_count" label="同意" width="100" />
@@ -53,7 +61,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { Check } from '@element-plus/icons-vue';
@@ -64,7 +72,8 @@ const approvalStats = ref([]);
 const departmentId = ref(1);
 const error = ref('');
 const loading = ref(false);
-const isMobile = computed(() => window.innerWidth < 900);
+const screenWidth = ref(window.innerWidth);
+const isMobile = computed(() => screenWidth.value < 900);
 
 const statusType = (status) => ({ pending: 'warning', approved: 'success', rejected: 'danger', completed: 'info' }[status] || 'info');
 const formatDate = (v) => v ? new Date(v).toLocaleString() : '-';
@@ -95,9 +104,18 @@ const fetchApprovalStatistics = async () => {
 
 const goDetail = (id) => router.push(`/dashboard/approvals/${id}`);
 
+const updateWidth = () => {
+  screenWidth.value = window.innerWidth;
+};
+
 onMounted(() => {
   fetchApplications();
   fetchApprovalStatistics();
+  window.addEventListener('resize', updateWidth);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateWidth);
 });
 </script>
 

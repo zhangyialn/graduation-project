@@ -3,7 +3,7 @@
     <el-card class="forgot-password-card" shadow="hover">
       <template #header>
         <div class="forgot-password-header">
-          <el-avatar :size="60" src="https://img.icons8.com/color/96/000000/forgot-password.png" />
+          <el-avatar :size="60" :src="forgotPasswordAvatar" />
           <h2>找回密码</h2>
         </div>
       </template>
@@ -75,6 +75,7 @@
 <script setup>
 import { ref, reactive } from 'vue';
 import axios from 'axios';
+import forgotPasswordAvatar from '../../assets/forgot-password.png';
 
 const currentStep = ref(0);
 const error = ref('');
@@ -151,7 +152,7 @@ const handleResetPassword = async () => {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #f4f7ed 0%, #eff3e6 100%);
+  background: #f4f7ed;
   position: relative;
   overflow: hidden;
 }
@@ -161,7 +162,7 @@ const handleResetPassword = async () => {
   position: absolute;
   width: 400px;
   height: 400px;
-  background: radial-gradient(circle, rgba(107, 142, 35, 0.1) 0%, transparent 70%);
+  background: rgba(107, 142, 35, 0.1);
   border-radius: 50%;
   top: -100px;
   right: -100px;
@@ -175,7 +176,7 @@ const handleResetPassword = async () => {
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.8);
-  background-color: #ffffff;
+  background-color: transparent;
   position: relative;
   z-index: 1;
   transition: all 0.3s ease;
@@ -189,20 +190,16 @@ const handleResetPassword = async () => {
 .forgot-password-header {
   text-align: center;
   padding: 2rem 0 1.5rem;
-  background: linear-gradient(135deg, #f4f7ed 0%, #eff3e6 100%);
+  background: transparent;
   border-bottom: 1px solid #e5ddd2;
 }
 
 .forgot-password-header h2 {
   margin: 1rem 0 0;
-  color: #2d3436;
+  color: #1f2a22;
   font-size: 1.5rem;
   font-weight: 700;
   font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
-  background: linear-gradient(135deg, #6b8e23 0%, #556b2f 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 
 :deep(.el-steps) {
@@ -244,6 +241,18 @@ const handleResetPassword = async () => {
   margin-top: 1.5rem;
 }
 
+:deep(.forgot-password-card.el-card) {
+  background-color: transparent !important;
+}
+
+:deep(.forgot-password-card .el-card__header) {
+  background-color: transparent !important;
+}
+
+:deep(.forgot-password-card .el-card__body) {
+  background-color: transparent;
+}
+
 :deep(.el-input__wrapper) {
   background-color: #fefdfb;
   border: 1px solid #e5ddd2;
@@ -275,7 +284,7 @@ const handleResetPassword = async () => {
   font-size: 1rem;
   font-weight: 600;
   font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
-  background: linear-gradient(135deg, #6b8e23 0%, #556b2f 100%) !important;
+  background: #5f7f24 !important;
   border: none !important;
   border-radius: 8px;
   color: #ffffff !important;
@@ -285,7 +294,7 @@ const handleResetPassword = async () => {
 .submit-btn:hover {
   box-shadow: 0 8px 20px rgba(107, 142, 35, 0.3) !important;
   transform: translateY(-2px);
-  background: linear-gradient(135deg, #556b2f 0%, #3d5a1f 100%) !important;
+  background: #4f6c1f !important;
 }
 
 .back-btn {

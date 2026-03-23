@@ -5,6 +5,7 @@ import router from './router'
 import axios from 'axios'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
+import './index.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 
 // 配置axios

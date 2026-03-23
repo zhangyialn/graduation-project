@@ -265,7 +265,7 @@ const resetForm = () => {
   height: 40px !important;
   font-size: 1rem !important;
   font-weight: 600 !important;
-  background: linear-gradient(135deg, #6b8e23 0%, #556b2f 100%) !important;
+  background: #5f7f24 !important;
   border: none !important;
   border-radius: 8px !important;
   transition: all 0.3s ease !important;
@@ -277,7 +277,7 @@ const resetForm = () => {
 :deep(.el-button.is-primary:hover) {
   box-shadow: 0 8px 20px rgba(107, 142, 35, 0.3) !important;
   transform: translateY(-2px);
-  background: linear-gradient(135deg, #556b2f 0%, #3d5a1f 100%) !important;
+  background: #4f6c1f !important;
 }
 
 :deep(.el-button:not(.is-primary)) {

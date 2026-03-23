@@ -405,7 +405,7 @@ watch(route, () => {
 }
 
 .sidebar {
-  background: linear-gradient(180deg, #3d4a2b 0%, #4a5a35 100%);
+  background: #425430;
   color: white;
   display: flex;
   flex-direction: column;
@@ -454,7 +454,7 @@ watch(route, () => {
 }
 
 :deep(.sidebar-menu .is-active) {
-  background: linear-gradient(135deg, #6b8e23 0%, #556b2f 100%) !important;
+  background: #5f7f24 !important;
 }
 
 .user-info {
@@ -491,7 +491,7 @@ watch(route, () => {
 }
 
 .header {
-  background: linear-gradient(120deg, #fdfaf3 0%, #f1f6e9 100%);
+  background: #f1f4ea;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   padding: 18px 24px;
   border-bottom: 1px solid #e5ddd2;
@@ -548,7 +548,7 @@ watch(route, () => {
 }
 
 .hero-text {
-  background: linear-gradient(135deg, #6b8e23 0%, #556b2f 100%);
+  background: #5f7f24;
   color: #fff;
   padding: 24px;
   border-radius: 12px;
@@ -810,6 +810,22 @@ watch(route, () => {
     box-shadow: none;
     padding: max(10px, env(safe-area-inset-top)) 12px 10px;
     border-radius: 0;
+    display: flex;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: space-between;
+    gap: 0;
+  }
+
+  .mobile-header .header-left,
+  .mobile-header .header-right {
+    width: auto !important;
+    flex: 0 0 auto;
+  }
+
+  .mobile-header .header-right {
+    margin-left: auto;
+    justify-content: flex-end !important;
   }
 
   .mobile-header .page-title,

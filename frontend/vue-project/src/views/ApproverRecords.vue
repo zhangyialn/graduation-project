@@ -20,7 +20,16 @@
 
     <el-tabs v-model="activeTab">
       <el-tab-pane label="我的审批" name="mine">
-        <el-table :data="myApprovals" size="small">
+        <div v-if="isMobile" class="mobile-list">
+          <el-card v-for="item in myApprovals" :key="item.id" shadow="never" class="mobile-item">
+            <p class="mobile-title">审批 #{{ item.id }}</p>
+            <p class="mobile-line">申请ID：{{ item.application_id ?? '-' }}</p>
+            <p class="mobile-line">状态：{{ item.status || '-' }}</p>
+            <p class="mobile-line">意见：{{ item.comment || '-' }}</p>
+            <p class="mobile-line">时间：{{ item.created_at || '-' }}</p>
+          </el-card>
+        </div>
+        <el-table v-else :data="myApprovals" size="small">
           <el-table-column prop="id" label="ID" width="70" />
           <el-table-column prop="application_id" label="申请ID" width="90" />
           <el-table-column prop="status" label="状态" />
@@ -29,7 +38,17 @@
         </el-table>
       </el-tab-pane>
       <el-tab-pane label="全部审批" name="all">
-        <el-table :data="allApprovals" size="small">
+        <div v-if="isMobile" class="mobile-list">
+          <el-card v-for="item in allApprovals" :key="item.id" shadow="never" class="mobile-item">
+            <p class="mobile-title">审批 #{{ item.id }}</p>
+            <p class="mobile-line">申请ID：{{ item.application_id ?? '-' }}</p>
+            <p class="mobile-line">审批人：{{ item.approver_id ?? '-' }}</p>
+            <p class="mobile-line">状态：{{ item.status || '-' }}</p>
+            <p class="mobile-line">意见：{{ item.comment || '-' }}</p>
+            <p class="mobile-line">时间：{{ item.created_at || '-' }}</p>
+          </el-card>
+        </div>
+        <el-table v-else :data="allApprovals" size="small">
           <el-table-column prop="id" label="ID" width="70" />
           <el-table-column prop="application_id" label="申请ID" width="90" />
           <el-table-column prop="approver_id" label="审批人" width="90" />
@@ -43,7 +62,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
 import axios from 'axios';
 
 const myApprovals = ref([]);
@@ -52,6 +71,8 @@ const status = ref('');
 const loading = ref(false);
 const error = ref('');
 const activeTab = ref('mine');
+const screenWidth = ref(window.innerWidth);
+const isMobile = computed(() => screenWidth.value < 900);
 
 const token = () => localStorage.getItem('token');
 const currentUser = () => {
@@ -78,7 +99,18 @@ const fetchData = async () => {
   }
 };
 
-onMounted(fetchData);
+const updateWidth = () => {
+  screenWidth.value = window.innerWidth;
+};
+
+onMounted(() => {
+  fetchData();
+  window.addEventListener('resize', updateWidth);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateWidth);
+});
 </script>
 
 <style scoped>
@@ -115,5 +147,38 @@ onMounted(fetchData);
 
 .mb {
   margin-bottom: 12px;
+}
+
+.mobile-list {
+  display: grid;
+  gap: 10px;
+}
+
+.mobile-item {
+  border-radius: 10px;
+}
+
+.mobile-title {
+  margin: 0;
+  font-weight: 700;
+  color: #2d3436;
+}
+
+.mobile-line {
+  margin: 8px 0 0;
+  color: #4d5b44;
+  font-size: 13px;
+}
+
+@media (max-width: 899px) {
+  .header-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filters {
+    width: 100%;
+    flex-direction: column;
+  }
 }
 </style>

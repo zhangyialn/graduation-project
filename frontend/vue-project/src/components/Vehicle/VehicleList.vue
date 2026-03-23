@@ -12,7 +12,23 @@
     </template>
     
     <!-- 车辆列表 -->
-    <el-table :data="vehicles" style="width: 100%" border>
+    <div v-if="isMobile" class="mobile-list">
+      <el-card v-for="item in vehicles" :key="item.id" shadow="never" class="mobile-item">
+        <div class="mobile-top">
+          <p class="mobile-title">车辆 #{{ item.id }}</p>
+          <el-tag :type="vehicleStatusType(item.status)">{{ item.status }}</el-tag>
+        </div>
+        <p class="mobile-line">车牌号：{{ item.plate_number || '-' }}</p>
+        <p class="mobile-line">车型：{{ item.model || '-' }}</p>
+        <p class="mobile-line">油品型号：{{ item.fuel_type || '-' }}</p>
+        <div class="mobile-actions">
+          <el-button type="primary" size="small" @click="openVehicleDialog(item)">编辑</el-button>
+          <el-button type="danger" size="small" @click="deleteVehicle(item.id)">删除</el-button>
+        </div>
+      </el-card>
+    </div>
+
+    <el-table v-else :data="vehicles" style="width: 100%" border>
       <el-table-column prop="id" label="车辆ID" width="80" />
       <el-table-column prop="plate_number" label="车牌号" width="120" />
       <el-table-column prop="model" label="车型" width="120" />
@@ -81,7 +97,22 @@
       </div>
       
       <!-- 司机列表 -->
-      <el-table :data="drivers" style="width: 100%" border>
+      <div v-if="isMobile" class="mobile-list">
+        <el-card v-for="item in drivers" :key="item.id" shadow="never" class="mobile-item">
+          <div class="mobile-top">
+            <p class="mobile-title">司机 #{{ item.id }}</p>
+            <el-tag :type="driverStatusType(item.status)">{{ item.status }}</el-tag>
+          </div>
+          <p class="mobile-line">姓名：{{ item.name || '-' }}</p>
+          <p class="mobile-line">驾驶证号：{{ item.license_number || '-' }}</p>
+          <div class="mobile-actions">
+            <el-button type="primary" size="small" @click="openDriverDialog(item)">编辑</el-button>
+            <el-button type="danger" size="small" @click="deleteDriver(item.id)">删除</el-button>
+          </div>
+        </el-card>
+      </div>
+
+      <el-table v-else :data="drivers" style="width: 100%" border>
         <el-table-column prop="id" label="司机ID" width="80" />
         <el-table-column prop="name" label="姓名" width="100" />
         <el-table-column prop="license_number" label="驾驶证号" />
@@ -137,7 +168,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, onBeforeUnmount, computed } from 'vue';
 import axios from 'axios';
 import { Van, Plus, Edit, Delete, UserFilled } from '@element-plus/icons-vue';
 
@@ -149,6 +180,8 @@ const vehicleDialogTitle = ref('添加车辆');
 const driverDialogTitle = ref('添加司机');
 const error = ref('');
 const loading = ref(false);
+const screenWidth = ref(window.innerWidth);
+const isMobile = computed(() => screenWidth.value < 900);
 
 const vehicleForm = reactive({
   id: null,
@@ -390,9 +423,18 @@ const deleteDriver = async (id) => {
   }
 };
 
+const updateWidth = () => {
+  screenWidth.value = window.innerWidth;
+};
+
 onMounted(() => {
   fetchVehicles();
   fetchDrivers();
+  window.addEventListener('resize', updateWidth);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateWidth);
 });
 </script>
 
@@ -512,7 +554,7 @@ onMounted(() => {
 }
 
 :deep(.el-dialog__header) {
-  background: linear-gradient(135deg, #f4f7ed 0%, #eff3e6 100%);
+  background: #eef3e5;
   border-bottom: 1px solid #e5ddd2;
 }
 
@@ -559,7 +601,7 @@ onMounted(() => {
 }
 
 :deep(.el-button[type="primary"]) {
-  background: linear-gradient(135deg, #6b8e23 0%, #556b2f 100%) !important;
+  background: #5f7f24 !important;
   border: none !important;
   border-radius: 6px !important;
   font-weight: 600 !important;
@@ -571,7 +613,7 @@ onMounted(() => {
 :deep(.el-button[type="primary"]:hover) {
   box-shadow: 0 8px 20px rgba(107, 142, 35, 0.3) !important;
   transform: translateY(-2px);
-  background: linear-gradient(135deg, #556b2f 0%, #3d5a1f 100%) !important;
+  background: #4f6c1f !important;
 }
 
 :deep(.el-button--danger) {
@@ -632,6 +674,57 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
+}
+
+.mobile-list {
+  display: grid;
+  gap: 10px;
+}
+
+.mobile-item {
+  border-radius: 10px;
+}
+
+.mobile-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mobile-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.mobile-line {
+  margin: 8px 0 0;
+  color: #4d5b44;
+  font-size: 13px;
+}
+
+.mobile-actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 899px) {
+  .card-header,
+  .section-header {
+    flex-wrap: wrap;
+  }
+
+  .card-header h2,
+  .section-header h3 {
+    min-width: 100%;
+  }
+
+  :deep(.card-header .el-button),
+  :deep(.section-header .el-button) {
+    width: 100%;
+    margin-left: 0 !important;
+  }
 }
 
 @keyframes slideDown {

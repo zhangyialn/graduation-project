@@ -87,10 +87,21 @@ def end_trip(id):
             # 更新调度状态为已完成
             dispatch.status = 'completed'
         
-        # 计算费用
+        # 计算费用（兼容精细油号：92/95/98号汽油、0号柴油）
+        vehicle_fuel_type = vehicle.fuel_type if vehicle else '汽油'
         latest_price = FuelPrice.query.filter_by(
-            fuel_type=vehicle.fuel_type if vehicle else '汽油'
+            fuel_type=vehicle_fuel_type
         ).order_by(FuelPrice.effective_date.desc()).first()
+
+        if not latest_price:
+            if vehicle_fuel_type in ['汽油', '92号汽油', '95号汽油', '98号汽油']:
+                latest_price = FuelPrice.query.filter(
+                    FuelPrice.fuel_type.in_(['汽油', '92号汽油', '95号汽油', '98号汽油'])
+                ).order_by(FuelPrice.effective_date.desc()).first()
+            elif vehicle_fuel_type in ['柴油', '0号柴油']:
+                latest_price = FuelPrice.query.filter(
+                    FuelPrice.fuel_type.in_(['柴油', '0号柴油'])
+                ).order_by(FuelPrice.effective_date.desc()).first()
 
         request_fuel_price = data.get('fuel_price')
         fuel_price_value = float(request_fuel_price) if request_fuel_price is not None else float(latest_price.price) if latest_price else 0.0

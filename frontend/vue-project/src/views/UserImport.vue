@@ -5,7 +5,6 @@
         <div class="card-header">
           <div>
             <div class="title">用户批量导入（Excel）</div>
-            <div class="hint">仅审批员/管理员可用，支持 .xlsx/.xls，必填列：name, phone</div>
           </div>
           <el-button type="primary" :loading="loading" @click="submit">开始导入</el-button>
         </div>
@@ -109,15 +108,20 @@ const submit = async () => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  background: #f8faf5;
+  border: 1px solid #e3ead6;
+  border-radius: 10px;
+  padding: 0.9rem 1.1rem;
 }
 
 .title {
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 1.2rem;
+  color: #2d3436;
 }
 
 .hint {
-  color: #6b755a;
+  color: #667459;
   font-size: 0.95rem;
 }
 

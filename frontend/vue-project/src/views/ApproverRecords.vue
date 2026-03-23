@@ -92,15 +92,20 @@ onMounted(fetchData);
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+  background: #f8faf5;
+  border: 1px solid #e3ead6;
+  border-radius: 10px;
+  padding: 0.9rem 1.1rem;
 }
 
 .title {
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 1.2rem;
+  color: #2d3436;
 }
 
 .hint {
-  color: #6b755a;
+  color: #667459;
 }
 
 .filters {

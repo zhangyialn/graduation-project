@@ -35,9 +35,9 @@
       <el-form-item label="乘车人数" prop="passenger_count">
         <el-input-number v-model="form.passenger_count" :min="1" :max="10" placeholder="请输入乘车人数" />
       </el-form-item>
-      <el-form-item>
-        <el-button type="primary" @click="handleSubmit" :loading="loading">提交申请</el-button>
-        <el-button @click="resetForm">重置</el-button>
+      <el-form-item class="form-actions">
+        <el-button class="action-btn" type="primary" @click="handleSubmit" :loading="loading">提交申请</el-button>
+        <el-button class="action-btn" @click="resetForm">重置</el-button>
       </el-form-item>
     </el-form>
     <el-alert v-if="error" :title="error" type="error" show-icon class="error-alert" />
@@ -73,15 +73,31 @@ const success = ref('');
 const loading = ref(false);
 const applicationForm = ref(null);
 
+const setError = (message) => {
+  error.value = message || '';
+  if (message) {
+    success.value = '';
+  }
+};
+
+const setSuccess = (message) => {
+  success.value = message || '';
+  if (message) {
+    error.value = '';
+  }
+};
+
 const handleSubmit = async () => {
   try {
     await applicationForm.value.validate();
     loading.value = true;
+    setError('');
+    setSuccess('');
     const token = localStorage.getItem('token');
     const userStr = localStorage.getItem('user');
     const user = userStr ? JSON.parse(userStr) : null;
     if (!user) {
-      error.value = '用户信息不存在';
+      setError('用户信息不存在');
       return;
     }
 
@@ -100,12 +116,12 @@ const handleSubmit = async () => {
         Authorization: `Bearer ${token}`
       }
     });
-    success.value = '申请提交成功';
+    setSuccess('申请提交成功');
     setTimeout(() => {
-      router.push('/applications');
+      router.push('/dashboard/applications');
     }, 2000);
   } catch (err) {
-    error.value = err.response?.data?.message || '提交失败';
+    setError(err.response?.data?.message || '提交失败');
   } finally {
     loading.value = false;
   }
@@ -128,6 +144,29 @@ const resetForm = () => {
   background-color: #ffffff;
 }
 
+@media (max-width: 768px) {
+  .application-card {
+    border-radius: 10px;
+  }
+
+  :deep(.el-card__body) {
+    padding: 14px;
+  }
+
+  :deep(.el-form-item__label) {
+    line-height: 1.3;
+  }
+
+  :deep(.form-actions .el-form-item__content) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .action-btn {
+    width: 100% !important;
+  }
+}
+
 .application-card:hover {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
   border-color: #6b8e23;
@@ -136,26 +175,33 @@ const resetForm = () => {
 .card-header {
   display: flex;
   align-items: center;
-  background: linear-gradient(135deg, #f4f7ed 0%, #eff3e6 100%);
-  padding: 1.5rem;
+  gap: 10px;
+  background: #f8faf5;
+  border: 1px solid #e3ead6;
+  border-radius: 10px;
+  padding: 0.9rem 1.1rem;
   border-bottom: 1px solid #e5ddd2;
 }
 
 .header-icon {
-  font-size: 1.75rem;
-  margin-right: 1rem;
-  color: #6b8e23;
+  font-size: 1.1rem;
+  color: #556b2f;
+  background: #e9f0dc;
+  border: 1px solid #d7e2c2;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .card-header h2 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   font-weight: 700;
   font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
-  background: linear-gradient(135deg, #6b8e23 0%, #556b2f 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #2d3436;
 }
 
 :deep(.el-card__body) {
@@ -236,7 +282,6 @@ const resetForm = () => {
 
 :deep(.el-button:not(.is-primary)) {
   height: 40px !important;
-  width: 100% !important;
   font-size: 1rem !important;
   font-weight: 600 !important;
   background-color: #f0f3eb !important;
@@ -252,6 +297,18 @@ const resetForm = () => {
   border-color: #c5cdb6 !important;
   color: #556b2f !important;
   transform: translateY(-2px);
+}
+
+:deep(.form-actions .el-form-item__content) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
+.action-btn {
+  width: 140px !important;
+  margin-right: 0 !important;
 }
 
 .error-alert {

@@ -69,6 +69,12 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="当前油价">
+          <div class="fuel-meta">{{ fuelPriceHint }}</div>
+        </el-form-item>
+        <el-form-item label="预估油费/km">
+          <div class="fuel-meta">{{ estimatedFuelCostPerKmHint }}</div>
+        </el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
@@ -83,9 +89,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed, watch } from 'vue';
 import axios from 'axios';
 import { DataAnalysis, Plus, Check, Close } from '@element-plus/icons-vue';
+import { useFuelPriceStore } from '../../stores/fuelPrice';
 
 const dispatches = ref([]);
 const pendingApplications = ref([]);
@@ -94,6 +101,7 @@ const availableDrivers = ref([]);
 const dialogVisible = ref(false);
 const error = ref('');
 const loading = ref(false);
+const fuelStore = useFuelPriceStore();
 
 const form = reactive({
   application_id: '',
@@ -108,6 +116,48 @@ const rules = reactive({
 });
 
 const dispatchForm = ref(null);
+
+const normalizeFuelType = (fuelType) => {
+  const value = (fuelType || '').trim();
+  if (!value) return '92号汽油';
+  if (value === '汽油') return '92号汽油';
+  if (value === '柴油') return '0号柴油';
+  return value;
+};
+
+const selectedVehicle = computed(() => {
+  if (!form.vehicle_id) return null;
+  return availableVehicles.value.find(item => item.id === form.vehicle_id) || null;
+});
+
+const currentFuelType = computed(() => normalizeFuelType(selectedVehicle.value?.fuel_type));
+
+const fuelPriceHint = computed(() => {
+  if (fuelStore.currentFuelPrice === null || fuelStore.currentFuelPrice === undefined) {
+    return '暂无油价（将按当日地区自动获取）';
+  }
+  return `${fuelStore.regionName} ${fuelStore.selectedFuelType}：${fuelStore.currentFuelPrice} 元/升`;
+});
+
+const estimatedFuelCostPerKmHint = computed(() => {
+  const consumption = Number(selectedVehicle.value?.fuel_consumption_per_100km);
+  const price = Number(fuelStore.currentFuelPrice);
+  if (!Number.isFinite(consumption) || consumption <= 0 || !Number.isFinite(price) || price <= 0) {
+    return '暂无（需车辆油耗与当日油价）';
+  }
+  const perKm = (consumption / 100) * price;
+  return `${perKm.toFixed(2)} 元/公里`;
+});
+
+const ensureDailyFuelPrice = async (force = false) => {
+  try {
+    await fuelStore.fetchOilPrice({ force });
+  } catch (_err) {
+    if (!error.value && fuelStore.lastError) {
+      error.value = `油价获取失败：${fuelStore.lastError}`;
+    }
+  }
+};
 
 const statusType = (status) => {
   const typeMap = {
@@ -140,9 +190,11 @@ const openAddDialog = () => {
   form.application_id = '';
   form.vehicle_id = '';
   form.driver_id = '';
+  error.value = '';
   fetchPendingApplications();
   fetchAvailableVehicles();
   fetchAvailableDrivers();
+  ensureDailyFuelPrice();
   dialogVisible.value = true;
 };
 
@@ -250,6 +302,13 @@ const cancelDispatch = async (id) => {
 
 onMounted(() => {
   fetchDispatches();
+  fuelStore.initializeDailyOilPrice().catch(() => null);
+});
+
+watch(() => form.vehicle_id, async () => {
+  if (!selectedVehicle.value) return;
+  fuelStore.setFuelType(currentFuelType.value);
+  await ensureDailyFuelPrice();
 });
 </script>
 
@@ -274,27 +333,34 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: linear-gradient(135deg, #f4f7ed 0%, #eff3e6 100%);
-  padding: 1.5rem;
+  gap: 10px;
+  background: #f8faf5;
+  border: 1px solid #e3ead6;
+  border-radius: 10px;
+  padding: 0.9rem 1.1rem;
   border-bottom: 1px solid #e5ddd2;
 }
 
 .header-icon {
-  font-size: 1.75rem;
-  margin-right: 1rem;
-  color: #6b8e23;
+  font-size: 1.1rem;
+  color: #556b2f;
+  background: #e9f0dc;
+  border: 1px solid #d7e2c2;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .card-header h2 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   font-weight: 700;
   flex: 1;
   font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
-  background: linear-gradient(135deg, #6b8e23 0%, #556b2f 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #2d3436;
 }
 
 :deep(.el-button.is-primary) {
@@ -418,6 +484,12 @@ onMounted(() => {
 :deep(.el-form-item__label) {
   color: #2d3436;
   font-weight: 500;
+}
+
+.fuel-meta {
+  color: #4a5a35;
+  font-size: 0.92rem;
+  line-height: 1.4;
 }
 
 :deep(.el-input__wrapper) {

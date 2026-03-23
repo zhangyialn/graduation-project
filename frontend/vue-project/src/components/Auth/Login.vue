@@ -70,6 +70,7 @@ const handleLogin = async () => {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
+  padding: max(16px, env(safe-area-inset-top)) 12px 16px;
   background: linear-gradient(135deg, #f4f7ed 0%, #eff3e6 100%);
   position: relative;
   overflow: hidden;
@@ -110,6 +111,23 @@ const handleLogin = async () => {
   position: relative;
   z-index: 1;
   transition: all 0.3s ease;
+}
+
+@media (max-width: 768px) {
+  .login-container {
+    align-items: stretch;
+    padding: max(12px, env(safe-area-inset-top)) 10px 12px;
+  }
+
+  .login-card {
+    max-width: none;
+    min-height: calc(100vh - max(12px, env(safe-area-inset-top)) - 24px);
+    border-radius: 14px;
+  }
+
+  .login-header {
+    padding: 1.5rem 0 1rem;
+  }
 }
 
 .login-card:hover {

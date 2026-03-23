@@ -1,7 +1,8 @@
 # 审批记录控制器
 from flask import request, jsonify
 from models.index import db, Approval, User, CarApplication
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from datetime import datetime
 
 
 # 获取所有审批记录
@@ -74,3 +75,50 @@ def get_approval_statistics():
         return jsonify({'success': True, 'data': result})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
+
+
+# 提交审批结果（同意/驳回）
+def submit_approval(application_id):
+    try:
+        data = request.json or {}
+        status = data.get('status')
+        comment = data.get('comment')
+
+        if status not in ['approved', 'rejected']:
+            return jsonify({'success': False, 'message': '审批状态必须为 approved 或 rejected'}), 400
+
+        application = CarApplication.query.get(application_id)
+        if not application:
+            return jsonify({'success': False, 'message': '申请不存在'}), 404
+
+        if application.status != 'pending':
+            return jsonify({'success': False, 'message': '仅待审批申请可提交审批结果'}), 400
+
+        current_user_id = get_jwt_identity()
+
+        approval = Approval(
+            application_id=application_id,
+            approver_id=current_user_id,
+            status=status,
+            comment=comment
+        )
+        db.session.add(approval)
+
+        application.status = status
+        application.approval_comment = comment
+        application.approved_by = current_user_id
+        application.approved_at = datetime.utcnow()
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': '审批提交成功',
+            'data': {
+                'application': application.to_dict(),
+                'approval': approval.to_dict()
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500

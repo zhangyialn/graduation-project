@@ -16,6 +16,7 @@
       <el-table-column prop="id" label="车辆ID" width="80" />
       <el-table-column prop="plate_number" label="车牌号" width="120" />
       <el-table-column prop="model" label="车型" width="120" />
+      <el-table-column prop="fuel_type" label="油品型号" width="120" />
       <el-table-column prop="status" label="状态" width="100">
         <template #default="scope">
           <el-tag :type="vehicleStatusType(scope.row.status)">{{ scope.row.status }}</el-tag>
@@ -49,6 +50,14 @@
             <el-option label="可用" value="available" />
             <el-option label="使用中" value="in_use" />
             <el-option label="维护中" value="maintenance" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="油品型号" prop="fuel_type">
+          <el-select v-model="vehicleForm.fuel_type" placeholder="请选择油品型号">
+            <el-option label="92号汽油" value="92号汽油" />
+            <el-option label="95号汽油" value="95号汽油" />
+            <el-option label="98号汽油" value="98号汽油" />
+            <el-option label="0号柴油" value="0号柴油" />
           </el-select>
         </el-form-item>
       </el-form>
@@ -148,7 +157,7 @@ const vehicleForm = reactive({
   status: 'available',
   brand: '',
   color: '',
-  fuel_type: '',
+  fuel_type: '92号汽油',
   seat_count: 5,
   purchase_date: '',
   fuel_consumption_per_100km: null
@@ -157,7 +166,8 @@ const vehicleForm = reactive({
 const vehicleRules = reactive({
   plate_number: [{ required: true, message: '请输入车牌号', trigger: 'blur' }],
   model: [{ required: true, message: '请输入车型', trigger: 'blur' }],
-  status: [{ required: true, message: '请选择状态', trigger: 'change' }]
+  status: [{ required: true, message: '请选择状态', trigger: 'change' }],
+  fuel_type: [{ required: true, message: '请选择油品型号', trigger: 'change' }]
 });
 
 const driverForm = reactive({
@@ -249,7 +259,7 @@ const openVehicleDialog = (vehicle = null) => {
     vehicleForm.status = 'available';
     vehicleForm.brand = '';
     vehicleForm.color = '';
-    vehicleForm.fuel_type = '';
+    vehicleForm.fuel_type = '92号汽油';
     vehicleForm.seat_count = 5;
     vehicleForm.purchase_date = '';
     vehicleForm.fuel_consumption_per_100km = null;
@@ -289,7 +299,7 @@ const saveVehicle = async () => {
       brand: vehicleForm.brand || vehicleForm.model || '未知品牌',
       color: vehicleForm.color || '未填写',
       purchase_date: vehicleForm.purchase_date || new Date().toISOString().slice(0, 10),
-      fuel_type: vehicleForm.fuel_type || '汽油',
+      fuel_type: vehicleForm.fuel_type || '92号汽油',
       seat_count: vehicleForm.seat_count || 5,
       fuel_consumption_per_100km: vehicleForm.fuel_consumption_per_100km
     };
@@ -407,27 +417,34 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: linear-gradient(135deg, #f4f7ed 0%, #eff3e6 100%);
-  padding: 1.5rem;
+  gap: 10px;
+  background: #f8faf5;
+  border: 1px solid #e3ead6;
+  border-radius: 10px;
+  padding: 0.9rem 1.1rem;
   border-bottom: 1px solid #e5ddd2;
 }
 
 .header-icon {
-  font-size: 1.75rem;
-  margin-right: 1rem;
-  color: #6b8e23;
+  font-size: 1.1rem;
+  color: #556b2f;
+  background: #e9f0dc;
+  border: 1px solid #d7e2c2;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .card-header h2 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   font-weight: 700;
   flex: 1;
   font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
-  background: linear-gradient(135deg, #6b8e23 0%, #556b2f 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #2d3436;
 }
 
 :deep(.el-table) {

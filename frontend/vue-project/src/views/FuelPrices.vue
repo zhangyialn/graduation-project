@@ -3,29 +3,35 @@
     <div class="header-row">
       <div>
         <div class="title">油价管理</div>
-        <div class="hint">维护 /api/trips/fuel-prices；结束出车时费用使用最新同类型油价 * 油耗</div>
+        <div class="hint">按地区获取当日油价并回填展示；结束出车时费用使用最新同类型油价 * 油耗</div>
+        <div class="hint" v-if="cacheHint">{{ cacheHint }}</div>
       </div>
       <div class="actions">
-        <el-button plain size="small" @click="useSamplePrice">使用示例油价</el-button>
-        <el-button type="primary" size="small" :loading="saving" @click="savePrice">新增油价</el-button>
+        <el-button plain size="small" :loading="loadingRemotePrice" @click="refreshByLocation">重新定位并更新油价</el-button>
       </div>
     </div>
 
     <el-alert v-if="error" type="error" show-icon :title="error" class="mb" />
     <el-alert v-if="success" type="success" show-icon :title="success" class="mb" />
+    <el-alert v-if="locationHint" type="info" show-icon :title="locationHint" class="mb" />
 
     <el-form :model="form" label-width="120px" class="form">
-      <el-form-item label="油品类型">
+      <el-form-item label="地区">
+        <el-input v-model="form.region_name" placeholder="例如：青海省" clearable />
+      </el-form-item>
+      <el-form-item label="油品型号">
         <el-select v-model="form.fuel_type" placeholder="选择油品">
-          <el-option label="汽油" value="汽油" />
-          <el-option label="柴油" value="柴油" />
+          <el-option label="92号汽油" value="92号汽油" />
+          <el-option label="95号汽油" value="95号汽油" />
+          <el-option label="98号汽油" value="98号汽油" />
+          <el-option label="0号柴油" value="0号柴油" />
         </el-select>
       </el-form-item>
       <el-form-item label="价格 (元/升)">
-        <el-input-number v-model="form.price" :min="0" :step="0.1" />
+        <el-input-number v-model="form.price" :min="0" :step="0.1" :disabled="true" />
       </el-form-item>
       <el-form-item label="生效日期">
-        <el-date-picker v-model="form.effective_date" type="date" value-format="YYYY-MM-DD" />
+        <el-date-picker v-model="form.effective_date" type="date" value-format="YYYY-MM-DD" :disabled="true" />
       </el-form-item>
     </el-form>
 
@@ -36,22 +42,56 @@
       <el-table-column prop="created_at" label="创建时间" />
     </el-table>
 
-    <el-alert type="info" show-icon class="mb" title="说明" description="结束出车时，后端会按车辆油耗和最新油价计算 fuel_cost。前端可通过此页维护最新油价，也可以替换 useSamplePrice 为真实外部油价 API 调用。" />
+    <el-alert type="info" show-icon class="mb" title="说明" description="结束出车时，后端会按车辆油耗和最新油价计算 fuel_cost。油价接口每天仅请求一次，结果保存在 Pinia（并持久化到本地），本页不支持手动新增油价。" />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import axios from 'axios';
+import { useFuelPriceStore } from '../stores/fuelPrice';
 
 const prices = ref([]);
 const error = ref('');
 const success = ref('');
-const saving = ref(false);
+const fuelStore = useFuelPriceStore();
+const today = () => new Date().toISOString().slice(0, 10);
+
+const setError = (message) => {
+  error.value = message || '';
+  if (message) {
+    success.value = '';
+  }
+};
+
+const setSuccess = (message) => {
+  success.value = message || '';
+  if (message) {
+    error.value = '';
+  }
+};
+
+const loadingRemotePrice = computed(() => fuelStore.loadingOil || fuelStore.loadingLocation);
+const cacheHint = computed(() => {
+  if (!fuelStore.lastOilFetchDate) return '';
+  return `油价缓存日期：${fuelStore.lastOilFetchDate}（每日自动更新一次）`;
+});
+
+const locationHint = computed(() => {
+  if (!fuelStore.regionName) return '';
+  const sourceMap = {
+    geolocation: 'GPS定位',
+    ip: 'IP定位',
+    manual: '手动地区'
+  };
+  return `当前地区：${fuelStore.regionName}（${sourceMap[fuelStore.locationSource] || '未知来源'}）`;
+});
+
 const form = ref({
-  fuel_type: '汽油',
-  price: 0,
-  effective_date: new Date().toISOString().slice(0, 10)
+  region_name: fuelStore.regionName || '青海省',
+  fuel_type: fuelStore.selectedFuelType || '92号汽油',
+  price: fuelStore.currentFuelPrice || 0,
+  effective_date: today()
 });
 
 const token = () => localStorage.getItem('token');
@@ -63,38 +103,76 @@ const fetchPrices = async () => {
     });
     prices.value = res.data.data || [];
   } catch (err) {
-    error.value = err.response?.data?.message || '获取油价失败';
+    setError(err.response?.data?.message || '获取油价失败');
   }
 };
 
-const savePrice = async () => {
-  if (!form.value.price) {
-    error.value = '请填写价格';
+const syncPriceFromStore = () => {
+  if (fuelStore.currentFuelPrice !== null && fuelStore.currentFuelPrice !== undefined) {
+    form.value.price = fuelStore.currentFuelPrice;
+  }
+  form.value.effective_date = today();
+};
+
+const fetchDailyOilPrice = async ({ force = false } = {}) => {
+  try {
+    setError('');
+    setSuccess('');
+    fuelStore.setRegionName(form.value.region_name);
+    fuelStore.setFuelType(form.value.fuel_type);
+
+    await fuelStore.fetchOilPrice({
+      force,
+      customRegionName: form.value.region_name
+    });
+
+    form.value.region_name = fuelStore.regionName;
+    syncPriceFromStore();
+    setSuccess(`已更新${form.value.region_name}${form.value.fuel_type}油价：${form.value.price} 元/升`);
+  } catch (err) {
+    setError(fuelStore.lastError || err.response?.data?.message || '获取地区油价失败');
+  }
+};
+
+const refreshByLocation = async () => {
+  try {
+    setError('');
+    setSuccess('');
+    await fuelStore.detectRegion();
+    form.value.region_name = fuelStore.regionName;
+    await fetchDailyOilPrice({ force: true });
+  } catch (err) {
+    setError(fuelStore.lastError || err.response?.data?.message || '定位并更新油价失败');
+  }
+};
+
+watch(() => form.value.fuel_type, async (value) => {
+  fuelStore.setFuelType(value);
+  if (fuelStore.oilPayload) {
+    syncPriceFromStore();
     return;
   }
+  await fetchDailyOilPrice();
+});
+
+watch(() => form.value.region_name, (value) => {
+  if (!value) return;
+  fuelStore.setRegionName(value);
+});
+
+onMounted(async () => {
+  await fetchPrices();
+  form.value.fuel_type = fuelStore.selectedFuelType;
+  form.value.region_name = fuelStore.regionName;
   try {
-    saving.value = true;
-    error.value = '';
-    success.value = '';
-    await axios.post('/api/trips/fuel-prices', form.value, {
-      headers: { Authorization: `Bearer ${token()}` }
-    });
-    success.value = '已保存';
-    await fetchPrices();
+    await fuelStore.initializeDailyOilPrice();
+    setSuccess(`已加载${fuelStore.regionName}${fuelStore.selectedFuelType}当日油价`);
   } catch (err) {
-    error.value = err.response?.data?.message || '保存油价失败';
-  } finally {
-    saving.value = false;
+    setError(fuelStore.lastError || err.response?.data?.message || '初始化油价失败');
   }
-};
-
-const useSamplePrice = () => {
-  // 可替换为真实外部油价 API；此处填入示例数据避免接口限制
-  form.value.price = 8.5;
-  success.value = '已填入示例油价（可替换为真实API结果）';
-};
-
-onMounted(fetchPrices);
+  form.value.region_name = fuelStore.regionName;
+  syncPriceFromStore();
+});
 </script>
 
 <style scoped>
@@ -108,15 +186,20 @@ onMounted(fetchPrices);
   justify-content: space-between;
   margin-bottom: 12px;
   gap: 12px;
+  background: #f8faf5;
+  border: 1px solid #e3ead6;
+  border-radius: 10px;
+  padding: 0.9rem 1.1rem;
 }
 
 .title {
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 1.2rem;
+  color: #2d3436;
 }
 
 .hint {
-  color: #6b755a;
+  color: #667459;
 }
 
 .actions {

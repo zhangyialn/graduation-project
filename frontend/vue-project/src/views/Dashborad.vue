@@ -1,7 +1,7 @@
 <template>
   <el-container class="dashboard-container">
-    <el-aside width="250px" class="sidebar">
-      <div class="sidebar-header">
+    <el-aside v-if="!isMobile" width="250px" class="sidebar">
+      <div class="sidebar-header" @click="handleNav('/dashboard/home')">
         <el-avatar :size="48" class="logo-avatar">
           <el-icon><Van /></el-icon>
         </el-avatar>
@@ -66,13 +66,20 @@
         </div>
       </div>
     </el-aside>
+
     <el-container>
-      <el-header class="header">
-        <div class="header-left">
+      <el-header class="header" :class="{ 'mobile-header': isMobile }">
+        <div class="header-left" v-if="!isMobile">
           <div class="page-title">{{ breadcrumb }}</div>
-          <div class="subtitle">{{ subtitle }}</div>
         </div>
-        <div class="header-right">
+
+        <div class="header-left mobile-left" v-else>
+          <el-button text class="mobile-icon-btn" @click="handleNav('/dashboard/home')">
+            <el-icon><Van /></el-icon>
+          </el-button>
+        </div>
+
+        <div class="header-right" v-if="!isMobile">
           <el-tag type="success" effect="dark" class="role-tag">{{ roleLabel }}</el-tag>
           <el-button type="primary" plain size="small" @click="refreshUser">刷新信息</el-button>
           <el-dropdown v-if="isDev" trigger="click" @command="switchRole">
@@ -86,7 +93,14 @@
             </template>
           </el-dropdown>
         </div>
+
+        <div class="header-right" v-else>
+          <el-button text class="mobile-icon-btn" @click="featureDrawer = true">
+            <el-icon><Menu /></el-icon>
+          </el-button>
+        </div>
       </el-header>
+
       <el-main class="main-content">
         <section class="hero" v-if="currentStep === 'home'">
           <div class="hero-text">
@@ -94,8 +108,8 @@
             <h2>{{ user?.name || user?.username || '用户' }}，{{ greeting }}</h2>
             <p class="description">根据您的角色快速进入常用功能。</p>
             <div class="hero-actions">
-              <el-button type="primary" @click="handleNav(primaryAction.path)">{{ primaryAction.label }}</el-button>
-              <el-button plain @click="handleNav('/dashboard/applications')">查看我的申请</el-button>
+              <el-button class="hero-main-btn" @click="handleNav(primaryAction.path)">{{ primaryAction.label }}</el-button>
+              <el-button class="hero-sub-btn" @click="handleNav('/dashboard/applications')">查看我的申请</el-button>
             </div>
           </div>
           <div class="hero-stats">
@@ -119,49 +133,85 @@
         <section class="quick-actions" v-if="currentStep === 'home'">
           <div class="section-title">快速操作</div>
           <div class="action-grid">
-            <el-card v-for="item in quickActions" :key="item.label" class="action-card" shadow="hover">
+            <el-card
+              v-for="item in quickActions"
+              :key="item.label"
+              class="action-card"
+              shadow="hover"
+              @click="handleNav(item.path)"
+            >
               <div class="action-card__content">
                 <div>
                   <p class="action-label">{{ item.label }}</p>
                   <p class="action-desc">{{ item.desc }}</p>
                 </div>
-                <el-button type="primary" link :disabled="item.disabled" @click="handleNav(item.path)">
-                  {{ item.disabled ? '规划中' : '立即前往' }}
-                </el-button>
               </div>
             </el-card>
           </div>
         </section>
 
         <section class="info-panels" v-if="currentStep === 'home'">
-          <div class="section-title">概览</div>
-          <div class="panel-grid">
-            <el-card class="panel-card" shadow="hover">
-              <h4>审批进度</h4>
-              <p class="panel-hint" v-if="isApprover">前往审批管理查看待处理事项。</p>
-              <p class="panel-hint" v-else>提交申请后可在“我的申请”查看状态。</p>
-            </el-card>
-            <el-card class="panel-card" shadow="hover">
-              <h4>车辆与费用</h4>
-              <p class="panel-hint">调度完成后自动生成费用，支持按油价和油耗计算。</p>
-            </el-card>
-            <el-card class="panel-card" shadow="hover" v-if="isApprover || isAdmin">
-              <h4>数据与可视化</h4>
-              <p class="panel-hint">后端已提供报表接口，可在前端新增图表页面进行展示。</p>
-            </el-card>
-          </div>
+          <div class="section-title">功能提示</div>
+          <el-card class="tips-card" shadow="never">
+            <div class="tip-row" v-for="tip in featureTips" :key="tip.title">
+              <span class="tip-dot" />
+              <div>
+                <p class="tip-title">{{ tip.title }}</p>
+                <p class="tip-text">{{ tip.text }}</p>
+              </div>
+            </div>
+          </el-card>
         </section>
 
         <router-view v-else />
       </el-main>
     </el-container>
   </el-container>
+
+  <el-drawer v-model="featureDrawer" direction="ltr" size="82%" :with-header="false" v-if="isMobile">
+    <div class="drawer-content">
+      <p class="drawer-title">功能菜单</p>
+      <div v-for="group in menuGroups" :key="group.title" class="drawer-group">
+        <p class="drawer-group-title">{{ group.title }}</p>
+        <el-button v-for="item in group.items" :key="item.path" text class="drawer-item" @click="handleNav(item.path)">
+          <span class="drawer-item-icon"><el-icon><component :is="item.icon" /></el-icon></span>
+          <span class="drawer-item-text">{{ item.label }}</span>
+        </el-button>
+      </div>
+
+      <el-divider />
+      <div class="user-panel">
+        <el-avatar :size="40"><el-icon><User /></el-icon></el-avatar>
+        <div>
+          <p class="user-name">{{ user?.username || '用户' }}</p>
+          <p class="user-role">当前身份：{{ roleLabel }}</p>
+        </div>
+      </div>
+      <el-button text type="danger" class="drawer-item" @click="logout">
+        <span class="drawer-item-icon"><el-icon><SwitchButton /></el-icon></span>
+        <span class="drawer-item-text">退出登录</span>
+      </el-button>
+    </div>
+  </el-drawer>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { DocumentAdd, Document, Check, Van, DataAnalysis, SwitchButton, Upload, TrendCharts, Money, Collection, User } from '@element-plus/icons-vue';
+import {
+  DocumentAdd,
+  Document,
+  Check,
+  Van,
+  DataAnalysis,
+  SwitchButton,
+  Upload,
+  TrendCharts,
+  Money,
+  Collection,
+  User,
+  Menu
+} from '@element-plus/icons-vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -170,11 +220,11 @@ const pendingCount = ref(0);
 const lastLoginHint = computed(() => '最近登录信息暂未记录');
 const currentStep = ref('home');
 const isDev = import.meta.env.DEV;
+const screenWidth = ref(window.innerWidth);
+const featureDrawer = ref(false);
 
-const activeMenu = computed(() => {
-  return route.path;
-});
-
+const isMobile = computed(() => screenWidth.value < 900);
+const activeMenu = computed(() => route.path);
 const role = computed(() => user.value?.role || 'user');
 const isApprover = computed(() => role.value === 'leader' || role.value === 'approver');
 const isAdmin = computed(() => role.value === 'admin');
@@ -243,38 +293,77 @@ const quickActions = computed(() => {
   return base;
 });
 
+const featureTips = computed(() => {
+  const approvalText = isApprover.value
+    ? '前往审批管理查看待处理事项。'
+    : '提交申请后可在“我的申请”查看状态。';
+  const reportText = isApprover.value || isAdmin.value
+    ? '后端已提供报表接口，可在报表可视化中查看趋势。'
+    : '如需查看可视化趋势，请联系审批员或管理员。';
+
+  return [
+    { title: '审批进度', text: approvalText },
+    { title: '车辆与费用', text: '调度完成后自动生成费用，支持按油价和油耗计算。' },
+    { title: '数据与可视化', text: reportText }
+  ];
+});
+
+const menuGroups = computed(() => {
+  const groups = [
+    {
+      title: '申请',
+      items: [
+        { label: '用车申请', path: '/dashboard/applications/create', icon: DocumentAdd },
+        { label: '我的申请', path: '/dashboard/applications', icon: Document }
+      ]
+    }
+  ];
+
+  if (isApprover.value || isAdmin.value) {
+    groups.push({
+      title: '审批',
+      items: [
+        { label: '审批管理', path: '/dashboard/approvals', icon: Check },
+        { label: '批量导入', path: '/dashboard/users/import', icon: Upload },
+        { label: '报表可视化', path: '/dashboard/reports', icon: TrendCharts },
+        { label: '审批记录', path: '/dashboard/approver-records', icon: Collection }
+      ]
+    });
+  }
+
+  if (isAdmin.value) {
+    groups.push({
+      title: '调度与车辆',
+      items: [
+        { label: '车辆管理', path: '/dashboard/vehicles', icon: Van },
+        { label: '调度管理', path: '/dashboard/dispatches', icon: DataAnalysis },
+        { label: '油价管理', path: '/dashboard/fuel-prices', icon: Money }
+      ]
+    });
+  }
+
+  return groups;
+});
+
 const loadUser = () => {
   const userStr = localStorage.getItem('user');
-  if (userStr) {
-    user.value = JSON.parse(userStr);
-  }
+  if (userStr) user.value = JSON.parse(userStr);
 };
 
 const logout = () => {
   localStorage.removeItem('token');
   localStorage.removeItem('user');
-  router.push('/login');
+  handleNav('/login');
 };
-
-onMounted(() => {
-  loadUser();
-  currentStep.value = (route.path === '/dashboard' || route.path === '/dashboard/home') ? 'home' : 'child';
-});
-
 
 const handleNav = (path) => {
+  featureDrawer.value = false;
   if (!path) return;
   router.push(path);
-  if (path === '/dashboard' || path === '/dashboard/home') {
-    currentStep.value = 'home';
-  } else {
-    currentStep.value = 'child';
-  }
+  currentStep.value = (path === '/dashboard' || path === '/dashboard/home') ? 'home' : 'child';
 };
 
-const refreshUser = () => {
-  loadUser();
-};
+const refreshUser = () => loadUser();
 
 const switchRole = (roleKey) => {
   const templates = {
@@ -285,20 +374,33 @@ const switchRole = (roleKey) => {
   const payload = templates[roleKey];
   if (!payload) return;
   localStorage.setItem('user', JSON.stringify(payload));
-  if (!localStorage.getItem('token')) {
-    localStorage.setItem('token', 'dev-token');
-  }
+  if (!localStorage.getItem('token')) localStorage.setItem('token', 'dev-token');
   loadUser();
 };
 
+const updateWidth = () => {
+  screenWidth.value = window.innerWidth;
+};
+
+onMounted(() => {
+  loadUser();
+  currentStep.value = (route.path === '/dashboard' || route.path === '/dashboard/home') ? 'home' : 'child';
+  window.addEventListener('resize', updateWidth);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateWidth);
+});
+
 watch(route, () => {
   currentStep.value = (route.path === '/dashboard' || route.path === '/dashboard/home') ? 'home' : 'child';
+  featureDrawer.value = false;
 }, { deep: true });
 </script>
 
 <style scoped>
 .dashboard-container {
-  height: 100vh;
+  min-height: 100vh;
   background-color: #f4f7ed;
 }
 
@@ -317,6 +419,7 @@ watch(route, () => {
   padding: 0 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   padding-bottom: 1.5rem;
+  cursor: pointer;
 }
 
 .sidebar-header h3 {
@@ -324,8 +427,6 @@ watch(route, () => {
   font-size: 1.2rem;
   font-weight: 700;
   color: #ecf0f1;
-  letter-spacing: 0.5px;
-  font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
 }
 
 .logo-avatar {
@@ -345,7 +446,6 @@ watch(route, () => {
   margin: 4px 8px;
   border-radius: 6px;
   color: #ecf0f1;
-  font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif !important;
 }
 
 :deep(.sidebar-menu .el-menu-item:hover) {
@@ -355,7 +455,6 @@ watch(route, () => {
 
 :deep(.sidebar-menu .is-active) {
   background: linear-gradient(135deg, #6b8e23 0%, #556b2f 100%) !important;
-  border-radius: 6px;
 }
 
 .user-info {
@@ -366,7 +465,7 @@ watch(route, () => {
   margin-top: auto;
   background-color: rgba(0, 0, 0, 0.2);
   border-radius: 8px;
-  margin: 1rem 0.75rem 0 0.75rem;
+  margin: 1rem 0.75rem 0;
 }
 
 .user-avatar {
@@ -383,7 +482,6 @@ watch(route, () => {
   font-weight: 600;
   font-size: 0.875rem;
   color: #ecf0f1;
-  font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
 }
 
 .role {
@@ -397,6 +495,9 @@ watch(route, () => {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   padding: 18px 24px;
   border-bottom: 1px solid #e5ddd2;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -451,7 +552,6 @@ watch(route, () => {
   color: #fff;
   padding: 24px;
   border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(86, 111, 46, 0.25);
 }
 
 .eyebrow {
@@ -477,6 +577,34 @@ watch(route, () => {
   gap: 12px;
 }
 
+.hero-main-btn {
+  background: #4d6a24;
+  border-color: #4d6a24;
+  color: #ffffff;
+  transition: all 0.2s ease;
+}
+
+.hero-main-btn:hover,
+.hero-main-btn:focus {
+  background: #3f581d;
+  border-color: #3f581d;
+  color: #ffffff;
+}
+
+.hero-sub-btn {
+  background: #edf3e1;
+  border-color: #d5e1bf;
+  color: #3f581d;
+  transition: all 0.2s ease;
+}
+
+.hero-sub-btn:hover,
+.hero-sub-btn:focus {
+  background: #e3ecd1;
+  border-color: #c6d7a8;
+  color: #2f4727;
+}
+
 .hero-stats .el-card {
   height: 100%;
 }
@@ -490,7 +618,6 @@ watch(route, () => {
 .stat-label {
   color: #6b755a;
   margin: 0;
-  font-size: 0.95rem;
 }
 
 .stat-value {
@@ -517,10 +644,18 @@ watch(route, () => {
 }
 
 .action-card__content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  display: block;
+}
+
+.action-card {
+  cursor: pointer;
+}
+
+.action-entry {
+  margin: 8px 0 0;
+  color: #556b2f;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .action-label {
@@ -538,39 +673,179 @@ watch(route, () => {
   margin-bottom: 12px;
 }
 
-.panel-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 12px;
+.tips-card {
+  border: 1px solid #dfe6d2;
+  background: #fbfcf8;
 }
 
-.panel-card h4 {
-  margin: 0 0 8px;
+.tip-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+}
+
+.tip-row + .tip-row {
+  border-top: 1px dashed #d9dfcc;
+}
+
+.tip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6b8e23;
+  margin-top: 7px;
+}
+
+.tip-title {
+  margin: 0;
   font-weight: 700;
   color: #2d3436;
 }
 
-.panel-hint {
-  margin: 0;
+.tip-text {
+  margin: 3px 0 0;
   color: #6b755a;
   line-height: 1.5;
 }
 
-.main-content::-webkit-scrollbar {
-  width: 8px;
+.drawer-content {
+  padding: 12px;
 }
 
-.main-content::-webkit-scrollbar-track {
-  background: transparent;
+.drawer-title {
+  margin: 0 0 10px;
+  font-weight: 700;
+  font-size: 18px;
 }
 
-.main-content::-webkit-scrollbar-thumb {
-  background: #d4c5b9;
-  border-radius: 4px;
-  transition: background 0.3s ease;
+.drawer-group {
+  margin-bottom: 14px;
 }
 
-.main-content::-webkit-scrollbar-thumb:hover {
-  background: #6b8e23;
+.drawer-group-title {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: #667459;
+}
+
+.drawer-item {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  margin-bottom: 6px;
+  padding: 2px 0 !important;
+}
+
+:deep(.drawer-group .el-button + .el-button) {
+  margin-left: 0 !important;
+}
+
+:deep(.drawer-item > span) {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  align-items: center;
+  column-gap: 10px;
+}
+
+.drawer-item-icon {
+  width: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.drawer-item-icon :deep(.el-icon) {
+  font-size: 18px;
+}
+
+.drawer-item-text {
+  text-align: left;
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.user-panel {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.user-name {
+  margin: 0;
+  font-weight: 700;
+}
+
+.user-role {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: #5f6b54;
+}
+
+.mobile-icon-btn {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+  width: 44px;
+  height: 44px;
+  padding: 0 !important;
+}
+
+.mobile-icon-btn :deep(.el-icon) {
+  font-size: 28px;
+}
+
+.mobile-icon-btn:hover {
+  background: transparent !important;
+}
+
+@media (max-width: 899px) {
+  .mobile-header {
+    background: #2f4727;
+    border-bottom: none;
+    box-shadow: none;
+    padding: max(10px, env(safe-area-inset-top)) 12px 10px;
+    border-radius: 0;
+  }
+
+  .mobile-header .page-title,
+  .mobile-header .subtitle {
+    color: #ffffff;
+  }
+
+  .mobile-left {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .main-content {
+    padding: 12px;
+  }
+
+  .hero {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-text {
+    padding: 16px;
+  }
+
+  .hero-text h2 {
+    font-size: 1.4rem;
+  }
+
+  .action-grid,
+  .panel-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .action-card__content {
+    display: block;
+  }
 }
 </style>

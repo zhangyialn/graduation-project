@@ -1,10 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import Login from '../components/Auth/Login.vue';
 import ForgotPassword from '../components/Auth/ForgotPassword.vue';
-import Dashboard from '../views/Dashboard.vue';
+import Dashboard from '../views/Dashborad.vue';
 import CreateApplication from '../components/Application/CreateApplication.vue';
 import ApplicationList from '../components/Application/ApplicationList.vue';
-import ApprovalList from '../components/Approval/ApprovalList.vue';
+import ApprovalList from '../components/Approval/ApprovalLiat.vue';
+import ApprovalDetail from '../components/Approval/ApprovalDetail.vue';
 import VehicleList from '../components/Vehicle/VehicleList.vue';
 import DispatchList from '../components/Dispatch/DispatchList.vue';
 import UserImport from '../views/UserImport.vue';
@@ -38,6 +39,7 @@ const routes = [
       { path: 'applications/create', name: 'CreateApplication', component: CreateApplication, meta: { requiresAuth: true } },
       { path: 'applications', name: 'ApplicationList', component: ApplicationList, meta: { requiresAuth: true } },
       { path: 'approvals', name: 'ApprovalList', component: ApprovalList, meta: { requiresAuth: true } },
+      { path: 'approvals/:applicationId', name: 'ApprovalDetail', component: ApprovalDetail, meta: { requiresAuth: true } },
       { path: 'vehicles', name: 'VehicleList', component: VehicleList, meta: { requiresAuth: true } },
       { path: 'dispatches', name: 'DispatchList', component: DispatchList, meta: { requiresAuth: true } },
       { path: 'users/import', name: 'UserImport', component: UserImport, meta: { requiresAuth: true } },

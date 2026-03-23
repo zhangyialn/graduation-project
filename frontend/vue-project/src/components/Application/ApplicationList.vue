@@ -6,11 +6,30 @@
         <h2>我的申请</h2>
       </div>
     </template>
-    <el-table :data="applications" style="width: 100%" border>
+    <div v-if="isMobile" class="mobile-list">
+      <el-card v-for="item in applications" :key="item.id" shadow="never" class="mobile-item">
+        <div class="mobile-top">
+          <p class="mobile-title">申请 #{{ item.id }}</p>
+          <el-tag :type="statusType(item.status)">{{ item.status }}</el-tag>
+        </div>
+        <p class="mobile-line">事由：{{ item.purpose || '-' }}</p>
+        <p class="mobile-line">目的地：{{ item.destination || '-' }}</p>
+        <p class="mobile-line">时间：{{ formatDate(item.start_time) }} - {{ formatDate(item.end_time) }}</p>
+        <div class="mobile-actions" v-if="item.status === 'pending'">
+          <el-button type="danger" size="small" @click="cancelApplication(item.id)">取消申请</el-button>
+        </div>
+      </el-card>
+    </div>
+
+    <el-table v-else :data="applications" style="width: 100%" border>
       <el-table-column prop="id" label="申请ID" width="80" />
       <el-table-column prop="purpose" label="用车事由" />
-      <el-table-column prop="start_time" label="开始时间" width="180" />
-      <el-table-column prop="end_time" label="结束时间" width="180" />
+      <el-table-column prop="start_time" label="开始时间" width="180">
+        <template #default="scope">{{ formatDate(scope.row.start_time) }}</template>
+      </el-table-column>
+      <el-table-column prop="end_time" label="结束时间" width="180">
+        <template #default="scope">{{ formatDate(scope.row.end_time) }}</template>
+      </el-table-column>
       <el-table-column prop="destination" label="目的地" />
       <el-table-column prop="status" label="状态" width="100">
         <template #default="scope">
@@ -31,12 +50,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import axios from 'axios';
 import { Document, Close } from '@element-plus/icons-vue';
 
 const applications = ref([]);
 const error = ref('');
+const isMobile = computed(() => window.innerWidth < 900);
 
 const statusType = (status) => {
   const typeMap = {
@@ -46,6 +66,11 @@ const statusType = (status) => {
     completed: 'info'
   };
   return typeMap[status] || 'info';
+};
+
+const formatDate = (value) => {
+  if (!value) return '-';
+  return new Date(value).toLocaleString();
 };
 
 const fetchApplications = async () => {
@@ -109,26 +134,33 @@ onMounted(() => {
 .card-header {
   display: flex;
   align-items: center;
-  background: linear-gradient(135deg, #f4f7ed 0%, #eff3e6 100%);
-  padding: 1.5rem;
+  gap: 10px;
+  background: #f8faf5;
+  border: 1px solid #e3ead6;
+  border-radius: 10px;
+  padding: 0.9rem 1.1rem;
   border-bottom: 1px solid #e5ddd2;
 }
 
 .header-icon {
-  font-size: 1.75rem;
-  margin-right: 1rem;
-  color: #6b8e23;
+  font-size: 1.1rem;
+  color: #556b2f;
+  background: #e9f0dc;
+  border: 1px solid #d7e2c2;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .card-header h2 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   font-weight: 700;
   font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
-  background: linear-gradient(135deg, #6b8e23 0%, #556b2f 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #2d3436;
 }
 
 :deep(.el-table) {
@@ -232,6 +264,37 @@ onMounted(() => {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.mobile-list {
+  display: grid;
+  gap: 10px;
+}
+
+.mobile-item {
+  border-radius: 10px;
+}
+
+.mobile-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mobile-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.mobile-line {
+  margin: 8px 0 0;
+  color: #4d5b44;
+  font-size: 13px;
+}
+
+.mobile-actions {
+  margin-top: 10px;
+  text-align: right;
 }
 </style>
 

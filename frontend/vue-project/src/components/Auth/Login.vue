@@ -15,6 +15,10 @@
         <el-form-item label="密码" prop="password">
           <el-input v-model="form.password" type="password" placeholder="请输入密码" prefix-icon="Lock" show-password />
         </el-form-item>
+        <div class="login-options">
+          <el-checkbox v-model="form.remember_password">记住密码</el-checkbox>
+          <el-checkbox v-model="form.keep_login">保持登录</el-checkbox>
+        </div>
         <el-form-item>
           <el-button type="primary" class="login-btn" @click="handleLogin" :loading="loading">
             登录
@@ -41,12 +45,16 @@ import axios from 'axios';
 import { notifyError, notifyWarning } from '../../utils/notify';
 import carAvatar from '../../assets/car.png';
 import { useAuthStore } from '../../stores/auth';
+import { useFuelPriceStore } from '../../stores/fuelPrice';
 
 const router = useRouter();
 const authStore = useAuthStore();
+const fuelStore = useFuelPriceStore();
 const form = reactive({
   username: '',
-  password: ''
+  password: '',
+  remember_password: false,
+  keep_login: true
 });
 const rules = reactive({
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
@@ -56,6 +64,38 @@ const error = ref('');
 const loading = ref(false);
 const loginForm = ref(null);
 const showBootstrapEntry = ref(false);
+
+const REMEMBER_KEY = 'login-remember-password';
+const REMEMBER_USERNAME_KEY = 'login-remember-username';
+const REMEMBER_PASSWORD_KEY = 'login-remember-password-value';
+const KEEP_LOGIN_KEY = 'login-keep-login';
+
+const detectLoginLocation = async () => {
+  try {
+    const response = await axios.get('https://ipapi.co/json/');
+    const city = response.data?.city || '';
+    const region = response.data?.region || '';
+    const country = response.data?.country_name || '';
+    return [country, region, city].filter(Boolean).join(' ') || '未知地点';
+  } catch (_err) {
+    return '未知地点';
+  }
+};
+
+const updateLoginMeta = async (username) => {
+  if (!username) return;
+  const currentKey = `login-current-meta:${username}`;
+  const lastKey = `login-last-meta:${username}`;
+  const currentRaw = localStorage.getItem(currentKey);
+  if (currentRaw) {
+    localStorage.setItem(lastKey, currentRaw);
+  }
+  const location = await detectLoginLocation();
+  localStorage.setItem(currentKey, JSON.stringify({
+    time: new Date().toISOString(),
+    location
+  }));
+};
 
 // 查询初始化入口状态：仅在系统未创建管理员时显示入口
 const fetchBootstrapStatus = async () => {
@@ -72,9 +112,32 @@ const handleLogin = async () => {
   try {
     await loginForm.value.validate();
     loading.value = true;
-    const response = await axios.post('/api/auth/login', form);
+    const response = await axios.post('/api/auth/login', {
+      username: form.username,
+      password: form.password
+    });
     const user = response.data.data.user;
-    authStore.setSession(response.data.data.access_token, user);
+    authStore.setSession(response.data.data.access_token, user, form.keep_login ? 'local' : 'session');
+    updateLoginMeta(user?.username || form.username).catch(() => {});
+
+    try {
+      await fuelStore.initializeDailyOilPrice();
+      await fuelStore.syncOilPriceToBackend();
+    } catch (_syncErr) {
+      // 油价同步失败不阻断登录
+    }
+
+    localStorage.setItem(KEEP_LOGIN_KEY, form.keep_login ? '1' : '0');
+    if (form.remember_password) {
+      localStorage.setItem(REMEMBER_KEY, '1');
+      localStorage.setItem(REMEMBER_USERNAME_KEY, form.username);
+      localStorage.setItem(REMEMBER_PASSWORD_KEY, form.password);
+    } else {
+      localStorage.removeItem(REMEMBER_KEY);
+      localStorage.removeItem(REMEMBER_USERNAME_KEY);
+      localStorage.removeItem(REMEMBER_PASSWORD_KEY);
+    }
+
     if (user?.must_change_password) {
       notifyWarning('首次登录请先修改密码');
       router.push('/dashboard/change-password');
@@ -95,7 +158,17 @@ const handleLogin = async () => {
   }
 };
 
-onMounted(fetchBootstrapStatus);
+onMounted(() => {
+  fetchBootstrapStatus();
+  const remembered = localStorage.getItem(REMEMBER_KEY) === '1';
+  const keepLogin = localStorage.getItem(KEEP_LOGIN_KEY);
+  form.remember_password = remembered;
+  form.keep_login = keepLogin === null ? true : keepLogin === '1';
+  if (remembered) {
+    form.username = localStorage.getItem(REMEMBER_USERNAME_KEY) || '';
+    form.password = localStorage.getItem(REMEMBER_PASSWORD_KEY) || '';
+  }
+});
 </script>
 
 <style scoped>
@@ -226,6 +299,19 @@ onMounted(fetchBootstrapStatus);
 
 :deep(.el-input__prefix) {
   color: #8b7355;
+}
+
+.login-options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: -4px 0 12px;
+  padding: 2px 2px;
+}
+
+:deep(.login-options .el-checkbox) {
+  color: #4d5b44;
+  font-size: 14px;
 }
 
 .login-btn {

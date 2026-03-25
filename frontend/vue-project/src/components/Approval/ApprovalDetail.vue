@@ -60,6 +60,7 @@ import { onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import { notifyError, notifySuccess } from '../../utils/notify';
+import { formatBeijingDateTime } from '../../utils/datetime';
 
 const route = useRoute();
 const router = useRouter();
@@ -74,7 +75,7 @@ const form = reactive({ comment: '', start_point: '' });
 // 将业务状态映射为标签样式
 const statusType = (status) => ({ pending: 'warning', approved: 'success', rejected: 'danger', completed: 'info' }[status] || 'info');
 // 时间格式化显示
-const formatDate = (v) => v ? new Date(v).toLocaleString() : '-';
+const formatDate = (v) => formatBeijingDateTime(v);
 
 // 拉取申请详情与历史审批记录
 const fetchData = async () => {

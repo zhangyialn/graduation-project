@@ -4,6 +4,7 @@
 from flask import request, jsonify
 from flask_jwt_extended import get_jwt_identity
 from models.index import db, Trip, Expense, Dispatch, Vehicle, FuelPrice, CarApplication, User, RoleEnum
+from datetime import datetime
 
 
 # 兼容 Enum/字符串状态读取
@@ -17,6 +18,69 @@ def get_trips():
     try:
         trips = Trip.query.all()
         return jsonify({'success': True, 'data': [trip.to_dict() for trip in trips]})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+# 行程管理列表（聚合乘客/司机/事由/费用）
+def get_trip_management_list():
+    try:
+        trips = Trip.query.order_by(Trip.created_at.desc(), Trip.id.desc()).all()
+        if not trips:
+            return jsonify({'success': True, 'data': []})
+
+        trip_ids = [trip.id for trip in trips]
+        dispatch_ids = [trip.dispatch_id for trip in trips if trip.dispatch_id]
+
+        dispatches = Dispatch.query.filter(Dispatch.id.in_(dispatch_ids)).all() if dispatch_ids else []
+        dispatch_map = {item.id: item for item in dispatches}
+
+        application_ids = [item.application_id for item in dispatches if item.application_id]
+        applications = CarApplication.query.filter(CarApplication.id.in_(application_ids)).all() if application_ids else []
+        application_map = {item.id: item for item in applications}
+
+        user_ids = set()
+        for item in applications:
+            if item.applicant_id:
+                user_ids.add(item.applicant_id)
+        for item in dispatches:
+            if item.driver_id:
+                user_ids.add(item.driver_id)
+
+        users = User.query.filter(User.id.in_(list(user_ids))).all() if user_ids else []
+        user_map = {item.id: item for item in users}
+
+        expenses = Expense.query.filter(Expense.trip_id.in_(trip_ids)).all() if trip_ids else []
+        expense_map = {item.trip_id: item for item in expenses}
+
+        result = []
+        for trip in trips:
+            dispatch = dispatch_map.get(trip.dispatch_id)
+            application = application_map.get(dispatch.application_id) if dispatch else None
+            passenger = user_map.get(application.applicant_id) if application and application.applicant_id else None
+            driver = user_map.get(dispatch.driver_id) if dispatch and dispatch.driver_id else None
+            expense = expense_map.get(trip.id)
+            fuel_used_l = float(trip.fuel_used_l) if trip.fuel_used_l is not None else None
+
+            distance_km = float(trip.distance_km) if trip.distance_km is not None else None
+            if distance_km is None and expense and expense.mileage_km is not None:
+                distance_km = float(expense.mileage_km)
+
+            result.append({
+                'trip_id': trip.id,
+                'passenger_name': passenger.name if passenger else '未知乘客',
+                'driver_name': driver.name if driver else '未知司机',
+                'purpose': application.purpose if application else None,
+                'distance_km': distance_km,
+                'fuel_used_l': fuel_used_l,
+                'total_cost': float(trip.total_cost) if trip.total_cost is not None else float(expense.total_cost) if expense and expense.total_cost is not None else 0.0,
+                'passenger_picked_up': bool(trip.passenger_picked_up),
+                'actual_start_time': trip.actual_start_time.isoformat() if trip.actual_start_time else None,
+                'actual_end_time': trip.actual_end_time.isoformat() if trip.actual_end_time else None,
+                'created_at': trip.created_at.isoformat() if trip.created_at else None
+            })
+
+        return jsonify({'success': True, 'data': result})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -46,13 +110,52 @@ def create_trip():
         
         trip = Trip(
             dispatch_id=data['dispatch_id'],
-            start_mileage=data['start_mileage'],
-            start_fuel=data['start_fuel'],
-            actual_start_time=data.get('actual_start_time')
+            passenger_picked_up=False,
+            status='started'
         )
         db.session.add(trip)
         db.session.commit()
         return jsonify({'success': True, 'data': trip.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)})
+
+
+# 司机确认“已接到乘客”并记录行程开始时间
+def pickup_passenger(id):
+    try:
+        trip = Trip.query.get(id)
+        if not trip:
+            return jsonify({'success': False, 'message': '出车记录不存在'})
+
+        if _enum_value(trip.status) == 'completed':
+            return jsonify({'success': False, 'message': '该行程已结束，不能再接乘客'})
+
+        dispatch = Dispatch.query.get(trip.dispatch_id)
+        if not dispatch:
+            return jsonify({'success': False, 'message': '调度不存在'}), 404
+
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        if not current_user:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+
+        current_role = _enum_value(current_user.role)
+        driver_profile = User.query.filter_by(id=current_user_id, role=RoleEnum.driver, is_deleted=False).first()
+        if current_role == 'driver':
+            if not driver_profile or driver_profile.id != dispatch.driver_id:
+                return jsonify({'success': False, 'message': '仅该行程司机可确认接到乘客'}), 403
+
+        if trip.passenger_picked_up or trip.actual_start_time is not None:
+            if not trip.passenger_picked_up:
+                trip.passenger_picked_up = True
+                db.session.commit()
+            return jsonify({'success': True, 'message': '已确认接到乘客', 'data': trip.to_dict()})
+
+        trip.passenger_picked_up = True
+        trip.actual_start_time = datetime.utcnow()
+        db.session.commit()
+        return jsonify({'success': True, 'message': '已确认接到乘客', 'data': trip.to_dict()})
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)})
@@ -86,18 +189,32 @@ def end_trip(id):
         if current_role == 'driver':
             if not driver_profile or driver_profile.id != dispatch.driver_id:
                 return jsonify({'success': False, 'message': '仅该行程司机可结束当前行程'}), 403
+
+        picked_up = bool(trip.passenger_picked_up) or (trip.actual_start_time is not None)
+        if not picked_up:
+            return jsonify({'success': False, 'message': '请先确认已接到乘客，再结束行程'}), 400
+        if not trip.passenger_picked_up:
+            trip.passenger_picked_up = True
         
-        # 更新出车记录
-        trip.end_mileage = data['end_mileage']
-        trip.end_fuel = data['end_fuel']
-        trip.actual_end_time = data.get('actual_end_time')
+        # 更新出车记录（支持司机按“消耗路程/消耗油量”录入）
+        distance_input = data.get('distance_km')
+        fuel_used_input = data.get('fuel_used')
+        if distance_input is None:
+            return jsonify({'success': False, 'message': '请填写消耗路程'}), 400
+
+        mileage = float(distance_input)
+        if mileage < 0:
+            return jsonify({'success': False, 'message': '消耗路程不能为负数'}), 400
+
+        fuel_used_value = float(fuel_used_input) if fuel_used_input is not None else 0.0
+        if fuel_used_value < 0:
+            return jsonify({'success': False, 'message': '消耗油量不能为负数'}), 400
+
+        trip.actual_end_time = datetime.utcnow()
         trip.ended_by = current_user_id
         trip.status = 'completed'
-
-        mileage = float(trip.end_mileage) - float(trip.start_mileage)
-        if mileage < 0:
-            return jsonify({'success': False, 'message': '结束里程不能小于起始里程'}), 400
         trip.distance_km = mileage
+        trip.fuel_used_l = fuel_used_value
         
         if dispatch:
             # 更新车辆状态为可用
@@ -139,12 +256,14 @@ def end_trip(id):
         request_cost_per_km = data.get('cost_per_km')
         if request_cost_per_km is not None:
             cost_per_km = float(request_cost_per_km)
+            fuel_cost = mileage * cost_per_km
         elif vehicle and vehicle.fuel_consumption_per_100km is not None:
             cost_per_km = float(vehicle.fuel_consumption_per_100km) / 100 * fuel_price_value
+            fuel_cost = mileage * cost_per_km
         else:
-            cost_per_km = 0.0
-
-        fuel_cost = mileage * cost_per_km
+            fuel_used = max(float(fuel_used_value), 0)
+            fuel_cost = fuel_used * fuel_price_value if fuel_price_value > 0 else 0.0
+            cost_per_km = (fuel_cost / mileage) if mileage > 0 else 0.0
 
         # 维护费用（可由前端传入，默认 0）
         maintenance_cost = float(data.get('maintenance_cost', 0))
@@ -154,19 +273,30 @@ def end_trip(id):
         
         # 总费用
         total_cost = fuel_cost + maintenance_cost + other_cost
+        trip.total_cost = total_cost
         
-        # 创建费用记录
-        expense = Expense(
-            trip_id=id,
-            mileage_km=mileage,
-            cost_per_km=cost_per_km,
-            fuel_cost=fuel_cost,
-            maintenance_cost=maintenance_cost,
-            other_cost=other_cost,
-            total_cost=total_cost,
-            fuel_price=fuel_price_value
-        )
-        db.session.add(expense)
+        # 费用记录：已存在则更新，不存在则创建
+        expense = Expense.query.filter_by(trip_id=id).first()
+        if not expense:
+            expense = Expense(
+                trip_id=id,
+                mileage_km=mileage,
+                cost_per_km=cost_per_km,
+                fuel_cost=fuel_cost,
+                maintenance_cost=maintenance_cost,
+                other_cost=other_cost,
+                total_cost=total_cost,
+                fuel_price=fuel_price_value
+            )
+            db.session.add(expense)
+        else:
+            expense.mileage_km = mileage
+            expense.cost_per_km = cost_per_km
+            expense.fuel_cost = fuel_cost
+            expense.maintenance_cost = maintenance_cost
+            expense.other_cost = other_cost
+            expense.total_cost = total_cost
+            expense.fuel_price = fuel_price_value
         
         db.session.commit()
         return jsonify({
@@ -229,13 +359,29 @@ def get_fuel_prices():
 # 新增油价配置
 def create_fuel_price():
     try:
-        data = request.json
-        price = FuelPrice(
-            fuel_type=data['fuel_type'],
-            price=data['price'],
-            effective_date=data['effective_date']
-        )
-        db.session.add(price)
+        data = request.json or {}
+        fuel_type = data.get('fuel_type')
+        price_value = data.get('price')
+        effective_date = data.get('effective_date')
+        source = data.get('source')
+
+        if not fuel_type or price_value is None or not effective_date:
+            return jsonify({'success': False, 'message': 'fuel_type、price、effective_date 必填'}), 400
+
+        price = FuelPrice.query.filter_by(fuel_type=fuel_type, effective_date=effective_date).first()
+        if not price:
+            price = FuelPrice(
+                fuel_type=fuel_type,
+                price=price_value,
+                effective_date=effective_date,
+                source=source
+            )
+            db.session.add(price)
+        else:
+            price.price = price_value
+            if source:
+                price.source = source
+
         db.session.commit()
         return jsonify({'success': True, 'data': price.to_dict()})
     except Exception as e:

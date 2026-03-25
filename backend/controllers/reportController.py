@@ -83,7 +83,7 @@ def get_vehicle_usage():
         stats = db.session.query(
             Dispatch.vehicle_id,
             func.count(Dispatch.id).label('usage_count'),
-            func.sum(case((Trip.distance_km.isnot(None), Trip.distance_km), else_=(Trip.end_mileage - Trip.start_mileage))).label('total_mileage'),
+            func.sum(func.coalesce(Trip.distance_km, 0)).label('total_mileage'),
             func.sum(Expense.total_cost).label('total_expense')
         ).join(
             Trip, Dispatch.id == Trip.dispatch_id
@@ -156,7 +156,7 @@ def get_driver_workload():
         stats = db.session.query(
             Dispatch.driver_id,
             func.count(Dispatch.id).label('trip_count'),
-            func.sum(case((Trip.distance_km.isnot(None), Trip.distance_km), else_=(Trip.end_mileage - Trip.start_mileage))).label('total_mileage')
+            func.sum(func.coalesce(Trip.distance_km, 0)).label('total_mileage')
         ).join(
             Trip, Dispatch.id == Trip.dispatch_id
         ).filter(

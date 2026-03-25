@@ -251,7 +251,18 @@ def get_pending_applications(department_id):
             department_id=department_id,
             status='pending'
         ).all()
-        return jsonify({'success': True, 'data': [app.to_dict() for app in applications]})
+        applicant_ids = list({app.applicant_id for app in applications if app.applicant_id})
+        users = User.query.filter(User.id.in_(applicant_ids)).all() if applicant_ids else []
+        user_map = {user.id: user for user in users}
+
+        result = []
+        for app in applications:
+            item = app.to_dict()
+            applicant = user_map.get(app.applicant_id)
+            item['applicant_name'] = applicant.name if applicant else None
+            result.append(item)
+
+        return jsonify({'success': True, 'data': result})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 

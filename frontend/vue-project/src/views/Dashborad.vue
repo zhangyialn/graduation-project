@@ -1,9 +1,9 @@
 <!-- Dashborad：按角色展示导航、首页卡片与功能入口 -->
 <template>
   <el-container class="dashboard-container">
-    <el-aside v-if="!isMobile" width="250px" class="sidebar">
+    <el-aside v-if="showSidebar" width="270px" class="sidebar">
       <div class="sidebar-header" @click="handleNav('/dashboard/home')">
-        <el-avatar :size="48" class="logo-avatar">
+        <el-avatar :size="64" class="logo-avatar">
           <el-icon><Van /></el-icon>
         </el-avatar>
         <h3>公务用车系统</h3>
@@ -16,13 +16,9 @@
         active-text-color="#409EFF"
         router
       >
-        <el-menu-item index="/dashboard/applications/create">
+        <el-menu-item index="/dashboard/application-center">
           <template #icon><el-icon><DocumentAdd /></el-icon></template>
-          <span>用车申请</span>
-        </el-menu-item>
-        <el-menu-item index="/dashboard/applications">
-          <template #icon><el-icon><Document /></el-icon></template>
-          <span>我的申请</span>
+          <span>申请服务中心</span>
         </el-menu-item>
         <el-menu-item index="/dashboard/driver" v-if="isDriver">
           <template #icon><el-icon><Van /></el-icon></template>
@@ -30,15 +26,11 @@
         </el-menu-item>
         <el-menu-item index="/dashboard/approvals" v-if="isApprover || isAdmin">
           <template #icon><el-icon><Check /></el-icon></template>
-          <span>审批管理</span>
+          <span>审批与出车中心</span>
         </el-menu-item>
         <el-menu-item index="/dashboard/personnel-vehicles" v-if="isAdmin">
           <template #icon><el-icon><Van /></el-icon></template>
           <span>人员和车辆管理</span>
-        </el-menu-item>
-        <el-menu-item index="/dashboard/dispatches" v-if="isAdmin">
-          <template #icon><el-icon><DataAnalysis /></el-icon></template>
-          <span>调度管理</span>
         </el-menu-item>
         <el-menu-item index="/dashboard/reports" v-if="isApprover || isAdmin">
           <template #icon><el-icon><TrendCharts /></el-icon></template>
@@ -48,17 +40,22 @@
           <template #icon><el-icon><Money /></el-icon></template>
           <span>油价管理</span>
         </el-menu-item>
-        <el-menu-item index="/dashboard/approver-records" v-if="isApprover || isAdmin">
-          <template #icon><el-icon><Collection /></el-icon></template>
-          <span>审批记录</span>
-        </el-menu-item>
       </el-menu>
     </el-aside>
 
     <el-container>
       <el-header class="header" :class="{ 'mobile-header': isMobile }">
-        <div class="header-left" v-if="!isMobile">
+        <div class="header-left" v-if="!isMobile && showSidebar">
           <div class="page-title">{{ breadcrumb }}</div>
+        </div>
+
+        <div class="header-left desktop-merged-nav" v-else-if="!isMobile">
+          <div class="top-brand" @click="handleNav('/dashboard/home')">
+            <el-avatar :size="52" class="logo-avatar top-logo-avatar">
+              <el-icon><Van /></el-icon>
+            </el-avatar>
+            <span class="top-brand-name">公务用车系统</span>
+          </div>
         </div>
 
         <div class="header-left mobile-left" v-else>
@@ -80,7 +77,7 @@
             </div>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="change-password">修改密码</el-dropdown-item>
+                <el-dropdown-item command="account-settings">账号设置</el-dropdown-item>
                 <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -113,7 +110,11 @@
             <p class="description">根据您的角色快速进入常用功能。</p>
             <div class="hero-actions">
               <el-button class="hero-main-btn" @click="handleNav(primaryAction.path)">{{ primaryAction.label }}</el-button>
-              <el-button class="hero-sub-btn" @click="handleNav('/dashboard/applications')">查看我的申请</el-button>
+              <el-button
+                v-if="primaryAction.path !== '/dashboard/application-center'"
+                class="hero-sub-btn"
+                @click="handleNav('/dashboard/application-center')"
+              >进入申请服务中心</el-button>
             </div>
           </div>
           <div class="hero-stats">
@@ -122,9 +123,9 @@
                 <p class="stat-label">角色</p>
                 <p class="stat-value">{{ roleLabel }}</p>
               </div>
-              <div class="stat-item">
-                <p class="stat-label">今日待办</p>
-                <p class="stat-value">{{ pendingCount }} 个</p>
+              <div class="stat-item stat-item-clickable" @click="goStatTarget">
+                <p class="stat-label">{{ statConfig.label }}</p>
+                <p class="stat-value">{{ statConfig.value }} 个</p>
               </div>
               <div class="stat-item">
                 <p class="stat-label">上次登录</p>
@@ -191,18 +192,58 @@
           <p class="user-role">当前身份：{{ roleLabel }}</p>
         </div>
       </div>
+      <el-button text class="drawer-item" @click="openAccountSettings">
+        <span class="drawer-item-icon"><el-icon><Lock /></el-icon></span>
+        <span class="drawer-item-text">账号设置</span>
+      </el-button>
       <el-button text type="danger" class="drawer-item" @click="logout">
         <span class="drawer-item-icon"><el-icon><SwitchButton /></el-icon></span>
         <span class="drawer-item-text">退出登录</span>
       </el-button>
     </div>
   </el-drawer>
+
+  <el-dialog
+    v-model="roleLabelDialogVisible"
+    title="账号设置"
+    width="420px"
+    class="account-settings-dialog"
+    header-class="account-dialog-header"
+    body-class="account-dialog-body"
+    footer-class="account-dialog-footer"
+    align-center
+  >
+    <el-form label-width="90px">
+      <el-form-item label="当前角色">
+        <el-input :model-value="roleLabel" disabled />
+      </el-form-item>
+      <el-form-item label="用户名">
+        <el-input v-model="accountForm.username" placeholder="请输入用户名" maxlength="30" show-word-limit />
+      </el-form-item>
+      <el-form-item label="当前密码">
+        <el-input v-model="accountForm.old_password" type="password" show-password placeholder="请输入当前密码" />
+      </el-form-item>
+      <el-form-item label="新密码">
+        <el-input v-model="accountForm.new_password" type="password" show-password placeholder="可选，留空则不修改" />
+      </el-form-item>
+      <el-form-item label="确认新密码">
+        <el-input v-model="accountForm.confirm_password" type="password" show-password placeholder="请再次输入新密码" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="roleLabelDialogVisible = false">取消</el-button>
+      <el-button type="primary" :loading="savingAccount" @click="saveRoleLabelAlias">保存</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
+import axios from 'axios';
+import { notifyError, notifySuccess } from '../utils/notify';
+import { formatBeijingDateTime, getBeijingHour } from '../utils/datetime';
 import {
   DocumentAdd,
   Document,
@@ -213,7 +254,6 @@ import {
   SwitchButton,
   TrendCharts,
   Money,
-  Collection,
   User,
   Menu
 } from '@element-plus/icons-vue';
@@ -223,11 +263,20 @@ const route = useRoute();
 const authStore = useAuthStore();
 const user = ref(null);
 const pendingCount = ref(0);
-const lastLoginHint = computed(() => '最近登录信息暂未记录');
+const rejectedCount = ref(0);
+const lastLoginHint = ref('最近登录信息暂未记录');
 const currentStep = ref('home');
 const isDev = import.meta.env.DEV;
 const screenWidth = ref(window.innerWidth);
 const featureDrawer = ref(false);
+const roleLabelDialogVisible = ref(false);
+const savingAccount = ref(false);
+const accountForm = ref({
+  username: '',
+  old_password: '',
+  new_password: '',
+  confirm_password: ''
+});
 
 const isMobile = computed(() => screenWidth.value < 900);
 const activeMenu = computed(() => route.path);
@@ -235,22 +284,35 @@ const role = computed(() => user.value?.role || 'user');
 const isDriver = computed(() => role.value === 'driver');
 const isApprover = computed(() => role.value === 'approver');
 const isAdmin = computed(() => role.value === 'admin');
+const showSidebar = computed(() => !isMobile.value && (isAdmin.value || isApprover.value));
+const statConfig = computed(() => {
+  if (isDriver.value) {
+    return { label: '今日待办', value: pendingCount.value, path: '/dashboard/driver' };
+  }
+  if (isApprover.value || isAdmin.value) {
+    return { label: '今日待办', value: pendingCount.value, path: '/dashboard/approval-dispatch' };
+  }
+  return { label: '申请未通过', value: rejectedCount.value, path: '/dashboard/applications' };
+});
 
 const breadcrumb = computed(() => {
   const pathMap = {
-    '/dashboard/applications/create': '用车申请',
-    '/dashboard/applications': '我的申请',
+    '/dashboard/applications/create': '申请服务中心',
+    '/dashboard/applications': '申请服务中心',
+    '/dashboard/application-center': '申请服务中心',
     '/dashboard/change-password': '修改密码',
     '/dashboard/driver': '司机面板',
-    '/dashboard/approvals': '审批管理',
+    '/dashboard/approval-dispatch': '审批与出车中心',
+    '/dashboard/approvals': '审批与出车中心',
     '/dashboard/personnel-vehicles': '人员和车辆管理',
-    '/dashboard/dispatches': '调度管理',
+    '/dashboard/dispatches': '审批与出车中心',
     '/dashboard/vehicles': '人员和车辆管理',
     '/dashboard/users/import': '人员和车辆管理',
     '/dashboard/admins': '人员和车辆管理',
     '/dashboard/reports': '报表可视化',
     '/dashboard/fuel-prices': '油价管理',
-    '/dashboard/approver-records': '审批记录'
+    '/dashboard/approver-records': '审批与出车中心',
+    '/dashboard/trips': '审批与出车中心'
   };
   return pathMap[route.path] || '首页';
 });
@@ -270,7 +332,7 @@ const roleLabel = computed(() => {
 });
 
 const greeting = computed(() => {
-  const hour = new Date().getHours();
+  const hour = getBeijingHour();
   if (hour < 12) return '上午好';
   if (hour < 18) return '下午好';
   return '晚上好';
@@ -278,19 +340,18 @@ const greeting = computed(() => {
 
 const primaryAction = computed(() => {
   if (isDriver.value) return { label: '进入司机面板', path: '/dashboard/driver' };
-  if (isApprover.value) return { label: '进入审批管理', path: '/dashboard/approvals' };
+  if (isApprover.value) return { label: '进入审批与出车中心', path: '/dashboard/approval-dispatch' };
   if (isAdmin.value) return { label: '人员和车辆管理', path: '/dashboard/personnel-vehicles' };
-  return { label: '立即发起申请', path: '/dashboard/applications/create' };
+  return { label: '进入申请服务中心', path: '/dashboard/application-center' };
 });
 
 const quickActions = computed(() => {
   const base = [
-    { label: '我的申请', desc: '查看进度与审批意见', path: '/dashboard/applications' },
-    { label: '创建申请', desc: '提交新的用车需求', path: '/dashboard/applications/create' }
+    { label: '申请服务中心', desc: '发起申请并查看进度', path: '/dashboard/application-center' }
   ];
 
   const approverExtra = [
-    { label: '审批管理', desc: '处理待审批的用车申请', path: '/dashboard/approvals' }
+    { label: '审批与出车中心', desc: '处理审批、调度、记录和行程', path: '/dashboard/approval-dispatch' }
   ];
 
   const driverExtra = [
@@ -299,13 +360,12 @@ const quickActions = computed(() => {
 
   const adminExtra = [
     { label: '人员和车辆管理', desc: '导入人员、管理员维护与车辆司机管理', path: '/dashboard/personnel-vehicles' },
-    { label: '调度管理', desc: '安排调度与司机', path: '/dashboard/dispatches' },
+    { label: '审批与出车中心', desc: '处理审批、调度、记录和行程', path: '/dashboard/approval-dispatch' },
     { label: '报表可视化', desc: '查看使用率与费用趋势', path: '/dashboard/reports' },
-    { label: '油价管理', desc: '维护油价并用于费用计算', path: '/dashboard/fuel-prices' },
-    { label: '审批记录', desc: '查看审批员/用户的审批记录', path: '/dashboard/approver-records' }
+    { label: '油价管理', desc: '维护油价并用于费用计算', path: '/dashboard/fuel-prices' }
   ];
 
-  if (isAdmin.value) return [...adminExtra, ...approverExtra, ...base];
+  if (isAdmin.value) return [...adminExtra, ...base];
   if (isDriver.value) return [...driverExtra, ...base];
   if (isApprover.value) return [...approverExtra, ...base];
   return base;
@@ -313,8 +373,8 @@ const quickActions = computed(() => {
 
 const featureTips = computed(() => {
   const approvalText = isApprover.value
-    ? '前往审批管理查看待处理事项。'
-    : '提交申请后可在“我的申请”查看状态。';
+    ? '前往审批与出车中心查看待处理事项。'
+    : '提交申请后可在“申请服务中心”查看状态。';
   const reportText = isApprover.value || isAdmin.value
     ? '后端已提供报表接口，可在报表可视化中查看趋势。'
     : '如需查看可视化趋势，请联系审批员或管理员。';
@@ -332,9 +392,7 @@ const menuGroups = computed(() => {
     {
       title: '申请',
       items: [
-        { label: '用车申请', path: '/dashboard/applications/create', icon: DocumentAdd },
-        { label: '我的申请', path: '/dashboard/applications', icon: Document },
-        { label: '修改密码', path: '/dashboard/change-password', icon: Lock }
+        { label: '申请服务中心', path: '/dashboard/application-center', icon: DocumentAdd }
       ]
     }
   ];
@@ -343,9 +401,8 @@ const menuGroups = computed(() => {
     groups.push({
       title: '审批',
       items: [
-        { label: '审批管理', path: '/dashboard/approvals', icon: Check },
-        { label: '报表可视化', path: '/dashboard/reports', icon: TrendCharts },
-        { label: '审批记录', path: '/dashboard/approver-records', icon: Collection }
+        { label: '审批与出车中心', path: '/dashboard/approval-dispatch', icon: Check },
+        { label: '报表可视化', path: '/dashboard/reports', icon: TrendCharts }
       ]
     });
   }
@@ -370,7 +427,7 @@ const menuGroups = computed(() => {
     groups.push({
       title: '调度与车辆',
       items: [
-        { label: '调度管理', path: '/dashboard/dispatches', icon: DataAnalysis },
+        { label: '审批与出车中心', path: '/dashboard/approval-dispatch', icon: DataAnalysis },
         { label: '油价管理', path: '/dashboard/fuel-prices', icon: Money }
       ]
     });
@@ -383,6 +440,75 @@ const menuGroups = computed(() => {
 const loadUser = () => {
   authStore.hydrate();
   user.value = authStore.user || null;
+};
+
+const loadLastLoginHint = () => {
+  try {
+    const username = user.value?.username;
+    if (!username) {
+      lastLoginHint.value = '最近登录信息暂未记录';
+      return;
+    }
+    const lastKey = `login-last-meta:${username}`;
+    const currentKey = `login-current-meta:${username}`;
+    const raw = localStorage.getItem(lastKey) || localStorage.getItem(currentKey);
+    if (!raw) {
+      lastLoginHint.value = '最近登录信息暂未记录';
+      return;
+    }
+    const parsed = JSON.parse(raw);
+    const timeText = formatBeijingDateTime(parsed?.time);
+    const locationText = parsed?.location || '未知地点';
+    lastLoginHint.value = `${timeText} · ${locationText}`;
+  } catch (_err) {
+    lastLoginHint.value = '最近登录信息暂未记录';
+  }
+};
+
+const fetchRolePendingCount = async () => {
+  try {
+    if (!user.value) {
+      pendingCount.value = 0;
+      rejectedCount.value = 0;
+      return;
+    }
+
+    if (isDriver.value) {
+      const response = await axios.get('/api/drivers/me/dashboard');
+      const tasks = response.data?.data?.tasks || [];
+      pendingCount.value = tasks.filter((item) => ['scheduled', 'in_progress'].includes(item.dispatch_status)).length;
+      return;
+    }
+
+    if (isApprover.value) {
+      const departmentId = user.value?.department_id;
+      if (!departmentId) {
+        pendingCount.value = 0;
+        return;
+      }
+      const response = await axios.get(`/api/applications/pending/${departmentId}`);
+      pendingCount.value = (response.data?.data || []).length;
+      return;
+    }
+
+    if (isAdmin.value) {
+      const response = await axios.get('/api/applications', { params: { status: 'pending' } });
+      pendingCount.value = (response.data?.data || []).length;
+      return;
+    }
+
+    const response = await axios.get(`/api/applications/my/${user.value.id}`);
+    const list = response.data?.data || [];
+    rejectedCount.value = list.filter((item) => item.status === 'rejected').length;
+  } catch (_err) {
+    pendingCount.value = 0;
+    rejectedCount.value = 0;
+  }
+};
+
+const goStatTarget = () => {
+  if (!statConfig.value?.path) return;
+  handleNav(statConfig.value.path);
 };
 
 // 清理登录态并跳转登录页
@@ -403,12 +529,67 @@ const handleNav = (path) => {
 const refreshUser = () => loadUser();
 
 const handleProfileCommand = (command) => {
-  if (command === 'change-password') {
-    handleNav('/dashboard/change-password');
+  if (command === 'account-settings') {
+    openAccountSettings();
     return;
   }
   if (command === 'logout') {
     logout();
+  }
+};
+
+const openAccountSettings = () => {
+  accountForm.value = {
+    username: user.value?.username || '',
+    old_password: '',
+    new_password: '',
+    confirm_password: ''
+  };
+  roleLabelDialogVisible.value = true;
+  featureDrawer.value = false;
+};
+
+const saveRoleLabelAlias = async () => {
+  const username = (accountForm.value.username || '').trim();
+  const oldPassword = (accountForm.value.old_password || '').trim();
+  const newPassword = (accountForm.value.new_password || '').trim();
+  const confirmPassword = (accountForm.value.confirm_password || '').trim();
+
+  if (!username) {
+    notifyError('用户名不能为空');
+    return;
+  }
+  if (!oldPassword) {
+    notifyError('请输入当前密码');
+    return;
+  }
+  if (newPassword && newPassword.length < 6) {
+    notifyError('新密码至少6位');
+    return;
+  }
+  if (newPassword && newPassword !== confirmPassword) {
+    notifyError('两次输入的新密码不一致');
+    return;
+  }
+
+  try {
+    savingAccount.value = true;
+    const res = await axios.post('/api/auth/account-settings', {
+      username,
+      old_password: oldPassword,
+      new_password: newPassword || undefined
+    });
+    const latestUser = res.data?.data;
+    if (latestUser) {
+      authStore.setUser(latestUser);
+      user.value = latestUser;
+    }
+    notifySuccess('账号设置已更新');
+    roleLabelDialogVisible.value = false;
+  } catch (err) {
+    notifyError(err.response?.data?.message || '账号设置更新失败');
+  } finally {
+    savingAccount.value = false;
   }
 };
 
@@ -433,6 +614,8 @@ const updateWidth = () => {
 
 onMounted(() => {
   loadUser();
+  loadLastLoginHint();
+  fetchRolePendingCount();
   currentStep.value = (route.path === '/dashboard' || route.path === '/dashboard/home') ? 'home' : 'child';
   window.addEventListener('resize', updateWidth);
 });
@@ -445,6 +628,11 @@ watch(route, () => {
   currentStep.value = (route.path === '/dashboard' || route.path === '/dashboard/home') ? 'home' : 'child';
   featureDrawer.value = false;
 }, { deep: true });
+
+watch(() => user.value?.username, () => {
+  loadLastLoginHint();
+  fetchRolePendingCount();
+});
 </script>
 
 <style scoped>
@@ -458,7 +646,7 @@ watch(route, () => {
   color: white;
   display: flex;
   flex-direction: column;
-  padding: 1.5rem 0;
+  padding: 1.5rem 0 1rem;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
 }
 
@@ -479,8 +667,12 @@ watch(route, () => {
 }
 
 .logo-avatar {
-  background: #f4f7ed;
-  color: #556b2f;
+  background: transparent;
+  color: #eef3e1;
+}
+
+.logo-avatar :deep(.el-icon) {
+  font-size: 30px;
 }
 
 :deep(.sidebar-menu) {
@@ -504,6 +696,29 @@ watch(route, () => {
 
 :deep(.sidebar-menu .is-active) {
   background: #5f7f24 !important;
+}
+
+.desktop-merged-nav {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.top-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.top-logo-avatar {
+  color: #2f4727;
+}
+
+.top-brand-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #2d3436;
 }
 
 .header {
@@ -682,6 +897,14 @@ watch(route, () => {
   color: #2d3436;
 }
 
+.stat-item-clickable {
+  cursor: pointer;
+}
+
+.stat-item-clickable:hover .stat-value {
+  color: #3f581d;
+}
+
 .quick-actions {
   margin-bottom: 24px;
 }
@@ -805,6 +1028,10 @@ watch(route, () => {
   margin-left: 0 !important;
 }
 
+:deep(.drawer-content .el-button + .el-button) {
+  margin-left: 0 !important;
+}
+
 :deep(.drawer-item > span) {
   width: 100%;
   display: grid;
@@ -864,6 +1091,60 @@ watch(route, () => {
 
 .mobile-icon-btn:hover {
   background: transparent !important;
+}
+
+:global(.account-settings-dialog) {
+  border-radius: 12px;
+}
+
+:global(.account-dialog-header) {
+  padding: 22px 24px 20px;
+  text-align: center;
+}
+
+:global(.account-dialog-header .el-dialog__title) {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #2d3436;
+  display: inline-block;
+}
+
+:global(.account-dialog-body) {
+  padding: 26px 24px 10px;
+}
+
+:global(.account-dialog-body .el-form) {
+  padding-top: 8px;
+}
+
+:global(.account-dialog-body .el-form-item) {
+  margin-bottom: 18px;
+}
+
+:global(.account-dialog-body .el-form-item__label) {
+  font-size: 15px;
+  font-weight: 700;
+  color: #2d3436;
+}
+
+:global(.account-dialog-body .el-input__wrapper) {
+  padding: 8px 12px;
+}
+
+:global(.account-dialog-body .el-input__inner) {
+  font-size: 18px;
+  font-weight: 500;
+}
+
+:global(.account-dialog-footer) {
+  padding: 14px 22px 22px;
+}
+
+:global(.account-dialog-footer .el-button) {
+  min-width: 96px;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 @media (max-width: 899px) {

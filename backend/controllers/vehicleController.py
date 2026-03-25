@@ -3,7 +3,7 @@
 from flask import request, jsonify
 from flask_jwt_extended import get_jwt_identity
 from flask_bcrypt import generate_password_hash
-from models.index import db, Vehicle, User, RoleEnum, CarApplication
+from models.index import db, Vehicle, User, RoleEnum, CarApplication, Dispatch
 
 
 LOCKED_APPLICATION_STATUSES = ['pending', 'approved', 'dispatched']
@@ -31,6 +31,20 @@ def _driver_is_locked(driver_user_id, exclude_application_id=None):
     if exclude_application_id:
         query = query.filter(CarApplication.id != exclude_application_id)
     return query.first() is not None
+
+
+def _driver_has_active_dispatch(driver_user_id):
+    return Dispatch.query.filter(
+        Dispatch.driver_id == driver_user_id,
+        Dispatch.status.in_(['scheduled', 'in_progress'])
+    ).first() is not None
+
+
+def _vehicle_has_active_dispatch(vehicle_id):
+    return Dispatch.query.filter(
+        Dispatch.vehicle_id == vehicle_id,
+        Dispatch.status.in_(['scheduled', 'in_progress'])
+    ).first() is not None
 
 
 def _driver_to_dict(driver_user):
@@ -98,7 +112,10 @@ def update_vehicle(id):
         vehicle.model = data.get('model', vehicle.model)
         vehicle.brand = data.get('brand', vehicle.brand)
         vehicle.color = data.get('color', vehicle.color)
-        vehicle.status = data.get('status', vehicle.status)
+        next_status = data.get('status', vehicle.status)
+        if next_status != vehicle.status and _vehicle_has_active_dispatch(vehicle.id):
+            return jsonify({'success': False, 'message': '车辆已被调度，结束行程前不能修改状态'}), 400
+        vehicle.status = next_status
         vehicle.fuel_type = data.get('fuel_type', vehicle.fuel_type)
         vehicle.seat_count = data.get('seat_count', vehicle.seat_count)
         vehicle.fuel_consumption_per_100km = data.get('fuel_consumption_per_100km', vehicle.fuel_consumption_per_100km)
@@ -220,6 +237,9 @@ def update_driver(id):
             driver.vehicle_id = vehicle_id
 
         new_status = data.get('status')
+        if new_status and new_status != _enum_value(driver.driver_status) and _driver_has_active_dispatch(driver.id):
+            return jsonify({'success': False, 'message': '司机已被调度，结束行程前不能修改状态'}), 400
+
         if new_status == 'available' and _driver_is_locked(driver.id):
             return jsonify({'success': False, 'message': '司机有进行中的申请，不能设置为可用'}), 400
 

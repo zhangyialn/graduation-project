@@ -325,11 +325,10 @@ class Trip(db.Model):
     __tablename__ = 'trips'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     dispatch_id = db.Column(db.Integer, nullable=False)
-    start_mileage = db.Column(db.DECIMAL(10, 2), nullable=False)
-    end_mileage = db.Column(db.DECIMAL(10, 2), nullable=True)
     distance_km = db.Column(db.DECIMAL(10, 2), nullable=True)
-    start_fuel = db.Column(db.DECIMAL(10, 2), nullable=False)
-    end_fuel = db.Column(db.DECIMAL(10, 2), nullable=True)
+    fuel_used_l = db.Column(db.DECIMAL(10, 2), nullable=True)
+    total_cost = db.Column(db.DECIMAL(10, 2), nullable=False, default=0.00)
+    passenger_picked_up = db.Column(db.Boolean, nullable=False, default=False)
     actual_start_time = db.Column(db.DateTime, nullable=True)
     actual_end_time = db.Column(db.DateTime, nullable=True)
     ended_by = db.Column(db.Integer, nullable=True)
@@ -342,11 +341,10 @@ class Trip(db.Model):
         return {
             'id': self.id,
             'dispatch_id': self.dispatch_id,
-            'start_mileage': float(self.start_mileage) if self.start_mileage else None,
-            'end_mileage': float(self.end_mileage) if self.end_mileage else None,
             'distance_km': float(self.distance_km) if self.distance_km else None,
-            'start_fuel': float(self.start_fuel) if self.start_fuel else None,
-            'end_fuel': float(self.end_fuel) if self.end_fuel else None,
+            'fuel_used_l': float(self.fuel_used_l) if self.fuel_used_l is not None else None,
+            'total_cost': float(self.total_cost) if self.total_cost is not None else 0.00,
+            'passenger_picked_up': bool(self.passenger_picked_up),
             'actual_start_time': self.actual_start_time.isoformat() if self.actual_start_time else None,
             'actual_end_time': self.actual_end_time.isoformat() if self.actual_end_time else None,
             'ended_by': self.ended_by,

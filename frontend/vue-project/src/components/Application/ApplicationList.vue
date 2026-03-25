@@ -56,6 +56,7 @@ import axios from 'axios';
 import { Document, Close } from '@element-plus/icons-vue';
 import { useAuthStore } from '../../stores/auth';
 import { notifyError } from '../../utils/notify';
+import { formatBeijingDateTime } from '../../utils/datetime';
 
 const authStore = useAuthStore();
 const applications = ref([]);
@@ -76,8 +77,7 @@ const statusType = (status) => {
 
 // 统一格式化日期显示
 const formatDate = (value) => {
-  if (!value) return '-';
-  return new Date(value).toLocaleString();
+  return formatBeijingDateTime(value);
 };
 
 // 拉取当前登录用户的申请列表

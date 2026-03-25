@@ -37,7 +37,9 @@
       <el-table-column prop="fuel_type" label="油品" width="100" />
       <el-table-column prop="price" label="价格" />
       <el-table-column prop="effective_date" label="生效日期" />
-      <el-table-column prop="created_at" label="创建时间" />
+      <el-table-column label="创建时间">
+        <template #default="scope">{{ formatDate(scope.row.created_at) }}</template>
+      </el-table-column>
     </el-table>
 
     <div class="info-note mb">
@@ -52,13 +54,15 @@ import { ref, onMounted, computed, watch } from 'vue';
 import axios from 'axios';
 import { useFuelPriceStore } from '../stores/fuelPrice';
 import { notifyError, notifySuccess } from '../utils/notify';
+import { formatBeijingDateTime, getBeijingDateKey } from '../utils/datetime';
 
 const prices = ref([]);
 const error = ref('');
 const success = ref('');
 const fuelStore = useFuelPriceStore();
 // 生成当天日期（YYYY-MM-DD）
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => getBeijingDateKey();
+const formatDate = (value) => formatBeijingDateTime(value);
 
 // 设置错误提示并清空成功提示
 const setError = (message) => {

@@ -2,6 +2,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import axios from 'axios';
+import { getBeijingDateKey } from '../utils/datetime';
 
 const STORAGE_KEY = 'fuel-price-store-v1';
 
@@ -10,6 +11,13 @@ const fuelFieldMap = {
   '95号汽油': 'n95',
   '98号汽油': 'n98',
   '0号柴油': 'n0'
+};
+
+const reverseFuelFieldMap = {
+  n92: '92号汽油',
+  n95: '95号汽油',
+  n98: '98号汽油',
+  n0: '0号柴油'
 };
 
 // 规范化地区名称，保证后端接口可识别
@@ -34,7 +42,7 @@ const pickOilPayload = (raw) => {
 };
 
 // 获取当天日期字符串
-const getToday = () => new Date().toISOString().slice(0, 10);
+const getToday = () => getBeijingDateKey();
 
 // 从逆地理编码结果中提取地区名称
 const getRegionFromReverseGeo = (payload) => {
@@ -227,6 +235,29 @@ export const useFuelPriceStore = defineStore('fuelPrice', () => {
     };
   };
 
+  // 将当前油价写入后端 fuel_prices（按油品逐条upsert）
+  const syncOilPriceToBackend = async () => {
+    if (!oilPayload.value) return;
+    const effectiveDate = getToday();
+    const source = `frontend-oil-api:${regionName.value || '未知地区'}`;
+
+    const entries = Object.entries(reverseFuelFieldMap)
+      .map(([field, fuelType]) => {
+        const price = Number(oilPayload.value?.[field]);
+        return Number.isFinite(price) ? { fuelType, price } : null;
+      })
+      .filter(Boolean);
+
+    for (const item of entries) {
+      await axios.post('/api/trips/fuel-prices', {
+        fuel_type: item.fuelType,
+        price: item.price,
+        effective_date: effectiveDate,
+        source
+      });
+    }
+  };
+
   hydrate();
 
   return {
@@ -246,6 +277,7 @@ export const useFuelPriceStore = defineStore('fuelPrice', () => {
     setFuelType,
     detectRegion,
     fetchOilPrice,
-    initializeDailyOilPrice
+    initializeDailyOilPrice,
+    syncOilPriceToBackend
   };
 });

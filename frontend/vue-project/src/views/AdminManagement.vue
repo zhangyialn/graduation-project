@@ -28,7 +28,7 @@
         </el-form-item>
 
         <el-form-item label="用户名">
-          <el-input v-model="form.username" placeholder="可选，不填自动生成" />
+          <el-input v-model="form.username" placeholder="可选，不填默认使用姓名" />
         </el-form-item>
 
         <el-form-item label="邮箱">

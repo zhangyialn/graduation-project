@@ -7,15 +7,12 @@ import ForgotPassword from '../components/Auth/ForgotPassword.vue';
 import BootstrapAdmin from '../components/Auth/BootstrapAdmin.vue';
 import ChangePassword from '../components/Auth/ChangePassword.vue';
 import Dashboard from '../views/Dashborad.vue';
-import CreateApplication from '../components/Application/CreateApplication.vue';
-import ApplicationList from '../components/Application/ApplicationList.vue';
-import ApprovalList from '../components/Approval/ApprovalLiat.vue';
+import ApplicationCenter from '../views/ApplicationCenter.vue';
+import ApprovalDispatchManagement from '../views/ApprovalDispatchManagement.vue';
 import ApprovalDetail from '../components/Approval/ApprovalDetail.vue';
-import DispatchList from '../components/Dispatch/DispatchList.vue';
 import PersonnelVehicleManagement from '../views/PersonnelVehicleManagement.vue';
 import Reports from '../views/Reports.vue';
 import FuelPrices from '../views/FuelPrices.vue';
-import ApproverRecords from '../views/ApproverRecords.vue';
 import DriverDashboard from '../components/Driver/DriverDashboard.vue';
 import { useAuthStore } from '../stores/auth';
 import { pinia } from '../stores/pinia';
@@ -48,18 +45,21 @@ const routes = [
     children: [
       { path: '', redirect: { name: 'DashboardHome' } },
       { path: 'home', name: 'DashboardHome', component: { template: '<div />' }, meta: { requiresAuth: true } },
-      { path: 'applications/create', name: 'CreateApplication', component: CreateApplication, meta: { requiresAuth: true } },
-      { path: 'applications', name: 'ApplicationList', component: ApplicationList, meta: { requiresAuth: true } },
-      { path: 'approvals', name: 'ApprovalList', component: ApprovalList, meta: { requiresAuth: true } },
+      { path: 'applications/create', name: 'CreateApplication', component: ApplicationCenter, meta: { requiresAuth: true } },
+      { path: 'applications', name: 'ApplicationList', component: ApplicationCenter, meta: { requiresAuth: true } },
+      { path: 'application-center', name: 'ApplicationCenter', component: ApplicationCenter, meta: { requiresAuth: true } },
+      { path: 'approval-dispatch', name: 'ApprovalDispatchManagement', component: ApprovalDispatchManagement, meta: { requiresAuth: true, roles: ['approver', 'admin'] } },
+      { path: 'approvals', name: 'ApprovalList', component: ApprovalDispatchManagement, meta: { requiresAuth: true, roles: ['approver', 'admin'] } },
       { path: 'approvals/:applicationId', name: 'ApprovalDetail', component: ApprovalDetail, meta: { requiresAuth: true } },
       { path: 'vehicles', name: 'VehicleList', component: PersonnelVehicleManagement, meta: { requiresAuth: true, roles: ['admin'] } },
-      { path: 'dispatches', name: 'DispatchList', component: DispatchList, meta: { requiresAuth: true } },
+      { path: 'dispatches', name: 'DispatchList', component: ApprovalDispatchManagement, meta: { requiresAuth: true, roles: ['approver', 'admin'] } },
       { path: 'personnel-vehicles', name: 'PersonnelVehicleManagement', component: PersonnelVehicleManagement, meta: { requiresAuth: true, roles: ['admin'] } },
       { path: 'users/import', name: 'UserImport', component: PersonnelVehicleManagement, meta: { requiresAuth: true, roles: ['admin'] } },
       { path: 'admins', name: 'AdminManagement', component: PersonnelVehicleManagement, meta: { requiresAuth: true, roles: ['admin'] } },
       { path: 'reports', name: 'Reports', component: Reports, meta: { requiresAuth: true } },
       { path: 'fuel-prices', name: 'FuelPrices', component: FuelPrices, meta: { requiresAuth: true } },
-      { path: 'approver-records', name: 'ApproverRecords', component: ApproverRecords, meta: { requiresAuth: true } },
+      { path: 'approver-records', name: 'ApproverRecords', component: ApprovalDispatchManagement, meta: { requiresAuth: true, roles: ['approver', 'admin'] } },
+      { path: 'trips', name: 'TripManagement', component: ApprovalDispatchManagement, meta: { requiresAuth: true, roles: ['approver', 'admin'] } },
       { path: 'driver', name: 'DriverDashboard', component: DriverDashboard, meta: { requiresAuth: true } },
       { path: 'change-password', name: 'ChangePassword', component: ChangePassword, meta: { requiresAuth: true } }
     ]

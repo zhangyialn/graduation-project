@@ -5,6 +5,7 @@ from flask import request, jsonify
 from models.index import db, Approval, User, CarApplication
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
+from sqlalchemy.orm import aliased
 
 
 # 兼容 Enum/字符串状态读取
@@ -64,26 +65,45 @@ def get_approver_approvals(approver_id):
 # 审批统计：按审批人汇总总数/通过数/驳回数
 def get_approval_statistics():
     try:
-        from sqlalchemy import func
-        
-        stats = db.session.query(
-            Approval.approver_id,
-            func.count(Approval.id).label('total_count'),
-            func.sum(func.if_(Approval.status == 'approved', 1, 0)).label('approved_count'),
-            func.sum(func.if_(Approval.status == 'rejected', 1, 0)).label('rejected_count')
-        ).group_by(Approval.approver_id).all()
-        
+        department_id = request.args.get('department_id', type=int)
+        applicant_user = aliased(User)
+        approver_user = aliased(User)
+
+        query = db.session.query(
+            Approval,
+            CarApplication,
+            applicant_user.name.label('applicant_name'),
+            approver_user.name.label('approver_name')
+        ).join(
+            CarApplication, Approval.application_id == CarApplication.id
+        ).outerjoin(
+            applicant_user, CarApplication.applicant_id == applicant_user.id
+        ).outerjoin(
+            approver_user, Approval.approver_id == approver_user.id
+        )
+
+        if department_id:
+            query = query.filter(CarApplication.department_id == department_id)
+
+        rows = query.order_by(Approval.approved_at.desc(), Approval.id.desc()).all()
+
         result = []
-        for stat in stats:
-            approver = User.query.get(stat.approver_id)
+        for approval, application, applicant_name, approver_name in rows:
             result.append({
-                'approver_id': stat.approver_id,
-                'approver_name': approver.name if approver else '未知用户',
-                'total_count': stat.total_count,
-                'approved_count': stat.approved_count,
-                'rejected_count': stat.rejected_count
+                'approval_id': approval.id,
+                'application_id': approval.application_id,
+                'approval_status': _enum_value(approval.status),
+                'approver_id': approval.approver_id,
+                'approver_name': approver_name or '未知审批人',
+                'applicant_name': applicant_name or '未知申请人',
+                'purpose': application.purpose,
+                'start_point': application.start_point,
+                'destination': application.destination,
+                'start_time': application.start_time.isoformat() if application.start_time else None,
+                'application_time': application.created_at.isoformat() if application.created_at else None,
+                'approval_time': approval.approved_at.isoformat() if approval.approved_at else None
             })
-        
+
         return jsonify({'success': True, 'data': result})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
@@ -109,12 +129,14 @@ def submit_approval(application_id):
             return jsonify({'success': False, 'message': '仅待审批申请可提交审批结果'}), 400
 
         current_user_id = get_jwt_identity()
+        approval_time = datetime.utcnow()
 
         approval = Approval(
             application_id=application_id,
             approver_id=current_user_id,
             status=status,
-            comment=comment
+            comment=comment,
+            approved_at=approval_time
         )
         db.session.add(approval)
 
@@ -123,7 +145,7 @@ def submit_approval(application_id):
         if start_point is not None:
             application.start_point = start_point
         application.approved_by = current_user_id
-        application.approved_at = datetime.utcnow()
+        application.approved_at = approval_time
 
         db.session.commit()
 

@@ -185,6 +185,7 @@ import { ref, reactive, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import axios from 'axios';
 import { Van, Plus, Edit, Delete, UserFilled } from '@element-plus/icons-vue';
 import { notifyError } from '../../utils/notify';
+import { getBeijingDateKey } from '../../utils/datetime';
 
 const vehicles = ref([]);
 const drivers = ref([]);
@@ -346,7 +347,7 @@ const saveVehicle = async () => {
       status: vehicleForm.status,
       brand: vehicleForm.brand || vehicleForm.model || '未知品牌',
       color: vehicleForm.color || '未填写',
-      purchase_date: vehicleForm.purchase_date || new Date().toISOString().slice(0, 10),
+      purchase_date: vehicleForm.purchase_date || getBeijingDateKey(),
       fuel_type: vehicleForm.fuel_type || '92号汽油',
       seat_count: vehicleForm.seat_count || 5,
       fuel_consumption_per_100km: vehicleForm.fuel_consumption_per_100km

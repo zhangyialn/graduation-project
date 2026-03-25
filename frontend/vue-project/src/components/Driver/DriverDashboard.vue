@@ -61,10 +61,20 @@
           <el-tag :type="statusType(scope.row.dispatch_status)">{{ scope.row.dispatch_status }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column prop="actual_start_time" label="行程开始" width="180">
+        <template #default="scope">{{ formatDate(scope.row.actual_start_time) }}</template>
+      </el-table-column>
       <el-table-column label="结束行程" width="220" fixed="right">
         <template #default="scope">
           <el-button
-            v-if="scope.row.trip_id"
+            v-if="scope.row.trip_id && !scope.row.passenger_picked_up"
+            type="primary"
+            size="small"
+            @click="pickupPassenger(scope.row)"
+            :loading="saving"
+          >已接到乘客</el-button>
+          <el-button
+            v-else-if="scope.row.trip_id"
             type="success"
             size="small"
             @click="openEndDialog(scope.row)"
@@ -76,11 +86,11 @@
 
     <el-dialog v-model="endDialogVisible" title="结束行程" width="420px">
       <el-form :model="endForm" label-width="100px">
-        <el-form-item label="结束里程">
-          <el-input-number v-model="endForm.end_mileage" :min="0" style="width:100%" />
+        <el-form-item label="消耗路程(km)">
+          <el-input-number v-model="endForm.distance_km" :min="0" :step="0.1" style="width:100%" />
         </el-form-item>
-        <el-form-item label="结束油量">
-          <el-input-number v-model="endForm.end_fuel" :min="0" :step="0.1" style="width:100%" />
+        <el-form-item label="消耗油量(L)">
+          <el-input-number v-model="endForm.fuel_used" :min="0" :step="0.1" style="width:100%" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -95,10 +105,13 @@
 import { ref, watch, onMounted } from 'vue';
 import axios from 'axios';
 import { notifyError, notifySuccess } from '../../utils/notify';
+import { formatBeijingDateTime } from '../../utils/datetime';
+import { useFuelPriceStore } from '../../stores/fuelPrice';
 
 const loading = ref(false);
 const saving = ref(false);
 const error = ref('');
+const fuelStore = useFuelPriceStore();
 
 const driver = ref(null);
 const vehicle = ref(null);
@@ -111,8 +124,8 @@ const plateNumber = ref('');
 const endDialogVisible = ref(false);
 const currentTripId = ref(null);
 const endForm = ref({
-  end_mileage: 0,
-  end_fuel: 0
+  distance_km: 0,
+  fuel_used: 0
 });
 
 // 将司机/车辆/任务状态映射为标签样式
@@ -127,7 +140,7 @@ const statusType = (status) => ({
 }[status] || 'info');
 
 // 时间格式化显示
-const formatDate = (value) => value ? new Date(value).toLocaleString() : '-';
+const formatDate = (value) => formatBeijingDateTime(value);
 
 // 拉取司机工作台数据
 const fetchDashboard = async () => {
@@ -192,8 +205,22 @@ const bindVehicle = async () => {
 // 打开“结束行程”弹窗并初始化提交数据
 const openEndDialog = (row) => {
   currentTripId.value = row.trip_id;
-  endForm.value = { end_mileage: 0, end_fuel: 0 };
+  endForm.value = { distance_km: 0, fuel_used: 0 };
   endDialogVisible.value = true;
+};
+
+const pickupPassenger = async (row) => {
+  try {
+    if (!row?.trip_id) return;
+    saving.value = true;
+    await axios.post(`/api/trips/${row.trip_id}/pickup`, {});
+    notifySuccess('已记录接到乘客，行程开始');
+    await fetchDashboard();
+  } catch (err) {
+    error.value = err.response?.data?.message || '记录接乘客失败';
+  } finally {
+    saving.value = false;
+  }
 };
 
 // 提交结束行程（里程/油量）
@@ -201,10 +228,13 @@ const submitEndTrip = async () => {
   try {
     if (!currentTripId.value) return;
     saving.value = true;
+    if (fuelStore.currentFuelPrice === null || fuelStore.currentFuelPrice === undefined) {
+      await fuelStore.initializeDailyOilPrice();
+    }
     await axios.post(`/api/trips/${currentTripId.value}/end`, {
-      end_mileage: endForm.value.end_mileage,
-      end_fuel: endForm.value.end_fuel,
-      actual_end_time: new Date().toISOString()
+      distance_km: endForm.value.distance_km,
+      fuel_used: endForm.value.fuel_used,
+      fuel_price: fuelStore.currentFuelPrice
     });
     notifySuccess('行程已结束');
     endDialogVisible.value = false;

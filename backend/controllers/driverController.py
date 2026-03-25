@@ -3,6 +3,7 @@
 from flask import request, jsonify
 from flask_jwt_extended import get_jwt_identity
 from models.index import db, Dispatch, Trip, Vehicle, CarApplication, User, RoleEnum
+from datetime import datetime
 
 
 def _enum_value(value):
@@ -33,6 +34,14 @@ def get_my_dashboard():
             application = CarApplication.query.get(dispatch.application_id)
             applicant = User.query.get(application.applicant_id) if application else None
             trip = Trip.query.filter_by(dispatch_id=dispatch.id).first()
+            if not trip and _enum_value(dispatch.status) == 'in_progress':
+                trip = Trip(
+                    dispatch_id=dispatch.id,
+                    passenger_picked_up=False,
+                    status='started'
+                )
+                db.session.add(trip)
+                db.session.flush()
             rows.append({
                 'dispatch_id': dispatch.id,
                 'dispatch_status': _enum_value(dispatch.status),
@@ -44,8 +53,13 @@ def get_my_dashboard():
                 'passenger_name': applicant.name if applicant else None,
                 'passenger_phone': applicant.phone if applicant else None,
                 'trip_id': trip.id if trip else None,
-                'trip_status': _enum_value(trip.status) if trip else None
+                'trip_status': _enum_value(trip.status) if trip else None,
+                'passenger_picked_up': (bool(trip.passenger_picked_up) or bool(trip.actual_start_time)) if trip else False,
+                'actual_start_time': trip.actual_start_time.isoformat() if trip and trip.actual_start_time else None,
+                'actual_end_time': trip.actual_end_time.isoformat() if trip and trip.actual_end_time else None
             })
+
+        db.session.commit()
 
         return jsonify({
             'success': True,
@@ -79,11 +93,14 @@ def update_my_status():
         if status not in ['available', 'unavailable']:
             return jsonify({'success': False, 'message': '司机状态仅支持 available/unavailable'}), 400
 
+        active_dispatch = Dispatch.query.filter(
+            Dispatch.driver_id == driver.id,
+            Dispatch.status.in_(['scheduled', 'in_progress'])
+        ).first()
+        if active_dispatch and status != _enum_value(driver.driver_status):
+            return jsonify({'success': False, 'message': '司机已被调度，结束行程前不能修改状态'}), 400
+
         if status == 'available':
-            active_dispatch = Dispatch.query.filter(
-                Dispatch.driver_id == driver.id,
-                Dispatch.status.in_(['scheduled', 'in_progress'])
-            ).first()
             if active_dispatch:
                 return jsonify({'success': False, 'message': '司机存在进行中的任务，不能设为可用'}), 400
 
@@ -110,11 +127,14 @@ def update_my_vehicle_status():
         if not vehicle or vehicle.is_deleted:
             return jsonify({'success': False, 'message': '绑定车辆不存在'}), 404
 
+        active_dispatch = Dispatch.query.filter(
+            Dispatch.driver_id == driver.id,
+            Dispatch.status.in_(['scheduled', 'in_progress'])
+        ).first()
+        if active_dispatch and status != _enum_value(vehicle.status):
+            return jsonify({'success': False, 'message': '司机已被调度，结束行程前不能修改车辆状态'}), 400
+
         if status == 'available':
-            active_dispatch = Dispatch.query.filter(
-                Dispatch.driver_id == driver.id,
-                Dispatch.status.in_(['scheduled', 'in_progress'])
-            ).first()
             if active_dispatch:
                 return jsonify({'success': False, 'message': '存在进行中的任务，车辆不能设为可用'}), 400
 

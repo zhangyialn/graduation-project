@@ -6,7 +6,7 @@
         <div class="card-header">
           <div>
             <div class="title">用户导入功能</div>
-            <div class="hint">支持单个导入与Excel批量导入，仅支持普通用户与审批员</div>
+            <div class="hint">支持单个导入与Excel批量导入，支持普通用户/审批员/司机；未填用户名时默认使用姓名，默认密码为手机号</div>
           </div>
         </div>
       </template>
@@ -21,7 +21,7 @@
               <el-input v-model="singleForm.phone" placeholder="请输入手机号" />
             </el-form-item>
             <el-form-item label="用户名">
-              <el-input v-model="singleForm.username" placeholder="可选，不填自动生成" />
+              <el-input v-model="singleForm.username" placeholder="可选，不填默认使用姓名" />
             </el-form-item>
             <el-form-item label="邮箱">
               <el-input v-model="singleForm.email" placeholder="可选" />

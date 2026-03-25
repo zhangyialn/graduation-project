@@ -2,8 +2,9 @@
 
 # 调度管理控制器
 from flask import request, jsonify
-from models.index import db, Dispatch, Vehicle, User, CarApplication, RoleEnum
+from models.index import db, Dispatch, Vehicle, User, CarApplication, RoleEnum, Trip
 from flask_jwt_extended import jwt_required
+from datetime import datetime
 
 
 # 兼容 Enum/字符串状态读取
@@ -166,6 +167,16 @@ def start_dispatch(id):
         
         if _enum_value(dispatch.status) != 'scheduled':
             return jsonify({'success': False, 'message': '调度状态不正确'})
+
+        # 开始调度时自动创建行程记录（若不存在）
+        trip = Trip.query.filter_by(dispatch_id=dispatch.id).first()
+        if not trip:
+            trip = Trip(
+                dispatch_id=dispatch.id,
+                passenger_picked_up=False,
+                status='started'
+            )
+            db.session.add(trip)
         
         dispatch.status = 'in_progress'
         db.session.commit()

@@ -240,6 +240,51 @@ def change_password():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+# 账号设置：同一入口修改用户名和/或密码
+def update_account_settings():
+    try:
+        current_user_id = get_jwt_identity()
+        user = User.query.get(current_user_id)
+
+        if not user:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+
+        data = request.json or {}
+        old_password = str(data.get('old_password') or '')
+        username = str(data.get('username') or '').strip()
+        new_password = str(data.get('new_password') or '').strip()
+
+        verified, _need_upgrade = _verify_password(user, old_password)
+        if not verified:
+            return jsonify({'success': False, 'message': '当前密码错误'}), 400
+
+        if not username and not new_password:
+            return jsonify({'success': False, 'message': '请至少修改一项（用户名或密码）'}), 400
+
+        if username and username != user.username:
+            exists_user = User.query.filter(User.username == username, User.id != user.id).first()
+            if exists_user:
+                return jsonify({'success': False, 'message': '用户名已存在'}), 400
+            user.username = username
+
+        if new_password:
+            if len(new_password) < 6:
+                return jsonify({'success': False, 'message': '新密码至少6位'}), 400
+            user.password = generate_password_hash(new_password).decode('utf-8')
+            user.must_change_password = False
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': '账号设置已更新',
+            'data': user.to_dict()
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 # 验证手机号是否匹配用户名（找回密码步骤1）
 # 找回密码第 1 步：校验“用户名 + 手机号”是否匹配
 def verify_phone():

@@ -25,7 +25,7 @@
             <p class="mobile-line">申请ID：{{ item.application_id ?? '-' }}</p>
             <p class="mobile-line">状态：{{ item.status || '-' }}</p>
             <p class="mobile-line">意见：{{ item.comment || '-' }}</p>
-            <p class="mobile-line">时间：{{ item.created_at || '-' }}</p>
+            <p class="mobile-line">时间：{{ formatDate(item.approved_at || item.created_at) }}</p>
           </el-card>
         </div>
         <el-table v-else :data="myApprovals" size="small">
@@ -33,7 +33,9 @@
           <el-table-column prop="application_id" label="申请ID" width="90" />
           <el-table-column prop="status" label="状态" />
           <el-table-column prop="comment" label="意见" />
-          <el-table-column prop="created_at" label="时间" />
+          <el-table-column label="时间">
+            <template #default="scope">{{ formatDate(scope.row.approved_at || scope.row.created_at) }}</template>
+          </el-table-column>
         </el-table>
       </el-tab-pane>
       <el-tab-pane label="全部审批" name="all">
@@ -44,7 +46,7 @@
             <p class="mobile-line">审批人：{{ item.approver_id ?? '-' }}</p>
             <p class="mobile-line">状态：{{ item.status || '-' }}</p>
             <p class="mobile-line">意见：{{ item.comment || '-' }}</p>
-            <p class="mobile-line">时间：{{ item.created_at || '-' }}</p>
+            <p class="mobile-line">时间：{{ formatDate(item.approved_at || item.created_at) }}</p>
           </el-card>
         </div>
         <el-table v-else :data="allApprovals" size="small">
@@ -53,7 +55,9 @@
           <el-table-column prop="approver_id" label="审批人" width="90" />
           <el-table-column prop="status" label="状态" />
           <el-table-column prop="comment" label="意见" />
-          <el-table-column prop="created_at" label="时间" />
+          <el-table-column label="时间">
+            <template #default="scope">{{ formatDate(scope.row.approved_at || scope.row.created_at) }}</template>
+          </el-table-column>
         </el-table>
       </el-tab-pane>
     </el-tabs>
@@ -65,6 +69,7 @@ import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import axios from 'axios';
 import { useAuthStore } from '../stores/auth';
 import { notifyError } from '../utils/notify';
+import { formatBeijingDateTime } from '../utils/datetime';
 
 const myApprovals = ref([]);
 const allApprovals = ref([]);
@@ -75,6 +80,7 @@ const activeTab = ref('mine');
 const screenWidth = ref(window.innerWidth);
 const isMobile = computed(() => screenWidth.value < 900);
 const authStore = useAuthStore();
+const formatDate = (value) => formatBeijingDateTime(value);
 
 // 根据当前筛选条件加载审批记录数据
 const fetchData = async () => {

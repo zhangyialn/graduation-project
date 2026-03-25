@@ -28,9 +28,9 @@ def _safe_role(role_value):
         return RoleEnum.user
 
 
-# 依据手机号生成不冲突的用户名
-def _build_username(phone):
-    base = str(phone)
+# 依据基础值生成不冲突的用户名
+def _build_username(base_value):
+    base = str(base_value)
     candidate = base
     suffix = 1
     while User.query.filter_by(username=candidate).first():
@@ -109,9 +109,15 @@ def create_user():
         if User.query.filter_by(phone=phone).first():
             return jsonify({'success': False, 'message': '手机号已存在'}), 400
 
-        username = data.get('username') or _build_username(phone)
+        role_enum = _validate_import_role(data.get('role'))
+        if role_enum is None:
+            return jsonify({'success': False, 'message': '导入功能仅支持创建普通用户(user)、审批员(approver)或司机(driver)'}), 400
+
+        input_username = (data.get('username') or '').strip()
+        default_base = name
+        username = input_username or _build_username(default_base)
         if User.query.filter_by(username=username).first():
-            return jsonify({'success': False, 'message': '用户名已存在'}), 400
+            username = _build_username(default_base)
 
         email = data.get('email')
         if email and User.query.filter_by(email=email).first():
@@ -120,10 +126,6 @@ def create_user():
         default_password = str(phone)
         hashed_password = generate_password_hash(default_password).decode('utf-8')
         current_user_id = get_jwt_identity()
-
-        role_enum = _validate_import_role(data.get('role'))
-        if role_enum is None:
-            return jsonify({'success': False, 'message': '导入功能仅支持创建普通用户(user)、审批员(approver)或司机(driver)'}), 400
 
         vehicle_id = data.get('vehicle_id') if role_enum == RoleEnum.driver else None
         if role_enum == RoleEnum.driver:
@@ -255,9 +257,7 @@ def import_users_excel():
                 failure_messages.append(f'第{index + 2}行：手机号已存在')
                 continue
 
-            username = str(row.get('username', '')).strip() or _build_username(phone)
-            if User.query.filter_by(username=username).first():
-                username = _build_username(phone)
+            input_username = str(row.get('username', '')).strip()
 
             email = str(row.get('email', '')).strip() or None
             if email and User.query.filter_by(email=email).first():
@@ -269,6 +269,11 @@ def import_users_excel():
                 failed_rows += 1
                 failure_messages.append(f'第{index + 2}行：角色仅支持 user / approver / driver')
                 continue
+
+            default_username_base = name
+            username = input_username or _build_username(default_username_base)
+            if User.query.filter_by(username=username).first():
+                username = _build_username(default_username_base)
             department_raw = row.get('department_id', None)
             department_id = None if pd.isna(department_raw) else int(department_raw)
 
@@ -376,9 +381,9 @@ def create_admin_user():
         if User.query.filter_by(phone=phone).first():
             return jsonify({'success': False, 'message': '手机号已存在'}), 400
 
-        username = (data.get('username') or '').strip() or _build_username(phone)
+        username = (data.get('username') or '').strip() or _build_username(name)
         if User.query.filter_by(username=username).first():
-            return jsonify({'success': False, 'message': '用户名已存在'}), 400
+            username = _build_username(name)
 
         email = (data.get('email') or '').strip() or None
         if email and User.query.filter_by(email=email).first():

@@ -5,6 +5,10 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
 
+def _enum_value(value):
+    return value.value if hasattr(value, 'value') else value
+
+
 # 获取所有审批记录
 
 def get_approvals():
@@ -83,6 +87,7 @@ def submit_approval(application_id):
         data = request.json or {}
         status = data.get('status')
         comment = data.get('comment')
+        start_point = data.get('start_point')
 
         if status not in ['approved', 'rejected']:
             return jsonify({'success': False, 'message': '审批状态必须为 approved 或 rejected'}), 400
@@ -91,7 +96,7 @@ def submit_approval(application_id):
         if not application:
             return jsonify({'success': False, 'message': '申请不存在'}), 404
 
-        if application.status != 'pending':
+        if _enum_value(application.status) != 'pending':
             return jsonify({'success': False, 'message': '仅待审批申请可提交审批结果'}), 400
 
         current_user_id = get_jwt_identity()
@@ -106,6 +111,8 @@ def submit_approval(application_id):
 
         application.status = status
         application.approval_comment = comment
+        if start_point is not None:
+            application.start_point = start_point
         application.approved_by = current_user_id
         application.approved_at = datetime.utcnow()
 

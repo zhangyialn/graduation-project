@@ -78,21 +78,19 @@ let monthlyStatsChart = null;
 let driverWorkloadChart = null;
 let userStatsChart = null;
 
-const token = () => localStorage.getItem('token');
 const currency = (value) => `¥${Number(value || 0).toFixed(2)}`;
 
 const fetchAll = async () => {
   try {
     loading.value = true;
     error.value = '';
-    const headers = { Authorization: `Bearer ${token()}` };
     const [deptUse, deptExp, vehicle, monthly, driver, user] = await Promise.all([
-      axios.get('/api/reports/department-usage', { headers }),
-      axios.get('/api/reports/department-expenses', { headers }),
-      axios.get('/api/reports/vehicle-usage', { headers }),
-      axios.get('/api/reports/monthly-stats', { headers }),
-      axios.get('/api/reports/driver-workload', { headers }),
-      axios.get('/api/reports/user-application-stats', { headers })
+      axios.get('/api/reports/department-usage'),
+      axios.get('/api/reports/department-expenses'),
+      axios.get('/api/reports/vehicle-usage'),
+      axios.get('/api/reports/monthly-stats'),
+      axios.get('/api/reports/driver-workload'),
+      axios.get('/api/reports/user-application-stats')
     ]);
     departmentUsage.value = deptUse.data.data || [];
     departmentExpenses.value = deptExp.data.data || [];

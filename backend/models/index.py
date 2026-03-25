@@ -10,6 +10,7 @@ db = SQLAlchemy()
 # 定义角色枚举
 class RoleEnum(enum.Enum):
     user = 'user'
+    driver = 'driver'
     approver = 'approver'
     dispatcher = 'dispatcher'
     leader = 'leader'
@@ -28,7 +29,7 @@ class VehicleStatusEnum(enum.Enum):
 class DriverStatusEnum(enum.Enum):
     available = 'available'
     busy = 'busy'
-    off = 'off'
+    unavailable = 'unavailable'
 
 
 # 定义申请状态枚举
@@ -196,6 +197,8 @@ class Vehicle(db.Model):
 class Driver(db.Model):
     __tablename__ = 'drivers'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, nullable=False, unique=True)
+    vehicle_id = db.Column(db.Integer, nullable=False, unique=True)
     name = db.Column(db.String(50), nullable=False)
     phone = db.Column(db.String(20), unique=True, nullable=False)
     license_number = db.Column(db.String(20), unique=True, nullable=False)
@@ -211,6 +214,8 @@ class Driver(db.Model):
     def to_dict(self):
         return {
             'id': self.id,
+            'user_id': self.user_id,
+            'vehicle_id': self.vehicle_id,
             'name': self.name,
             'phone': self.phone,
             'license_number': self.license_number,
@@ -231,6 +236,8 @@ class CarApplication(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     applicant_id = db.Column(db.Integer, nullable=False)
     department_id = db.Column(db.Integer, nullable=True)
+    driver_id = db.Column(db.Integer, nullable=False)
+    start_point = db.Column(db.String(120), nullable=True)
     start_time = db.Column(db.DateTime, nullable=False)
     end_time = db.Column(db.DateTime, nullable=False)
     purpose = db.Column(db.String(200), nullable=False)
@@ -251,6 +258,8 @@ class CarApplication(db.Model):
             'id': self.id,
             'applicant_id': self.applicant_id,
             'department_id': self.department_id,
+            'driver_id': self.driver_id,
+            'start_point': self.start_point,
             'start_time': self.start_time.isoformat() if self.start_time else None,
             'end_time': self.end_time.isoformat() if self.end_time else None,
             'purpose': self.purpose,

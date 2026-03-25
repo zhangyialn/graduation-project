@@ -1,6 +1,11 @@
 # 出车记录和费用管理控制器
 from flask import request, jsonify
-from models.index import db, Trip, Expense, Dispatch, Vehicle, Driver, FuelPrice
+from flask_jwt_extended import get_jwt_identity
+from models.index import db, Trip, Expense, Dispatch, Vehicle, Driver, FuelPrice, CarApplication, User
+
+
+def _enum_value(value):
+    return value.value if hasattr(value, 'value') else value
 
 
 # 获取所有出车记录
@@ -54,16 +59,32 @@ def end_trip(id):
         if not trip:
             return jsonify({'success': False, 'message': '出车记录不存在'})
         
-        if trip.status == 'completed':
+        if _enum_value(trip.status) == 'completed':
             return jsonify({'success': False, 'message': '该行程已结束'})
-        
-        data = request.json
+
+        data = request.json or {}
+
+        dispatch = Dispatch.query.get(trip.dispatch_id)
+        if not dispatch:
+            return jsonify({'success': False, 'message': '调度不存在'}), 404
+
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        if not current_user:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+
+        current_role = _enum_value(current_user.role)
+        driver_profile = Driver.query.filter_by(user_id=current_user_id, is_deleted=False).first()
+
+        if current_role == 'driver':
+            if not driver_profile or driver_profile.id != dispatch.driver_id:
+                return jsonify({'success': False, 'message': '仅该行程司机可结束当前行程'}), 403
         
         # 更新出车记录
         trip.end_mileage = data['end_mileage']
         trip.end_fuel = data['end_fuel']
         trip.actual_end_time = data.get('actual_end_time')
-        trip.ended_by = data['ended_by']
+        trip.ended_by = current_user_id
         trip.status = 'completed'
 
         mileage = float(trip.end_mileage) - float(trip.start_mileage)
@@ -71,21 +92,23 @@ def end_trip(id):
             return jsonify({'success': False, 'message': '结束里程不能小于起始里程'}), 400
         trip.distance_km = mileage
         
-        # 获取调度信息
-        dispatch = Dispatch.query.get(trip.dispatch_id)
         if dispatch:
             # 更新车辆状态为可用
             vehicle = Vehicle.query.get(dispatch.vehicle_id)
-            if vehicle:
+            if vehicle and _enum_value(vehicle.status) == 'in_use':
                 vehicle.status = 'available'
             
             # 更新司机状态为可用
             driver = Driver.query.get(dispatch.driver_id)
-            if driver:
+            if driver and _enum_value(driver.status) == 'busy':
                 driver.status = 'available'
             
             # 更新调度状态为已完成
             dispatch.status = 'completed'
+
+            application = CarApplication.query.get(dispatch.application_id)
+            if application:
+                application.status = 'completed'
         
         # 计算费用（兼容精细油号：92/95/98号汽油、0号柴油）
         vehicle_fuel_type = vehicle.fuel_type if vehicle else '汽油'

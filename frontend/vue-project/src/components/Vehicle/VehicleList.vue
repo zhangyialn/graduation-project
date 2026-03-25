@@ -114,7 +114,9 @@
 
       <el-table v-else :data="drivers" style="width: 100%" border>
         <el-table-column prop="id" label="司机ID" width="80" />
+        <el-table-column prop="user_id" label="用户ID" width="90" />
         <el-table-column prop="name" label="姓名" width="100" />
+        <el-table-column prop="vehicle_plate_number" label="绑定车牌" width="130" />
         <el-table-column prop="license_number" label="驾驶证号" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="scope">
@@ -139,6 +141,26 @@
     <!-- 司机对话框 -->
     <el-dialog v-model="driverDialogVisible" :title="driverDialogTitle" width="400px">
       <el-form :model="driverForm" :rules="driverRules" ref="driverFormRef" label-width="100px">
+        <el-form-item label="司机用户" prop="user_id">
+          <el-select v-model="driverForm.user_id" placeholder="请选择角色为driver的用户" style="width:100%">
+            <el-option
+              v-for="item in driverUsers"
+              :key="item.id"
+              :label="`${item.id} - ${item.username}`"
+              :value="item.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="绑定车辆" prop="vehicle_id">
+          <el-select v-model="driverForm.vehicle_id" placeholder="请选择绑定车辆" style="width:100%">
+            <el-option
+              v-for="item in vehicles"
+              :key="item.id"
+              :label="`${item.id} - ${item.plate_number}`"
+              :value="item.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="姓名" prop="name">
           <el-input v-model="driverForm.name" placeholder="请输入姓名" />
         </el-form-item>
@@ -152,6 +174,7 @@
           <el-select v-model="driverForm.status" placeholder="请选择状态">
             <el-option label="可用" value="available" />
             <el-option label="忙碌" value="busy" />
+            <el-option label="不可用" value="unavailable" />
           </el-select>
         </el-form-item>
       </el-form>
@@ -174,6 +197,7 @@ import { notifyError } from '../../utils/notify';
 
 const vehicles = ref([]);
 const drivers = ref([]);
+const users = ref([]);
 const vehicleDialogVisible = ref(false);
 const driverDialogVisible = ref(false);
 const vehicleDialogTitle = ref('添加车辆');
@@ -205,13 +229,19 @@ const vehicleRules = reactive({
 
 const driverForm = reactive({
   id: null,
+  user_id: '',
+  vehicle_id: '',
   name: '',
   license: '',
   phone: '',
   status: 'available'
 });
 
+const driverUsers = computed(() => users.value.filter(item => item.role === 'driver'));
+
 const driverRules = reactive({
+  user_id: [{ required: true, message: '请选择司机用户', trigger: 'change' }],
+  vehicle_id: [{ required: true, message: '请选择绑定车辆', trigger: 'change' }],
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
   license: [{ required: true, message: '请输入驾驶证号', trigger: 'blur' }],
   phone: [{ required: true, message: '请输入手机号', trigger: 'blur' }],
@@ -233,7 +263,8 @@ const vehicleStatusType = (status) => {
 const driverStatusType = (status) => {
   const typeMap = {
     available: 'success',
-    busy: 'warning'
+    busy: 'warning',
+    unavailable: 'danger'
   };
   return typeMap[status] || 'info';
 };
@@ -241,12 +272,7 @@ const driverStatusType = (status) => {
 const fetchVehicles = async () => {
   try {
     loading.value = true;
-    const token = localStorage.getItem('token');
-    const response = await axios.get('/api/vehicles', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    const response = await axios.get('/api/vehicles');
     vehicles.value = response.data.data;
   } catch (err) {
     error.value = err.response?.data?.message || '获取车辆失败';
@@ -258,17 +284,21 @@ const fetchVehicles = async () => {
 const fetchDrivers = async () => {
   try {
     loading.value = true;
-    const token = localStorage.getItem('token');
-    const response = await axios.get('/api/vehicles/drivers', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    const response = await axios.get('/api/vehicles/drivers');
     drivers.value = response.data.data;
   } catch (err) {
     error.value = err.response?.data?.message || '获取司机失败';
   } finally {
     loading.value = false;
+  }
+};
+
+const fetchUsers = async () => {
+  try {
+    const response = await axios.get('/api/users');
+    users.value = response.data.data || [];
+  } catch (err) {
+    error.value = err.response?.data?.message || '获取用户失败';
   }
 };
 
@@ -304,6 +334,8 @@ const openVehicleDialog = (vehicle = null) => {
 const openDriverDialog = (driver = null) => {
   if (driver) {
     driverForm.id = driver.id;
+    driverForm.user_id = driver.user_id;
+    driverForm.vehicle_id = driver.vehicle_id;
     driverForm.name = driver.name;
     driverForm.license = driver.license_number;
     driverForm.phone = driver.phone;
@@ -311,6 +343,8 @@ const openDriverDialog = (driver = null) => {
     driverDialogTitle.value = '编辑司机';
   } else {
     driverForm.id = null;
+    driverForm.user_id = '';
+    driverForm.vehicle_id = '';
     driverForm.name = '';
     driverForm.license = '';
     driverForm.phone = '';
@@ -324,7 +358,6 @@ const saveVehicle = async () => {
   try {
     await vehicleFormRef.value.validate();
     loading.value = true;
-    const token = localStorage.getItem('token');
     const vehiclePayload = {
       plate_number: vehicleForm.plate_number,
       model: vehicleForm.model,
@@ -338,18 +371,10 @@ const saveVehicle = async () => {
     };
     if (vehicleForm.id) {
       // 编辑车辆
-      await axios.put(`/api/vehicles/${vehicleForm.id}`, vehiclePayload, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      await axios.put(`/api/vehicles/${vehicleForm.id}`, vehiclePayload);
     } else {
       // 添加车辆
-      await axios.post('/api/vehicles', vehiclePayload, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      await axios.post('/api/vehicles', vehiclePayload);
     }
     vehicleDialogVisible.value = false;
     fetchVehicles();
@@ -364,8 +389,9 @@ const saveDriver = async () => {
   try {
     await driverFormRef.value.validate();
     loading.value = true;
-    const token = localStorage.getItem('token');
     const driverPayload = {
+      user_id: driverForm.user_id,
+      vehicle_id: driverForm.vehicle_id,
       name: driverForm.name,
       phone: driverForm.phone,
       license_number: driverForm.license,
@@ -373,18 +399,10 @@ const saveDriver = async () => {
     };
     if (driverForm.id) {
       // 编辑司机
-      await axios.put(`/api/vehicles/drivers/${driverForm.id}`, driverPayload, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      await axios.put(`/api/vehicles/drivers/${driverForm.id}`, driverPayload);
     } else {
       // 添加司机
-      await axios.post('/api/vehicles/drivers', driverPayload, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      await axios.post('/api/vehicles/drivers', driverPayload);
     }
     driverDialogVisible.value = false;
     fetchDrivers();
@@ -397,12 +415,7 @@ const saveDriver = async () => {
 
 const deleteVehicle = async (id) => {
   try {
-    const token = localStorage.getItem('token');
-    await axios.delete(`/api/vehicles/${id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    await axios.delete(`/api/vehicles/${id}`);
     fetchVehicles();
   } catch (err) {
     error.value = err.response?.data?.message || '删除车辆失败';
@@ -411,12 +424,7 @@ const deleteVehicle = async (id) => {
 
 const deleteDriver = async (id) => {
   try {
-    const token = localStorage.getItem('token');
-    await axios.delete(`/api/vehicles/drivers/${id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    await axios.delete(`/api/vehicles/drivers/${id}`);
     fetchDrivers();
   } catch (err) {
     error.value = err.response?.data?.message || '删除司机失败';
@@ -430,6 +438,7 @@ const updateWidth = () => {
 onMounted(() => {
   fetchVehicles();
   fetchDrivers();
+  fetchUsers();
   window.addEventListener('resize', updateWidth);
 });
 

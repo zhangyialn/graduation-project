@@ -18,14 +18,18 @@
         <p><b>申请人ID：</b>{{ application.applicant_id }}</p>
         <p><b>部门ID：</b>{{ application.department_id }}</p>
         <p><b>用车事由：</b>{{ application.purpose }}</p>
+        <p><b>起点：</b>{{ application.start_point || '-' }}</p>
         <p><b>目的地：</b>{{ application.destination }}</p>
         <p><b>人数：</b>{{ application.passenger_count }}</p>
-        <p><b>时间：</b>{{ formatDate(application.start_time) }} - {{ formatDate(application.end_time) }}</p>
+        <p><b>出发时间：</b>{{ formatDate(application.start_time) }}</p>
         <p><b>当前状态：</b><el-tag :type="statusType(application.status)">{{ application.status }}</el-tag></p>
       </div>
 
       <el-divider>审批操作</el-divider>
       <el-form :model="form" label-position="top">
+        <el-form-item label="审批设置起点（可覆盖申请人填写）">
+          <el-input v-model="form.start_point" placeholder="请输入起点" />
+        </el-form-item>
         <el-form-item label="审批意见">
           <el-input v-model="form.comment" type="textarea" :rows="4" maxlength="200" show-word-limit placeholder="请输入审批意见" />
         </el-form-item>
@@ -63,11 +67,10 @@ const approvals = ref([]);
 const loading = ref(false);
 const submitting = ref(false);
 const error = ref('');
-const form = reactive({ comment: '' });
+const form = reactive({ comment: '', start_point: '' });
 
 const statusType = (status) => ({ pending: 'warning', approved: 'success', rejected: 'danger', completed: 'info' }[status] || 'info');
 const formatDate = (v) => v ? new Date(v).toLocaleString() : '-';
-const tokenHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
 
 const fetchData = async () => {
   try {
@@ -75,10 +78,11 @@ const fetchData = async () => {
     error.value = '';
     const id = route.params.applicationId;
     const [appRes, approvalRes] = await Promise.all([
-      axios.get(`/api/applications/${id}`, { headers: tokenHeader() }),
-      axios.get(`/api/approvals/application/${id}`, { headers: tokenHeader() })
+      axios.get(`/api/applications/${id}`),
+      axios.get(`/api/approvals/application/${id}`)
     ]);
     application.value = appRes.data.data;
+    form.start_point = application.value?.start_point || '';
     approvals.value = approvalRes.data.data || [];
   } catch (err) {
     error.value = err.response?.data?.message || '获取审批详情失败';
@@ -94,8 +98,9 @@ const submit = async (status) => {
     error.value = '';
     await axios.post(`/api/approvals/application/${application.value.id}/submit`, {
       status,
-      comment: form.comment
-    }, { headers: tokenHeader() });
+      comment: form.comment,
+      start_point: form.start_point
+    });
     notifySuccess(status === 'approved' ? '审批已同意' : '审批已驳回');
     await fetchData();
   } catch (err) {

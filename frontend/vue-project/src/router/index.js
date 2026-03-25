@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import Login from '../components/Auth/Login.vue';
 import ForgotPassword from '../components/Auth/ForgotPassword.vue';
+import ChangePassword from '../components/Auth/ChangePassword.vue';
 import Dashboard from '../views/Dashborad.vue';
 import CreateApplication from '../components/Application/CreateApplication.vue';
 import ApplicationList from '../components/Application/ApplicationList.vue';
@@ -12,6 +13,9 @@ import UserImport from '../views/UserImport.vue';
 import Reports from '../views/Reports.vue';
 import FuelPrices from '../views/FuelPrices.vue';
 import ApproverRecords from '../views/ApproverRecords.vue';
+import DriverDashboard from '../components/Driver/DriverDashboard.vue';
+import { useAuthStore } from '../stores/auth';
+import { pinia } from '../stores/pinia';
 
 const routes = [
   {
@@ -45,7 +49,9 @@ const routes = [
       { path: 'users/import', name: 'UserImport', component: UserImport, meta: { requiresAuth: true } },
       { path: 'reports', name: 'Reports', component: Reports, meta: { requiresAuth: true } },
       { path: 'fuel-prices', name: 'FuelPrices', component: FuelPrices, meta: { requiresAuth: true } },
-      { path: 'approver-records', name: 'ApproverRecords', component: ApproverRecords, meta: { requiresAuth: true } }
+      { path: 'approver-records', name: 'ApproverRecords', component: ApproverRecords, meta: { requiresAuth: true } },
+      { path: 'driver', name: 'DriverDashboard', component: DriverDashboard, meta: { requiresAuth: true } },
+      { path: 'change-password', name: 'ChangePassword', component: ChangePassword, meta: { requiresAuth: true } }
     ]
   }
 ];
@@ -58,10 +64,10 @@ const router = createRouter({
 // 路由守卫
 router.beforeEach((to) => {
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
-  const token = localStorage.getItem('token');
+  const authStore = useAuthStore(pinia);
+  authStore.hydrate();
+  const token = authStore.token;
   if (!requiresAuth) return true;
-  // 开发环境放行，便于无登录预览
-  if (import.meta.env.DEV) return true;
   if (requiresAuth && !token) {
     return '/login';
   }

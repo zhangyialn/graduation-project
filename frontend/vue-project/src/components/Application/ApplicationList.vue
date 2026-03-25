@@ -13,8 +13,10 @@
           <el-tag :type="statusType(item.status)">{{ item.status }}</el-tag>
         </div>
         <p class="mobile-line">事由：{{ item.purpose || '-' }}</p>
+        <p class="mobile-line">起点：{{ item.start_point || '-' }}</p>
+        <p class="mobile-line">司机ID：{{ item.driver_id || '-' }}</p>
         <p class="mobile-line">目的地：{{ item.destination || '-' }}</p>
-        <p class="mobile-line">时间：{{ formatDate(item.start_time) }} - {{ formatDate(item.end_time) }}</p>
+        <p class="mobile-line">出发时间：{{ formatDate(item.start_time) }}</p>
         <div class="mobile-actions" v-if="item.status === 'pending'">
           <el-button type="danger" size="small" @click="cancelApplication(item.id)">取消申请</el-button>
         </div>
@@ -24,12 +26,11 @@
     <el-table v-else :data="applications" style="width: 100%" border>
       <el-table-column prop="id" label="申请ID" width="80" />
       <el-table-column prop="purpose" label="用车事由" />
-      <el-table-column prop="start_time" label="开始时间" width="180">
+      <el-table-column prop="start_time" label="出发时间" width="180">
         <template #default="scope">{{ formatDate(scope.row.start_time) }}</template>
       </el-table-column>
-      <el-table-column prop="end_time" label="结束时间" width="180">
-        <template #default="scope">{{ formatDate(scope.row.end_time) }}</template>
-      </el-table-column>
+      <el-table-column prop="start_point" label="起点" width="140" />
+      <el-table-column prop="driver_id" label="司机ID" width="90" />
       <el-table-column prop="destination" label="目的地" />
       <el-table-column prop="status" label="状态" width="100">
         <template #default="scope">
@@ -52,8 +53,10 @@
 import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import axios from 'axios';
 import { Document, Close } from '@element-plus/icons-vue';
+import { useAuthStore } from '../../stores/auth';
 import { notifyError } from '../../utils/notify';
 
+const authStore = useAuthStore();
 const applications = ref([]);
 const error = ref('');
 const screenWidth = ref(window.innerWidth);
@@ -76,20 +79,14 @@ const formatDate = (value) => {
 
 const fetchApplications = async () => {
   try {
-    const token = localStorage.getItem('token');
-    const userStr = localStorage.getItem('user');
-    const user = userStr ? JSON.parse(userStr) : null;
+    const user = authStore.user;
     
     if (!user) {
       error.value = '用户信息不存在';
       return;
     }
     
-    const response = await axios.get(`/api/applications/my/${user.id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    const response = await axios.get(`/api/applications/my/${user.id}`);
     applications.value = response.data.data;
   } catch (err) {
     error.value = err.response?.data?.message || '获取申请失败';
@@ -98,12 +95,7 @@ const fetchApplications = async () => {
 
 const cancelApplication = async (id) => {
   try {
-    const token = localStorage.getItem('token');
-    await axios.post(`/api/applications/${id}/cancel`, {}, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    await axios.post(`/api/applications/${id}/cancel`, {});
     fetchApplications();
   } catch (err) {
     error.value = err.response?.data?.message || '取消申请失败';

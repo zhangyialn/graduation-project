@@ -4,7 +4,7 @@ from flask_jwt_extended import JWTManager
 from flask_bcrypt import Bcrypt
 from config.config import Config
 from models.index import db
-from routes import userBlueprint, vehicleBlueprint, applicationBlueprint, approvalBlueprint, dispatchBlueprint, tripBlueprint, reportBlueprint, authBlueprint
+from routes import userBlueprint, vehicleBlueprint, applicationBlueprint, approvalBlueprint, dispatchBlueprint, tripBlueprint, driverBlueprint, reportBlueprint, authBlueprint
 from middleware.error_middleware import register_error_handlers
 
 
@@ -41,6 +41,7 @@ app.register_blueprint(applicationBlueprint)
 app.register_blueprint(approvalBlueprint)
 app.register_blueprint(dispatchBlueprint)
 app.register_blueprint(tripBlueprint)
+app.register_blueprint(driverBlueprint)
 app.register_blueprint(reportBlueprint)
 print('蓝图注册完成')
 

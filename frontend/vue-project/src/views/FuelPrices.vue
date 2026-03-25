@@ -95,13 +95,9 @@ const form = ref({
   effective_date: today()
 });
 
-const token = () => localStorage.getItem('token');
-
 const fetchPrices = async () => {
   try {
-    const res = await axios.get('/api/trips/fuel-prices', {
-      headers: { Authorization: `Bearer ${token()}` }
-    });
+    const res = await axios.get('/api/trips/fuel-prices');
     prices.value = res.data.data || [];
   } catch (err) {
     setError(err.response?.data?.message || '获取油价失败');

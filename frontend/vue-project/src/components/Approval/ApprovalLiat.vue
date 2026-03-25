@@ -16,7 +16,8 @@
           <el-tag :type="statusType(item.status)">{{ item.status }}</el-tag>
         </div>
         <p class="mobile-line">事由：{{ item.purpose || '-' }}</p>
-        <p class="mobile-line">时间：{{ formatDate(item.start_time) }} - {{ formatDate(item.end_time) }}</p>
+        <p class="mobile-line">起点：{{ item.start_point || '-' }}</p>
+        <p class="mobile-line">出发时间：{{ formatDate(item.start_time) }}</p>
         <div class="mobile-actions">
           <el-button type="primary" size="small" @click="goDetail(item.id)">进入审批详情</el-button>
         </div>
@@ -26,11 +27,9 @@
     <el-table v-else :data="applications" border>
       <el-table-column prop="id" label="申请ID" width="90" />
       <el-table-column prop="purpose" label="用车事由" />
-      <el-table-column prop="start_time" label="开始时间" width="180">
+      <el-table-column prop="start_point" label="起点" width="140" />
+      <el-table-column prop="start_time" label="出发时间" width="180">
         <template #default="scope">{{ formatDate(scope.row.start_time) }}</template>
-      </el-table-column>
-      <el-table-column prop="end_time" label="结束时间" width="180">
-        <template #default="scope">{{ formatDate(scope.row.end_time) }}</template>
       </el-table-column>
       <el-table-column prop="status" label="状态" width="110">
         <template #default="scope"><el-tag :type="statusType(scope.row.status)">{{ scope.row.status }}</el-tag></template>
@@ -82,8 +81,7 @@ const fetchApplications = async () => {
   try {
     loading.value = true;
     error.value = '';
-    const token = localStorage.getItem('token');
-    const response = await axios.get(`/api/applications/pending/${departmentId.value}`, { headers: { Authorization: `Bearer ${token}` } });
+    const response = await axios.get(`/api/applications/pending/${departmentId.value}`);
     applications.value = response.data.data || [];
   } catch (err) {
     error.value = err.response?.data?.message || '获取待审批申请失败';
@@ -94,8 +92,7 @@ const fetchApplications = async () => {
 
 const fetchApprovalStatistics = async () => {
   try {
-    const token = localStorage.getItem('token');
-    const response = await axios.get('/api/approvals/statistics', { headers: { Authorization: `Bearer ${token}` } });
+    const response = await axios.get('/api/approvals/statistics');
     approvalStats.value = response.data.data || [];
   } catch (err) {
     error.value = err.response?.data?.message || '获取审批统计失败';

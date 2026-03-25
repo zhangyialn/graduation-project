@@ -62,6 +62,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import axios from 'axios';
+import { useAuthStore } from '../stores/auth';
 import { notifyError } from '../utils/notify';
 
 const myApprovals = ref([]);
@@ -72,22 +73,16 @@ const error = ref('');
 const activeTab = ref('mine');
 const screenWidth = ref(window.innerWidth);
 const isMobile = computed(() => screenWidth.value < 900);
-
-const token = () => localStorage.getItem('token');
-const currentUser = () => {
-  const raw = localStorage.getItem('user');
-  return raw ? JSON.parse(raw) : null;
-};
+const authStore = useAuthStore();
 
 const fetchData = async () => {
   try {
     loading.value = true;
     error.value = '';
-    const headers = { Authorization: `Bearer ${token()}` };
-    const user = currentUser();
+    const user = authStore.user;
     const [mineRes, allRes] = await Promise.all([
-      user ? axios.get(`/api/approvals/approver/${user.id}`, { headers }) : Promise.resolve({ data: { data: [] } }),
-      axios.get(status.value ? `/api/approvals?status=${status.value}` : '/api/approvals', { headers })
+      user ? axios.get(`/api/approvals/approver/${user.id}`) : Promise.resolve({ data: { data: [] } }),
+      axios.get(status.value ? `/api/approvals?status=${status.value}` : '/api/approvals')
     ]);
     myApprovals.value = mineRes.data.data || [];
     allApprovals.value = allRes.data.data || [];

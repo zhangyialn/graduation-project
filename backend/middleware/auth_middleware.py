@@ -5,14 +5,28 @@ from flask_jwt_extended import jwt_required as jwt_required_extended, get_jwt_id
 from models.index import User
 
 
+def _normalize_identity(identity):
+    if identity is None:
+        return None
+    try:
+        return int(identity)
+    except Exception:
+        return identity
+
+
 # JWT认证装饰器
-def jwt_required(f):
-    """JWT认证装饰器"""
-    @wraps(f)
-    @jwt_required_extended()
-    def decorated_function(*args, **kwargs):
-        return f(*args, **kwargs)
-    return decorated_function
+def jwt_required(f=None):
+    """JWT认证装饰器，兼容 jwt_required()(f) 与 @jwt_required 两种写法"""
+    def decorator(func):
+        @wraps(func)
+        @jwt_required_extended()
+        def decorated_function(*args, **kwargs):
+            return func(*args, **kwargs)
+        return decorated_function
+
+    if f is None:
+        return decorator
+    return decorator(f)
 
 
 # 角色权限检查装饰器
@@ -26,7 +40,7 @@ def role_required(required_roles):
         @wraps(f)
         @jwt_required_extended()
         def decorated_function(*args, **kwargs):
-            current_user_id = get_jwt_identity()
+            current_user_id = _normalize_identity(get_jwt_identity())
             user = User.query.get(current_user_id)
             
             if not user:
@@ -50,7 +64,7 @@ def role_required(required_roles):
 # 获取当前用户
 def get_current_user():
     """获取当前登录用户"""
-    current_user_id = get_jwt_identity()
+    current_user_id = _normalize_identity(get_jwt_identity())
     if current_user_id is None:
         return None
     return User.query.get(current_user_id)

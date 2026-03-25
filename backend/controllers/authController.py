@@ -5,6 +5,22 @@ from flask_bcrypt import check_password_hash, generate_password_hash
 from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity
 
 
+def _verify_password(user, plain_password):
+    stored_password = str(user.password or '')
+    try:
+        if check_password_hash(stored_password, plain_password):
+            return True, False
+    except ValueError:
+        pass
+    except Exception:
+        pass
+
+    if stored_password == str(plain_password):
+        return True, True
+
+    return False, False
+
+
 # 用户注册
 def register():
     try:
@@ -54,13 +70,22 @@ def login():
         if not user:
             return jsonify({'success': False, 'message': '用户名或密码错误'}), 401
         
-        # 验证密码
-        if not check_password_hash(user.password, data['password']):
+        # 验证密码（兼容历史明文密码）
+        verified, need_upgrade = _verify_password(user, data['password'])
+        if not verified:
             return jsonify({'success': False, 'message': '用户名或密码错误'}), 401
+
+        # 历史明文密码登录成功后自动升级为哈希
+        if need_upgrade:
+            try:
+                user.password = generate_password_hash(data['password']).decode('utf-8')
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
         
         # 创建访问令牌和刷新令牌
-        access_token = create_access_token(identity=user.id)
-        refresh_token = create_refresh_token(identity=user.id)
+        access_token = create_access_token(identity=str(user.id))
+        refresh_token = create_refresh_token(identity=str(user.id))
         
         return jsonify({
             'success': True,
@@ -79,7 +104,7 @@ def login():
 def refresh():
     try:
         current_user_id = get_jwt_identity()
-        access_token = create_access_token(identity=current_user_id)
+        access_token = create_access_token(identity=str(current_user_id))
         
         return jsonify({
             'success': True,

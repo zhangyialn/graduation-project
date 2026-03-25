@@ -23,6 +23,14 @@
           <template #icon><el-icon><Document /></el-icon></template>
           <span>我的申请</span>
         </el-menu-item>
+        <el-menu-item index="/dashboard/change-password">
+          <template #icon><el-icon><Lock /></el-icon></template>
+          <span>修改密码</span>
+        </el-menu-item>
+        <el-menu-item index="/dashboard/driver" v-if="isDriver">
+          <template #icon><el-icon><Van /></el-icon></template>
+          <span>司机面板</span>
+        </el-menu-item>
         <el-menu-item index="/dashboard/approvals" v-if="isApprover || isAdmin">
           <template #icon><el-icon><Check /></el-icon></template>
           <span>审批管理</span>
@@ -87,6 +95,7 @@
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="user">普通用户</el-dropdown-item>
+                <el-dropdown-item command="driver">司机</el-dropdown-item>
                 <el-dropdown-item command="approver">审批员</el-dropdown-item>
                 <el-dropdown-item command="admin">管理员</el-dropdown-item>
               </el-dropdown-menu>
@@ -198,12 +207,14 @@
 <script setup>
 import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useAuthStore } from '../stores/auth';
 import {
   DocumentAdd,
   Document,
   Check,
   Van,
   DataAnalysis,
+  Lock,
   SwitchButton,
   Upload,
   TrendCharts,
@@ -215,6 +226,7 @@ import {
 
 const router = useRouter();
 const route = useRoute();
+const authStore = useAuthStore();
 const user = ref(null);
 const pendingCount = ref(0);
 const lastLoginHint = computed(() => '最近登录信息暂未记录');
@@ -226,6 +238,7 @@ const featureDrawer = ref(false);
 const isMobile = computed(() => screenWidth.value < 900);
 const activeMenu = computed(() => route.path);
 const role = computed(() => user.value?.role || 'user');
+const isDriver = computed(() => role.value === 'driver');
 const isApprover = computed(() => role.value === 'leader' || role.value === 'approver');
 const isAdmin = computed(() => role.value === 'admin');
 
@@ -233,6 +246,8 @@ const breadcrumb = computed(() => {
   const pathMap = {
     '/dashboard/applications/create': '用车申请',
     '/dashboard/applications': '我的申请',
+    '/dashboard/change-password': '修改密码',
+    '/dashboard/driver': '司机面板',
     '/dashboard/approvals': '审批管理',
     '/dashboard/vehicles': '车辆管理',
     '/dashboard/dispatches': '调度管理',
@@ -245,6 +260,7 @@ const breadcrumb = computed(() => {
 });
 
 const subtitle = computed(() => {
+  if (isDriver.value) return '司机工作台，查看接驾信息与结束行程';
   if (isApprover.value) return '审批员工作台，查看审批与导入用户';
   if (isAdmin.value) return '管理员工作台，管理车辆与调度';
   return '快速提交用车申请，查看审批状态';
@@ -253,6 +269,7 @@ const subtitle = computed(() => {
 const roleLabel = computed(() => {
   if (isAdmin.value) return '管理员';
   if (isApprover.value) return '审批员';
+  if (isDriver.value) return '司机';
   return '普通用户';
 });
 
@@ -264,6 +281,7 @@ const greeting = computed(() => {
 });
 
 const primaryAction = computed(() => {
+  if (isDriver.value) return { label: '进入司机面板', path: '/dashboard/driver' };
   if (isApprover.value) return { label: '进入审批管理', path: '/dashboard/approvals' };
   if (isAdmin.value) return { label: '管理车辆', path: '/dashboard/vehicles' };
   return { label: '立即发起申请', path: '/dashboard/applications/create' };
@@ -272,12 +290,17 @@ const primaryAction = computed(() => {
 const quickActions = computed(() => {
   const base = [
     { label: '我的申请', desc: '查看进度与审批意见', path: '/dashboard/applications' },
-    { label: '创建申请', desc: '提交新的用车需求', path: '/dashboard/applications/create' }
+    { label: '创建申请', desc: '提交新的用车需求', path: '/dashboard/applications/create' },
+    { label: '修改密码', desc: '修改当前登录账号密码', path: '/dashboard/change-password' }
   ];
 
   const approverExtra = [
     { label: '审批管理', desc: '处理待审批的用车申请', path: '/dashboard/approvals' },
     { label: '批量导入用户', desc: '支持Excel导入普通用户', path: '/dashboard/users/import' }
+  ];
+
+  const driverExtra = [
+    { label: '司机面板', desc: '查看接驾任务并结束行程', path: '/dashboard/driver' }
   ];
 
   const adminExtra = [
@@ -289,6 +312,7 @@ const quickActions = computed(() => {
   ];
 
   if (isAdmin.value) return [...approverExtra, ...adminExtra, ...base];
+  if (isDriver.value) return [...driverExtra, ...base];
   if (isApprover.value) return [...approverExtra, ...base];
   return base;
 });
@@ -302,6 +326,7 @@ const featureTips = computed(() => {
     : '如需查看可视化趋势，请联系审批员或管理员。';
 
   return [
+    { title: '司机任务', text: isDriver.value ? '在司机面板查看出发时间、起点和乘客电话。' : '调度完成后司机可在司机面板处理行程。' },
     { title: '审批进度', text: approvalText },
     { title: '车辆与费用', text: '调度完成后自动生成费用，支持按油价和油耗计算。' },
     { title: '数据与可视化', text: reportText }
@@ -314,7 +339,8 @@ const menuGroups = computed(() => {
       title: '申请',
       items: [
         { label: '用车申请', path: '/dashboard/applications/create', icon: DocumentAdd },
-        { label: '我的申请', path: '/dashboard/applications', icon: Document }
+        { label: '我的申请', path: '/dashboard/applications', icon: Document },
+        { label: '修改密码', path: '/dashboard/change-password', icon: Lock }
       ]
     }
   ];
@@ -327,6 +353,15 @@ const menuGroups = computed(() => {
         { label: '批量导入', path: '/dashboard/users/import', icon: Upload },
         { label: '报表可视化', path: '/dashboard/reports', icon: TrendCharts },
         { label: '审批记录', path: '/dashboard/approver-records', icon: Collection }
+      ]
+    });
+  }
+
+  if (isDriver.value) {
+    groups.push({
+      title: '司机',
+      items: [
+        { label: '司机面板', path: '/dashboard/driver', icon: Van }
       ]
     });
   }
@@ -346,13 +381,12 @@ const menuGroups = computed(() => {
 });
 
 const loadUser = () => {
-  const userStr = localStorage.getItem('user');
-  if (userStr) user.value = JSON.parse(userStr);
+  authStore.hydrate();
+  user.value = authStore.user || null;
 };
 
 const logout = () => {
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
+  authStore.clearSession();
   handleNav('/login');
 };
 
@@ -368,13 +402,13 @@ const refreshUser = () => loadUser();
 const switchRole = (roleKey) => {
   const templates = {
     user: { id: 1, username: 'user-demo', role: 'user' },
+    driver: { id: 4, username: 'driver-demo', role: 'driver' },
     approver: { id: 2, username: 'approver-demo', role: 'leader' },
     admin: { id: 3, username: 'admin-demo', role: 'admin' }
   };
   const payload = templates[roleKey];
   if (!payload) return;
-  localStorage.setItem('user', JSON.stringify(payload));
-  if (!localStorage.getItem('token')) localStorage.setItem('token', 'dev-token');
+  authStore.setSession(authStore.token || 'dev-token', payload);
   loadUser();
 };
 

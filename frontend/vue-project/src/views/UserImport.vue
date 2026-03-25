@@ -75,11 +75,9 @@ const submit = async () => {
     success.value = '';
     const formData = new FormData();
     formData.append('file', fileRef.value);
-    const token = localStorage.getItem('token');
     const res = await axios.post('/api/users/import', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
-        Authorization: `Bearer ${token}`
+        'Content-Type': 'multipart/form-data'
       }
     });
     result.value = res.data.data;

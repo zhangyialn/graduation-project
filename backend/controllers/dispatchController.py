@@ -4,6 +4,31 @@ from models.index import db, Dispatch, Vehicle, Driver, CarApplication
 from flask_jwt_extended import jwt_required
 
 
+def _enum_value(value):
+    return value.value if hasattr(value, 'value') else value
+
+
+def _driver_active_dispatch_count(driver_id):
+    return Dispatch.query.filter(
+        Dispatch.driver_id == driver_id,
+        Dispatch.status.in_(['scheduled', 'in_progress'])
+    ).count()
+
+
+def _build_recommend_reason(seat_count, passenger_count, active_count):
+    reasons = []
+    if seat_count >= passenger_count:
+        reasons.append(f'座位数满足需求（{seat_count}座）')
+    else:
+        reasons.append(f'座位数不足（{seat_count}座）')
+
+    if active_count == 0:
+        reasons.append('司机当前无进行中任务')
+    else:
+        reasons.append(f'司机当前任务数：{active_count}')
+    return reasons
+
+
 # 获取所有调度
 def get_dispatches():
     try:
@@ -38,21 +63,31 @@ def create_dispatch():
         application = CarApplication.query.get(data['application_id'])
         if not application:
             return jsonify({'success': False, 'message': '申请不存在'})
-        if application.status != 'approved':
+        if _enum_value(application.status) != 'approved':
             return jsonify({'success': False, 'message': '申请未批准，无法调度'})
+
+        expected_driver_id = data.get('driver_id', application.driver_id)
+        if application.driver_id and int(expected_driver_id) != int(application.driver_id):
+            return jsonify({'success': False, 'message': '该申请已指定司机，不能更换'}), 400
+
+        driver = Driver.query.get(int(expected_driver_id))
+        if not driver or driver.is_deleted:
+            return jsonify({'success': False, 'message': '司机不存在'})
+
+        # 司机和车辆强绑定：优先取司机绑定车辆
+        bound_vehicle_id = driver.vehicle_id
+        vehicle_id = int(data.get('vehicle_id') or bound_vehicle_id)
+        if vehicle_id != bound_vehicle_id:
+            return jsonify({'success': False, 'message': '所选车辆与司机绑定车辆不一致'}), 400
         
         # 检查车辆是否可用
-        vehicle = Vehicle.query.get(data['vehicle_id'])
+        vehicle = Vehicle.query.get(vehicle_id)
         if not vehicle:
             return jsonify({'success': False, 'message': '车辆不存在'})
-        if vehicle.status != 'available':
+        if _enum_value(vehicle.status) != 'available':
             return jsonify({'success': False, 'message': '车辆不可用'})
-        
-        # 检查司机是否可用
-        driver = Driver.query.get(data['driver_id'])
-        if not driver:
-            return jsonify({'success': False, 'message': '司机不存在'})
-        if driver.status != 'available':
+
+        if _enum_value(driver.status) != 'available':
             return jsonify({'success': False, 'message': '司机不可用'})
         
         # 检查车辆时间冲突
@@ -62,7 +97,7 @@ def create_dispatch():
         conflict_dispatch = db.session.query(Dispatch).join(
             CarApplication, Dispatch.application_id == CarApplication.id
         ).filter(
-            Dispatch.vehicle_id == data['vehicle_id'],
+            Dispatch.vehicle_id == vehicle_id,
             Dispatch.status.in_(['scheduled', 'in_progress']),
             and_(
                 CarApplication.start_time <= application.end_time,
@@ -77,7 +112,7 @@ def create_dispatch():
         conflict_driver_dispatch = db.session.query(Dispatch).join(
             CarApplication, Dispatch.application_id == CarApplication.id
         ).filter(
-            Dispatch.driver_id == data['driver_id'],
+            Dispatch.driver_id == int(expected_driver_id),
             Dispatch.status.in_(['scheduled', 'in_progress']),
             and_(
                 CarApplication.start_time <= application.end_time,
@@ -91,8 +126,8 @@ def create_dispatch():
         # 创建调度
         dispatch = Dispatch(
             application_id=data['application_id'],
-            vehicle_id=data['vehicle_id'],
-            driver_id=data['driver_id'],
+            vehicle_id=vehicle_id,
+            driver_id=int(expected_driver_id),
             dispatcher_id=data['dispatcher_id']
         )
         db.session.add(dispatch)
@@ -120,7 +155,7 @@ def start_dispatch(id):
         if not dispatch:
             return jsonify({'success': False, 'message': '调度不存在'})
         
-        if dispatch.status != 'scheduled':
+        if _enum_value(dispatch.status) != 'scheduled':
             return jsonify({'success': False, 'message': '调度状态不正确'})
         
         dispatch.status = 'in_progress'
@@ -138,7 +173,7 @@ def cancel_dispatch(id):
         if not dispatch:
             return jsonify({'success': False, 'message': '调度不存在'})
         
-        if dispatch.status not in ['scheduled', 'in_progress']:
+        if _enum_value(dispatch.status) not in ['scheduled', 'in_progress']:
             return jsonify({'success': False, 'message': '当前状态无法取消'})
         
         # 更新调度状态
@@ -156,7 +191,7 @@ def cancel_dispatch(id):
         
         # 恢复申请状态
         application = CarApplication.query.get(dispatch.application_id)
-        if application:
+        if application and _enum_value(application.status) == 'dispatched':
             application.status = 'approved'
         
         db.session.commit()
@@ -173,3 +208,61 @@ def get_pending_dispatches():
         return jsonify({'success': True, 'data': [app.to_dict() for app in applications]})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
+
+
+def recommend_dispatch(application_id):
+    try:
+        application = CarApplication.query.get(application_id)
+        if not application:
+            return jsonify({'success': False, 'message': '申请不存在'}), 404
+
+        if _enum_value(application.status) != 'approved':
+            return jsonify({'success': False, 'message': '仅已批准申请可推荐调度'}), 400
+
+        candidates_query = Driver.query.filter_by(is_deleted=False, status='available')
+        if application.driver_id:
+            candidates_query = candidates_query.filter_by(id=application.driver_id)
+        candidates = candidates_query.all()
+
+        ranked = []
+        for driver in candidates:
+            vehicle = Vehicle.query.get(driver.vehicle_id)
+            if not vehicle or vehicle.is_deleted:
+                continue
+            if _enum_value(vehicle.status) != 'available':
+                continue
+
+            seat_count = int(vehicle.seat_count or 0)
+            passenger_count = int(application.passenger_count or 0)
+            if seat_count < passenger_count:
+                continue
+
+            active_count = _driver_active_dispatch_count(driver.id)
+            seat_score = 1 / (1 + max(seat_count - passenger_count, 0))
+            workload_score = 1 / (1 + active_count)
+            final_score = seat_score * 0.65 + workload_score * 0.35
+
+            ranked.append({
+                'driver_id': driver.id,
+                'driver_name': driver.name,
+                'vehicle_id': vehicle.id,
+                'plate_number': vehicle.plate_number,
+                'seat_count': seat_count,
+                'active_dispatch_count': active_count,
+                'score': round(final_score, 4),
+                'reasons': _build_recommend_reason(seat_count, passenger_count, active_count)
+            })
+
+        ranked.sort(key=lambda item: item['score'], reverse=True)
+        best = ranked[0] if ranked else None
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'application_id': application_id,
+                'best': best,
+                'candidates': ranked[:5]
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500

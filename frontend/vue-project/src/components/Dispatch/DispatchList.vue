@@ -64,6 +64,11 @@
               :value="item.id"
             />
           </el-select>
+          <div style="margin-top: 8px;">
+            <el-button plain size="small" :disabled="!form.application_id" :loading="recommending" @click="fetchDispatchRecommendation(form.application_id)">
+              智能推荐调度
+            </el-button>
+          </div>
         </el-form-item>
         <el-form-item label="车辆ID" prop="vehicle_id">
           <el-select v-model="form.vehicle_id" placeholder="请选择可用车辆" style="width: 100%">
@@ -91,6 +96,36 @@
         <el-form-item label="预估油费/km">
           <div class="fuel-meta">{{ estimatedFuelCostPerKmHint }}</div>
         </el-form-item>
+        <el-form-item label="推荐说明" v-if="recommendation">
+          <div class="fuel-meta">
+            <div>推荐司机：{{ recommendation.driver_name }}（ID: {{ recommendation.driver_id }}）</div>
+            <div>推荐车辆：{{ recommendation.plate_number }}（ID: {{ recommendation.vehicle_id }}）</div>
+            <div>匹配分：{{ recommendation.score }}</div>
+            <div>{{ (recommendation.reasons || []).join('；') }}</div>
+          </div>
+        </el-form-item>
+        <el-form-item label="Top5候选" v-if="recommendationCandidates.length > 0">
+          <div style="width: 100%; display: grid; gap: 8px;">
+            <el-card
+              v-for="item in recommendationCandidates"
+              :key="`${item.driver_id}-${item.vehicle_id}`"
+              shadow="never"
+              style="cursor: pointer; border: 1px solid #dfe6d2;"
+              @click="applyRecommendation(item)"
+            >
+              <div class="fuel-meta">
+                <div>
+                  <strong>
+                    {{ selectedRecommendationKey === `${item.driver_id}-${item.vehicle_id}` ? '已选：' : '' }}
+                    司机{{ item.driver_name }} / 车辆{{ item.plate_number }}
+                  </strong>
+                </div>
+                <div>匹配分：{{ item.score }}，任务数：{{ item.active_dispatch_count }}</div>
+                <div>{{ (item.reasons || []).join('；') }}</div>
+              </div>
+            </el-card>
+          </div>
+        </el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
@@ -108,7 +143,8 @@ import { ref, reactive, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import axios from 'axios';
 import { DataAnalysis, Plus, Check, Close } from '@element-plus/icons-vue';
 import { useFuelPriceStore } from '../../stores/fuelPrice';
-import { notifyError } from '../../utils/notify';
+import { useAuthStore } from '../../stores/auth';
+import { notifyError, notifySuccess, notifyWarning } from '../../utils/notify';
 
 const dispatches = ref([]);
 const pendingApplications = ref([]);
@@ -117,9 +153,14 @@ const availableDrivers = ref([]);
 const dialogVisible = ref(false);
 const error = ref('');
 const loading = ref(false);
+const recommending = ref(false);
+const recommendation = ref(null);
+const recommendationCandidates = ref([]);
+const selectedRecommendationKey = ref('');
 const screenWidth = ref(window.innerWidth);
 const isMobile = computed(() => screenWidth.value < 900);
 const fuelStore = useFuelPriceStore();
+const authStore = useAuthStore();
 
 const form = reactive({
   application_id: '',
@@ -190,12 +231,7 @@ const statusType = (status) => {
 const fetchDispatches = async () => {
   try {
     loading.value = true;
-    const token = localStorage.getItem('token');
-    const response = await axios.get('/api/dispatches', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    const response = await axios.get('/api/dispatches');
     dispatches.value = response.data.data;
   } catch (err) {
     error.value = err.response?.data?.message || '获取调度失败';
@@ -204,26 +240,26 @@ const fetchDispatches = async () => {
   }
 };
 
-const openAddDialog = () => {
+const openAddDialog = async () => {
   form.application_id = '';
   form.vehicle_id = '';
   form.driver_id = '';
+  recommendation.value = null;
+  recommendationCandidates.value = [];
+  selectedRecommendationKey.value = '';
   error.value = '';
-  fetchPendingApplications();
-  fetchAvailableVehicles();
-  fetchAvailableDrivers();
+  await Promise.all([
+    fetchPendingApplications(),
+    fetchAvailableVehicles(),
+    fetchAvailableDrivers()
+  ]);
   ensureDailyFuelPrice();
   dialogVisible.value = true;
 };
 
 const fetchPendingApplications = async () => {
   try {
-    const token = localStorage.getItem('token');
-    const response = await axios.get('/api/dispatches/pending', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    const response = await axios.get('/api/dispatches/pending');
     pendingApplications.value = response.data.data || [];
   } catch (err) {
     error.value = err.response?.data?.message || '获取待调度申请失败';
@@ -232,12 +268,7 @@ const fetchPendingApplications = async () => {
 
 const fetchAvailableVehicles = async () => {
   try {
-    const token = localStorage.getItem('token');
-    const response = await axios.get('/api/vehicles/available', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    const response = await axios.get('/api/vehicles/available');
     availableVehicles.value = response.data.data || [];
   } catch (err) {
     error.value = err.response?.data?.message || '获取可用车辆失败';
@@ -246,25 +277,54 @@ const fetchAvailableVehicles = async () => {
 
 const fetchAvailableDrivers = async () => {
   try {
-    const token = localStorage.getItem('token');
-    const response = await axios.get('/api/vehicles/drivers/available', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    const response = await axios.get('/api/vehicles/drivers/available');
     availableDrivers.value = response.data.data || [];
   } catch (err) {
     error.value = err.response?.data?.message || '获取可用司机失败';
   }
 };
 
+const fetchDispatchRecommendation = async (applicationId) => {
+  if (!applicationId) return;
+  try {
+    recommending.value = true;
+    const response = await axios.get(`/api/dispatches/recommend/${applicationId}`);
+
+    const best = response.data?.data?.best;
+    const candidates = response.data?.data?.candidates || [];
+    recommendationCandidates.value = candidates;
+    if (!best) {
+      recommendation.value = null;
+      selectedRecommendationKey.value = '';
+      notifyWarning('未找到可调度推荐，请手动选择');
+      return;
+    }
+
+    applyRecommendation(best);
+    notifySuccess('已按智能推荐自动填充');
+  } catch (err) {
+    recommendation.value = null;
+    recommendationCandidates.value = [];
+    selectedRecommendationKey.value = '';
+    error.value = err.response?.data?.message || '获取智能推荐失败';
+  } finally {
+    recommending.value = false;
+  }
+};
+
+const applyRecommendation = (candidate) => {
+  if (!candidate) return;
+  recommendation.value = candidate;
+  selectedRecommendationKey.value = `${candidate.driver_id}-${candidate.vehicle_id}`;
+  form.driver_id = candidate.driver_id;
+  form.vehicle_id = candidate.vehicle_id;
+};
+
 const handleAddDispatch = async () => {
   try {
     await dispatchForm.value.validate();
     loading.value = true;
-    const token = localStorage.getItem('token');
-    const userStr = localStorage.getItem('user');
-    const user = userStr ? JSON.parse(userStr) : null;
+    const user = authStore.user;
 
     if (!user) {
       error.value = '用户信息不存在';
@@ -276,10 +336,6 @@ const handleAddDispatch = async () => {
       vehicle_id: form.vehicle_id,
       driver_id: form.driver_id,
       dispatcher_id: user.id
-    }, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
     });
     dialogVisible.value = false;
     fetchDispatches();
@@ -292,12 +348,7 @@ const handleAddDispatch = async () => {
 
 const startDispatch = async (id) => {
   try {
-    const token = localStorage.getItem('token');
-    await axios.post(`/api/dispatches/${id}/start`, {}, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    await axios.post(`/api/dispatches/${id}/start`, {});
     fetchDispatches();
   } catch (err) {
     error.value = err.response?.data?.message || '开始调度失败';
@@ -306,12 +357,7 @@ const startDispatch = async (id) => {
 
 const cancelDispatch = async (id) => {
   try {
-    const token = localStorage.getItem('token');
-    await axios.post(`/api/dispatches/${id}/cancel`, {}, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    await axios.post(`/api/dispatches/${id}/cancel`, {});
     fetchDispatches();
   } catch (err) {
     error.value = err.response?.data?.message || '取消调度失败';
@@ -336,6 +382,11 @@ watch(() => form.vehicle_id, async () => {
   if (!selectedVehicle.value) return;
   fuelStore.setFuelType(currentFuelType.value);
   await ensureDailyFuelPrice();
+});
+
+watch(() => form.application_id, async (applicationId) => {
+  if (!dialogVisible.value || !applicationId) return;
+  await fetchDispatchRecommendation(applicationId);
 });
 
 watch(error, (message) => {

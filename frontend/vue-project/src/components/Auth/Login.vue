@@ -35,8 +35,10 @@ import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { notifyError, notifyWarning } from '../../utils/notify';
 import carAvatar from '../../assets/car.png';
+import { useAuthStore } from '../../stores/auth';
 
 const router = useRouter();
+const authStore = useAuthStore();
 const form = reactive({
   username: '',
   password: ''
@@ -54,8 +56,7 @@ const handleLogin = async () => {
     await loginForm.value.validate();
     loading.value = true;
     const response = await axios.post('/api/auth/login', form);
-    localStorage.setItem('token', response.data.data.access_token);
-    localStorage.setItem('user', JSON.stringify(response.data.data.user));
+    authStore.setSession(response.data.data.access_token, response.data.data.user);
     router.push('/dashboard');
   } catch (err) {
     if (err?.response) {

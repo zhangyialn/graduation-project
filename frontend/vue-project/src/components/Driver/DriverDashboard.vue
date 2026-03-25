@@ -1,0 +1,225 @@
+<template>
+  <el-card class="driver-card" shadow="hover">
+    <template #header>
+      <div class="card-header">
+        <span>司机主面板</span>
+        <el-button type="primary" @click="fetchDashboard" :loading="loading">刷新</el-button>
+      </div>
+    </template>
+
+    <el-row :gutter="12" class="meta-row">
+      <el-col :xs="24" :sm="8">
+        <el-card shadow="never">
+          <p class="meta-title">司机状态</p>
+          <el-tag :type="statusType(driver?.status)">{{ driver?.status || '-' }}</el-tag>
+          <el-select v-model="driverStatus" placeholder="更新司机状态" class="mt" style="width:100%">
+            <el-option label="可用" value="available" />
+            <el-option label="不可用" value="unavailable" />
+          </el-select>
+          <el-button class="mt" type="primary" plain @click="updateDriverStatus" :loading="saving">保存司机状态</el-button>
+        </el-card>
+      </el-col>
+
+      <el-col :xs="24" :sm="8">
+        <el-card shadow="never">
+          <p class="meta-title">车辆状态</p>
+          <p>车牌：{{ vehicle?.plate_number || '-' }}</p>
+          <el-tag :type="statusType(vehicle?.status)">{{ vehicle?.status || '-' }}</el-tag>
+          <el-select v-model="vehicleStatus" placeholder="更新车辆状态" class="mt" style="width:100%">
+            <el-option label="可用" value="available" />
+            <el-option label="维修中" value="maintenance" />
+            <el-option label="不可用" value="unavailable" />
+          </el-select>
+          <el-button class="mt" type="primary" plain @click="updateVehicleStatus" :loading="saving">保存车辆状态</el-button>
+        </el-card>
+      </el-col>
+
+      <el-col :xs="24" :sm="8">
+        <el-card shadow="never">
+          <p class="meta-title">更换绑定车辆</p>
+          <el-input v-model="plateNumber" placeholder="请输入车牌号" />
+          <el-button class="mt" type="primary" plain @click="bindVehicle" :loading="saving">按车牌绑定</el-button>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-divider>接驾任务</el-divider>
+
+    <div v-if="tasks.length === 0" class="empty">暂无待执行任务</div>
+
+    <el-table v-else :data="tasks" border>
+      <el-table-column prop="application_id" label="申请ID" width="90" />
+      <el-table-column prop="start_time" label="出发时间" width="180">
+        <template #default="scope">{{ formatDate(scope.row.start_time) }}</template>
+      </el-table-column>
+      <el-table-column prop="start_point" label="起点" min-width="140" />
+      <el-table-column prop="passenger_phone" label="乘客电话" width="140" />
+      <el-table-column prop="destination" label="目的地" min-width="140" />
+      <el-table-column prop="dispatch_status" label="调度状态" width="120">
+        <template #default="scope">
+          <el-tag :type="statusType(scope.row.dispatch_status)">{{ scope.row.dispatch_status }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="结束行程" width="220" fixed="right">
+        <template #default="scope">
+          <el-button
+            v-if="scope.row.trip_id"
+            type="success"
+            size="small"
+            @click="openEndDialog(scope.row)"
+          >结束行程</el-button>
+          <span v-else>未创建行程记录</span>
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <el-dialog v-model="endDialogVisible" title="结束行程" width="420px">
+      <el-form :model="endForm" label-width="100px">
+        <el-form-item label="结束里程">
+          <el-input-number v-model="endForm.end_mileage" :min="0" style="width:100%" />
+        </el-form-item>
+        <el-form-item label="结束油量">
+          <el-input-number v-model="endForm.end_fuel" :min="0" :step="0.1" style="width:100%" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="endDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitEndTrip" :loading="saving">提交</el-button>
+      </template>
+    </el-dialog>
+  </el-card>
+</template>
+
+<script setup>
+import { ref, watch, onMounted } from 'vue';
+import axios from 'axios';
+import { notifyError, notifySuccess } from '../../utils/notify';
+
+const loading = ref(false);
+const saving = ref(false);
+const error = ref('');
+
+const driver = ref(null);
+const vehicle = ref(null);
+const tasks = ref([]);
+
+const driverStatus = ref('available');
+const vehicleStatus = ref('available');
+const plateNumber = ref('');
+
+const endDialogVisible = ref(false);
+const currentTripId = ref(null);
+const endForm = ref({
+  end_mileage: 0,
+  end_fuel: 0
+});
+
+const statusType = (status) => ({
+  available: 'success',
+  unavailable: 'danger',
+  maintenance: 'warning',
+  scheduled: 'warning',
+  in_progress: 'info',
+  completed: 'success',
+  busy: 'warning'
+}[status] || 'info');
+
+const formatDate = (value) => value ? new Date(value).toLocaleString() : '-';
+
+const fetchDashboard = async () => {
+  try {
+    loading.value = true;
+    const res = await axios.get('/api/drivers/me/dashboard');
+    driver.value = res.data.data.driver;
+    vehicle.value = res.data.data.vehicle;
+    tasks.value = res.data.data.tasks || [];
+    driverStatus.value = driver.value?.status || 'available';
+    vehicleStatus.value = vehicle.value?.status || 'available';
+  } catch (err) {
+    error.value = err.response?.data?.message || '获取司机面板失败';
+  } finally {
+    loading.value = false;
+  }
+};
+
+const updateDriverStatus = async () => {
+  try {
+    saving.value = true;
+    await axios.put('/api/drivers/me/status', { status: driverStatus.value });
+    notifySuccess('司机状态已更新');
+    await fetchDashboard();
+  } catch (err) {
+    error.value = err.response?.data?.message || '更新司机状态失败';
+  } finally {
+    saving.value = false;
+  }
+};
+
+const updateVehicleStatus = async () => {
+  try {
+    saving.value = true;
+    await axios.put('/api/drivers/me/vehicle-status', { status: vehicleStatus.value });
+    notifySuccess('车辆状态已更新');
+    await fetchDashboard();
+  } catch (err) {
+    error.value = err.response?.data?.message || '更新车辆状态失败';
+  } finally {
+    saving.value = false;
+  }
+};
+
+const bindVehicle = async () => {
+  try {
+    saving.value = true;
+    await axios.put('/api/drivers/me/bind-vehicle', { plate_number: plateNumber.value });
+    notifySuccess('绑定车辆成功');
+    plateNumber.value = '';
+    await fetchDashboard();
+  } catch (err) {
+    error.value = err.response?.data?.message || '绑定车辆失败';
+  } finally {
+    saving.value = false;
+  }
+};
+
+const openEndDialog = (row) => {
+  currentTripId.value = row.trip_id;
+  endForm.value = { end_mileage: 0, end_fuel: 0 };
+  endDialogVisible.value = true;
+};
+
+const submitEndTrip = async () => {
+  try {
+    if (!currentTripId.value) return;
+    saving.value = true;
+    await axios.post(`/api/trips/${currentTripId.value}/end`, {
+      end_mileage: endForm.value.end_mileage,
+      end_fuel: endForm.value.end_fuel,
+      actual_end_time: new Date().toISOString()
+    });
+    notifySuccess('行程已结束');
+    endDialogVisible.value = false;
+    await fetchDashboard();
+  } catch (err) {
+    error.value = err.response?.data?.message || '结束行程失败';
+  } finally {
+    saving.value = false;
+  }
+};
+
+onMounted(fetchDashboard);
+
+watch(error, (message) => {
+  if (!message) return;
+  notifyError(message);
+});
+</script>
+
+<style scoped>
+.driver-card { max-width: 1200px; margin: 0 auto; }
+.card-header { display: flex; justify-content: space-between; align-items: center; font-weight: 700; }
+.meta-row { margin-bottom: 12px; }
+.meta-title { font-weight: 700; margin: 0 0 8px; }
+.mt { margin-top: 10px; }
+.empty { color: #7a8770; }
+</style>

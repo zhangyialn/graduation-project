@@ -3,7 +3,7 @@
 # 出车记录和费用管理控制器
 from flask import request, jsonify
 from flask_jwt_extended import get_jwt_identity
-from models.index import db, Trip, Expense, Dispatch, Vehicle, Driver, FuelPrice, CarApplication, User
+from models.index import db, Trip, Expense, Dispatch, Vehicle, FuelPrice, CarApplication, User, RoleEnum
 
 
 # 兼容 Enum/字符串状态读取
@@ -81,7 +81,7 @@ def end_trip(id):
             return jsonify({'success': False, 'message': '用户不存在'}), 404
 
         current_role = _enum_value(current_user.role)
-        driver_profile = Driver.query.filter_by(user_id=current_user_id, is_deleted=False).first()
+        driver_profile = User.query.filter_by(id=current_user_id, role=RoleEnum.driver, is_deleted=False).first()
 
         if current_role == 'driver':
             if not driver_profile or driver_profile.id != dispatch.driver_id:
@@ -106,9 +106,9 @@ def end_trip(id):
                 vehicle.status = 'available'
             
             # 更新司机状态为可用
-            driver = Driver.query.get(dispatch.driver_id)
-            if driver and _enum_value(driver.status) == 'busy':
-                driver.status = 'available'
+            driver = User.query.filter_by(id=dispatch.driver_id, role=RoleEnum.driver, is_deleted=False).first()
+            if driver and _enum_value(driver.driver_status) == 'busy':
+                driver.driver_status = 'available'
             
             # 更新调度状态为已完成
             dispatch.status = 'completed'

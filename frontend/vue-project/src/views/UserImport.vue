@@ -33,7 +33,21 @@
               <el-select v-model="singleForm.role" placeholder="请选择角色" style="width: 100%">
                 <el-option label="普通用户" value="user" />
                 <el-option label="审批员" value="approver" />
+                <el-option label="司机" value="driver" />
               </el-select>
+            </el-form-item>
+            <el-form-item v-if="singleForm.role === 'driver'" label="绑定车辆" prop="vehicle_id">
+              <el-select v-model="singleForm.vehicle_id" placeholder="请选择绑定车辆" style="width: 100%">
+                <el-option
+                  v-for="item in vehicles"
+                  :key="item.id"
+                  :label="`${item.id} - ${item.plate_number}`"
+                  :value="item.id"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item v-if="singleForm.role === 'driver'" label="驾驶证号">
+              <el-input v-model="singleForm.license_number" placeholder="可选，建议填写" />
             </el-form-item>
             <el-form-item>
               <el-button type="primary" :loading="loadingSingle" @click="submitSingleUser">添加用户</el-button>
@@ -59,7 +73,7 @@
             <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
             <div class="el-upload__text">拖拽或点击上传</div>
             <template #tip>
-              <div class="el-upload__tip">Excel列至少包含 name、phone，可选 role(仅 user/approver)</div>
+              <div class="el-upload__tip">Excel列至少包含 name、phone；role 可选 user/approver/driver；当 role=driver 时 vehicle_id 必填</div>
             </template>
           </el-upload>
 
@@ -101,6 +115,7 @@ const result = ref(null);
 const error = ref('');
 const success = ref('');
 const singleFormRef = ref(null);
+const vehicles = ref([]);
 
 const singleForm = reactive({
   name: '',
@@ -108,14 +123,35 @@ const singleForm = reactive({
   username: '',
   email: '',
   department_id: null,
-  role: 'user'
+  role: 'user',
+  vehicle_id: null,
+  license_number: ''
 });
 
 const singleRules = reactive({
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
   phone: [{ required: true, message: '请输入手机号', trigger: 'blur' }],
-  role: [{ required: true, message: '请选择角色', trigger: 'change' }]
+  role: [{ required: true, message: '请选择角色', trigger: 'change' }],
+  vehicle_id: [{
+    validator: (_rule, value, callback) => {
+      if (singleForm.role === 'driver' && !value) {
+        callback(new Error('司机必须绑定车辆'));
+        return;
+      }
+      callback();
+    },
+    trigger: 'change'
+  }]
 });
+
+const fetchVehicles = async () => {
+  try {
+    const response = await axios.get('/api/vehicles');
+    vehicles.value = response.data?.data || [];
+  } catch (err) {
+    error.value = err.response?.data?.message || '获取车辆列表失败';
+  }
+};
 
 // 选择批量导入文件并重置提示状态
 const handleFileChange = (file, files) => {
@@ -140,7 +176,9 @@ const submitSingleUser = async () => {
       username: singleForm.username || undefined,
       email: singleForm.email || undefined,
       department_id: singleForm.department_id || undefined,
-      role: singleForm.role
+      role: singleForm.role,
+      vehicle_id: singleForm.role === 'driver' ? singleForm.vehicle_id : undefined,
+      license_number: singleForm.role === 'driver' ? (singleForm.license_number || undefined) : undefined
     });
 
     success.value = '单个导入成功，默认密码为手机号';
@@ -186,6 +224,8 @@ const resetSingleForm = () => {
   singleForm.email = '';
   singleForm.department_id = null;
   singleForm.role = 'user';
+  singleForm.vehicle_id = null;
+  singleForm.license_number = '';
   singleFormRef.value?.clearValidate();
 };
 
@@ -194,7 +234,9 @@ onMounted(() => {
   if (authStore.user?.role !== 'admin') {
     notifyError('仅管理员可使用导入功能');
     router.replace('/dashboard');
+    return;
   }
+  fetchVehicles();
 });
 
 watch(error, (message) => {

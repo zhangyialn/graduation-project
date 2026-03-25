@@ -108,6 +108,10 @@ class User(db.Model):
     phone = db.Column(db.String(20), unique=True, nullable=False)
     department_id = db.Column(db.Integer, nullable=True)
     role = db.Column(db.Enum(RoleEnum), nullable=False, default=RoleEnum.user)
+    vehicle_id = db.Column(db.Integer, nullable=True)
+    license_number = db.Column(db.String(20), unique=True, nullable=True)
+    driver_status = db.Column(db.Enum(DriverStatusEnum), nullable=False, default=DriverStatusEnum.available)
+    hire_date = db.Column(db.Date, nullable=True)
     import_batch_id = db.Column(db.Integer, nullable=True)
     must_change_password = db.Column(db.Boolean, nullable=False, default=False)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
@@ -129,6 +133,10 @@ class User(db.Model):
             'phone': self.phone,
             'department_id': self.department_id,
             'role': self.role.value if self.role else None,
+            'vehicle_id': self.vehicle_id,
+            'license_number': self.license_number,
+            'driver_status': self.driver_status.value if self.driver_status else None,
+            'hire_date': self.hire_date.isoformat() if self.hire_date else None,
             'import_batch_id': self.import_batch_id,
             'must_change_password': self.must_change_password,
             'is_active': self.is_active,
@@ -201,45 +209,6 @@ class Vehicle(db.Model):
             'annual_inspection_date': self.annual_inspection_date.isoformat() if self.annual_inspection_date else None,
             'fuel_type': self.fuel_type,
             'fuel_consumption_per_100km': float(self.fuel_consumption_per_100km) if self.fuel_consumption_per_100km else None,
-            'is_deleted': self.is_deleted,
-            'created_by': self.created_by,
-            'deleted_by': self.deleted_by,
-            'deleted_at': self.deleted_at.isoformat() if self.deleted_at else None,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
-        }
-
-
-# 司机表模型
-# 司机模型（与用户、车辆一对一绑定）
-class Driver(db.Model):
-    __tablename__ = 'drivers'
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    user_id = db.Column(db.Integer, nullable=False, unique=True)
-    vehicle_id = db.Column(db.Integer, nullable=False, unique=True)
-    name = db.Column(db.String(50), nullable=False)
-    phone = db.Column(db.String(20), unique=True, nullable=False)
-    license_number = db.Column(db.String(20), unique=True, nullable=False)
-    status = db.Column(db.Enum(DriverStatusEnum), default=DriverStatusEnum.available)
-    hire_date = db.Column(db.Date, nullable=True)
-    is_deleted = db.Column(db.Boolean, nullable=False, default=False)
-    created_by = db.Column(db.Integer, nullable=True)
-    deleted_by = db.Column(db.Integer, nullable=True)
-    deleted_at = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
-    updated_at = db.Column(db.TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # 转换为前端可直接消费的字典结构
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'user_id': self.user_id,
-            'vehicle_id': self.vehicle_id,
-            'name': self.name,
-            'phone': self.phone,
-            'license_number': self.license_number,
-            'status': self.status.value if self.status else None,
-            'hire_date': self.hire_date.isoformat() if self.hire_date else None,
             'is_deleted': self.is_deleted,
             'created_by': self.created_by,
             'deleted_by': self.deleted_by,

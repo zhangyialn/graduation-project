@@ -142,16 +142,6 @@
     <!-- 司机对话框 -->
     <el-dialog v-model="driverDialogVisible" :title="driverDialogTitle" width="400px">
       <el-form :model="driverForm" :rules="driverRules" ref="driverFormRef" label-width="100px">
-        <el-form-item label="司机用户" prop="user_id">
-          <el-select v-model="driverForm.user_id" placeholder="请选择角色为driver的用户" style="width:100%">
-            <el-option
-              v-for="item in driverUsers"
-              :key="item.id"
-              :label="`${item.id} - ${item.username}`"
-              :value="item.id"
-            />
-          </el-select>
-        </el-form-item>
         <el-form-item label="绑定车辆" prop="vehicle_id">
           <el-select v-model="driverForm.vehicle_id" placeholder="请选择绑定车辆" style="width:100%">
             <el-option
@@ -198,7 +188,6 @@ import { notifyError } from '../../utils/notify';
 
 const vehicles = ref([]);
 const drivers = ref([]);
-const users = ref([]);
 const vehicleDialogVisible = ref(false);
 const driverDialogVisible = ref(false);
 const vehicleDialogTitle = ref('添加车辆');
@@ -230,7 +219,6 @@ const vehicleRules = reactive({
 
 const driverForm = reactive({
   id: null,
-  user_id: '',
   vehicle_id: '',
   name: '',
   license: '',
@@ -238,10 +226,7 @@ const driverForm = reactive({
   status: 'available'
 });
 
-const driverUsers = computed(() => users.value.filter(item => item.role === 'driver'));
-
 const driverRules = reactive({
-  user_id: [{ required: true, message: '请选择司机用户', trigger: 'change' }],
   vehicle_id: [{ required: true, message: '请选择绑定车辆', trigger: 'change' }],
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
   license: [{ required: true, message: '请输入驾驶证号', trigger: 'blur' }],
@@ -298,16 +283,6 @@ const fetchDrivers = async () => {
   }
 };
 
-// 获取用户列表（用于筛选司机账号）
-const fetchUsers = async () => {
-  try {
-    const response = await axios.get('/api/users');
-    users.value = response.data.data || [];
-  } catch (err) {
-    error.value = err.response?.data?.message || '获取用户失败';
-  }
-};
-
 // 打开车辆编辑/新增弹窗并回填表单
 const openVehicleDialog = (vehicle = null) => {
   if (vehicle) {
@@ -342,7 +317,6 @@ const openVehicleDialog = (vehicle = null) => {
 const openDriverDialog = (driver = null) => {
   if (driver) {
     driverForm.id = driver.id;
-    driverForm.user_id = driver.user_id;
     driverForm.vehicle_id = driver.vehicle_id;
     driverForm.name = driver.name;
     driverForm.license = driver.license_number;
@@ -351,7 +325,6 @@ const openDriverDialog = (driver = null) => {
     driverDialogTitle.value = '编辑司机';
   } else {
     driverForm.id = null;
-    driverForm.user_id = '';
     driverForm.vehicle_id = '';
     driverForm.name = '';
     driverForm.license = '';
@@ -400,8 +373,7 @@ const saveDriver = async () => {
     await driverFormRef.value.validate();
     loading.value = true;
     const driverPayload = {
-      user_id: driverForm.user_id,
-      vehicle_id: driverForm.vehicle_id,
+      vehicle_id: Number(driverForm.vehicle_id),
       name: driverForm.name,
       phone: driverForm.phone,
       license_number: driverForm.license,
@@ -451,7 +423,6 @@ const updateWidth = () => {
 onMounted(() => {
   fetchVehicles();
   fetchDrivers();
-  fetchUsers();
   window.addEventListener('resize', updateWidth);
 });
 

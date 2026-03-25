@@ -17,6 +17,9 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
+-- 说明：本项目仅使用“逻辑外键”，不创建数据库层面的 FOREIGN KEY 约束。
+-- 关联关系由业务代码和字段约定维护（如 applicant_id / driver_id / vehicle_id 等）。
+
 -- ====================
 -- 用户导入批次（Excel导入追踪）
 -- ====================
@@ -51,6 +54,10 @@ CREATE TABLE `users`  (
   `phone` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `department_id` int NULL DEFAULT NULL,
   `role` enum('user','driver','approver','admin') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'user',
+  `vehicle_id` int NULL DEFAULT NULL,
+  `license_number` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
+  `driver_status` enum('available','busy','unavailable') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'available',
+  `hire_date` date NULL DEFAULT NULL,
   `import_batch_id` int NULL DEFAULT NULL,
   `must_change_password` tinyint(1) NOT NULL DEFAULT 0,
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
@@ -65,11 +72,14 @@ CREATE TABLE `users`  (
   UNIQUE INDEX `uk_users_username`(`username` ASC) USING BTREE,
   UNIQUE INDEX `uk_users_phone`(`phone` ASC) USING BTREE,
   UNIQUE INDEX `uk_users_email`(`email` ASC) USING BTREE,
+  UNIQUE INDEX `uk_users_license_number`(`license_number` ASC) USING BTREE,
   KEY `idx_users_department_id` (`department_id`) USING BTREE,
   KEY `idx_users_role` (`role`) USING BTREE,
+  KEY `idx_users_vehicle_id` (`vehicle_id`) USING BTREE,
   KEY `idx_users_import_batch_id` (`import_batch_id`) USING BTREE,
   KEY `idx_users_created_by` (`created_by`) USING BTREE,
-  KEY `idx_users_is_deleted` (`is_deleted`) USING BTREE
+  KEY `idx_users_is_deleted` (`is_deleted`) USING BTREE,
+  CONSTRAINT `chk_users_driver_vehicle_binding` CHECK (((`role` = 'driver' AND `vehicle_id` IS NOT NULL) OR (`role` <> 'driver' AND `vehicle_id` IS NULL)))
 ) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 
 BEGIN;
@@ -121,37 +131,6 @@ CREATE TABLE `vehicles`  (
   KEY `idx_vehicles_status` (`status`) USING BTREE,
   KEY `idx_vehicles_fuel_type` (`fuel_type`) USING BTREE,
   KEY `idx_vehicles_is_deleted` (`is_deleted`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
-
-BEGIN;
-COMMIT;
-
--- ====================
--- 司机表（逻辑外键：created_by/deleted_by -> users.id）
--- ====================
-DROP TABLE IF EXISTS `drivers`;
-CREATE TABLE `drivers`  (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `user_id` int NOT NULL,
-  `vehicle_id` int NOT NULL,
-  `name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `phone` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `license_number` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `status` enum('available','busy','unavailable') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'available',
-  `hire_date` date NULL DEFAULT NULL,
-  `is_deleted` tinyint(1) NOT NULL DEFAULT 0,
-  `created_by` int NULL DEFAULT NULL,
-  `deleted_by` int NULL DEFAULT NULL,
-  `deleted_at` datetime NULL DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `uk_drivers_user_id`(`user_id` ASC) USING BTREE,
-  UNIQUE INDEX `uk_drivers_vehicle_id`(`vehicle_id` ASC) USING BTREE,
-  UNIQUE INDEX `uk_drivers_license_number`(`license_number` ASC) USING BTREE,
-  UNIQUE INDEX `uk_drivers_phone`(`phone` ASC) USING BTREE,
-  KEY `idx_drivers_status` (`status`) USING BTREE,
-  KEY `idx_drivers_is_deleted` (`is_deleted`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 
 BEGIN;

@@ -2,13 +2,13 @@
 
 # 用户管理控制器
 from flask import request, jsonify
-from models.index import db, User, Department, RoleEnum, UserImportBatch
+from models.index import db, User, Department, RoleEnum, UserImportBatch, Vehicle
 from flask_bcrypt import generate_password_hash, check_password_hash
 from flask_jwt_extended import get_jwt_identity
 import pandas as pd
 
 
-ALLOWED_IMPORT_ROLES = {RoleEnum.user.value, RoleEnum.approver.value}
+ALLOWED_IMPORT_ROLES = {RoleEnum.user.value, RoleEnum.approver.value, RoleEnum.driver.value}
 
 
 # 将输入角色安全映射到系统枚举（兼容旧角色别名）
@@ -46,6 +46,24 @@ def _validate_import_role(role_value):
     if role_text not in ALLOWED_IMPORT_ROLES:
         return None
     return role_enum
+
+
+def _validate_driver_binding(vehicle_id, current_user_id=None):
+    if vehicle_id in [None, '']:
+        return False, '司机角色必须绑定车辆'
+    vehicle = Vehicle.query.get(int(vehicle_id))
+    if not vehicle or vehicle.is_deleted:
+        return False, '绑定车辆不存在'
+    bound_driver = User.query.filter(
+        User.role == RoleEnum.driver,
+        User.vehicle_id == int(vehicle_id),
+        User.is_deleted == False
+    )
+    if current_user_id:
+        bound_driver = bound_driver.filter(User.id != int(current_user_id))
+    if bound_driver.first():
+        return False, '该车辆已绑定其他司机'
+    return True, ''
 
 
 # 校验操作人密码（兼容历史明文）
@@ -105,7 +123,13 @@ def create_user():
 
         role_enum = _validate_import_role(data.get('role'))
         if role_enum is None:
-            return jsonify({'success': False, 'message': '导入功能仅支持创建普通用户(user)或审批员(approver)'}), 400
+            return jsonify({'success': False, 'message': '导入功能仅支持创建普通用户(user)、审批员(approver)或司机(driver)'}), 400
+
+        vehicle_id = data.get('vehicle_id') if role_enum == RoleEnum.driver else None
+        if role_enum == RoleEnum.driver:
+            ok, message = _validate_driver_binding(vehicle_id)
+            if not ok:
+                return jsonify({'success': False, 'message': message}), 400
 
         user = User(
             username=username,
@@ -115,6 +139,9 @@ def create_user():
             phone=phone,
             department_id=data.get('department_id'),
             role=role_enum,
+            vehicle_id=int(vehicle_id) if vehicle_id not in [None, ''] else None,
+            driver_status='available',
+            license_number=(data.get('license_number') or None) if role_enum == RoleEnum.driver else None,
             must_change_password=True,
             created_by=current_user_id
         )
@@ -135,11 +162,26 @@ def update_user(id):
             return jsonify({'success': False, 'message': '用户不存在'})
         
         data = request.json
+        next_role = _safe_role(data.get('role', user.role))
+        next_vehicle_id = data.get('vehicle_id', user.vehicle_id)
+        if next_role == RoleEnum.driver:
+            ok, message = _validate_driver_binding(next_vehicle_id, current_user_id=id)
+            if not ok:
+                return jsonify({'success': False, 'message': message}), 400
+
         user.name = data.get('name', user.name)
         user.email = data.get('email', user.email)
         user.phone = data.get('phone', user.phone)
         user.department_id = data.get('department_id', user.department_id)
-        user.role = _safe_role(data.get('role', user.role))
+        user.role = next_role
+        user.vehicle_id = int(next_vehicle_id) if next_vehicle_id not in [None, ''] else None
+        user.license_number = data.get('license_number', user.license_number)
+        if next_role != RoleEnum.driver:
+            user.vehicle_id = None
+            user.driver_status = 'available'
+            user.license_number = None
+        else:
+            user.driver_status = data.get('driver_status', user.driver_status or 'available')
         user.updated_by = get_jwt_identity()
         
         db.session.commit()
@@ -225,10 +267,26 @@ def import_users_excel():
             role = _validate_import_role(role_value)
             if role is None:
                 failed_rows += 1
-                failure_messages.append(f'第{index + 2}行：角色仅支持 user 或 approver')
+                failure_messages.append(f'第{index + 2}行：角色仅支持 user / approver / driver')
                 continue
             department_raw = row.get('department_id', None)
             department_id = None if pd.isna(department_raw) else int(department_raw)
+
+            vehicle_raw = row.get('vehicle_id', None)
+            vehicle_id = None if pd.isna(vehicle_raw) else int(vehicle_raw)
+            if role == RoleEnum.driver:
+                ok, message = _validate_driver_binding(vehicle_id)
+                if not ok:
+                    failed_rows += 1
+                    failure_messages.append(f'第{index + 2}行：{message}')
+                    continue
+
+            license_number = str(row.get('license_number', '')).strip() or None
+            if role == RoleEnum.driver and license_number:
+                if User.query.filter_by(license_number=license_number, is_deleted=False).first():
+                    failed_rows += 1
+                    failure_messages.append(f'第{index + 2}行：驾驶证号已存在')
+                    continue
 
             user = User(
                 username=username,
@@ -238,6 +296,9 @@ def import_users_excel():
                 phone=phone,
                 department_id=department_id,
                 role=role,
+                vehicle_id=vehicle_id if role == RoleEnum.driver else None,
+                driver_status='available',
+                license_number=license_number if role == RoleEnum.driver else None,
                 must_change_password=True,
                 import_batch_id=batch.id,
                 created_by=current_user_id

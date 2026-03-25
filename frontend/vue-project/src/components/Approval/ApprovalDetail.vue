@@ -16,7 +16,7 @@
 
       <div class="info" v-if="application">
         <p><b>申请ID：</b>{{ application.id }}</p>
-        <p><b>申请人ID：</b>{{ application.applicant_id }}</p>
+        <p><b>申请人：</b>{{ applicantName || '-' }}</p>
         <p><b>部门ID：</b>{{ application.department_id }}</p>
         <p><b>用车事由：</b>{{ application.purpose }}</p>
         <p><b>起点：</b>{{ application.start_point || '-' }}</p>
@@ -64,6 +64,7 @@ import { notifyError, notifySuccess } from '../../utils/notify';
 const route = useRoute();
 const router = useRouter();
 const application = ref(null);
+const applicantName = ref('');
 const approvals = ref([]);
 const loading = ref(false);
 const submitting = ref(false);
@@ -86,6 +87,15 @@ const fetchData = async () => {
       axios.get(`/api/approvals/application/${id}`)
     ]);
     application.value = appRes.data.data;
+    applicantName.value = application.value?.applicant_name || '';
+    if (!applicantName.value && application.value?.applicant_id) {
+      try {
+        const userRes = await axios.get(`/api/users/${application.value.applicant_id}`);
+        applicantName.value = userRes.data?.data?.name || userRes.data?.data?.username || '';
+      } catch (_userErr) {
+        applicantName.value = '';
+      }
+    }
     form.start_point = application.value?.start_point || '';
     approvals.value = approvalRes.data.data || [];
   } catch (err) {

@@ -24,10 +24,6 @@
           <template #icon><el-icon><Document /></el-icon></template>
           <span>我的申请</span>
         </el-menu-item>
-        <el-menu-item index="/dashboard/change-password">
-          <template #icon><el-icon><Lock /></el-icon></template>
-          <span>修改密码</span>
-        </el-menu-item>
         <el-menu-item index="/dashboard/driver" v-if="isDriver">
           <template #icon><el-icon><Van /></el-icon></template>
           <span>司机面板</span>
@@ -36,21 +32,13 @@
           <template #icon><el-icon><Check /></el-icon></template>
           <span>审批管理</span>
         </el-menu-item>
-        <el-menu-item index="/dashboard/vehicles" v-if="isAdmin">
+        <el-menu-item index="/dashboard/personnel-vehicles" v-if="isAdmin">
           <template #icon><el-icon><Van /></el-icon></template>
-          <span>车辆管理</span>
+          <span>人员和车辆管理</span>
         </el-menu-item>
         <el-menu-item index="/dashboard/dispatches" v-if="isAdmin">
           <template #icon><el-icon><DataAnalysis /></el-icon></template>
           <span>调度管理</span>
-        </el-menu-item>
-        <el-menu-item index="/dashboard/users/import" v-if="isAdmin">
-          <template #icon><el-icon><Upload /></el-icon></template>
-          <span>导入中心</span>
-        </el-menu-item>
-        <el-menu-item index="/dashboard/admins" v-if="isAdmin">
-          <template #icon><el-icon><User /></el-icon></template>
-          <span>管理员管理</span>
         </el-menu-item>
         <el-menu-item index="/dashboard/reports" v-if="isApprover || isAdmin">
           <template #icon><el-icon><TrendCharts /></el-icon></template>
@@ -64,20 +52,7 @@
           <template #icon><el-icon><Collection /></el-icon></template>
           <span>审批记录</span>
         </el-menu-item>
-        <el-menu-item index="/login" @click="logout">
-          <template #icon><el-icon><SwitchButton /></el-icon></template>
-          <span>退出登录</span>
-        </el-menu-item>
       </el-menu>
-      <div class="user-info">
-        <el-avatar :size="32" class="user-avatar">
-          <el-icon><User /></el-icon>
-        </el-avatar>
-        <div class="user-details">
-          <p class="username">{{ user?.username || '用户' }}</p>
-          <p class="role">{{ user?.role || '角色' }}</p>
-        </div>
-      </div>
     </el-aside>
 
     <el-container>
@@ -93,8 +68,23 @@
         </div>
 
         <div class="header-right" v-if="!isMobile">
-          <el-tag type="success" effect="dark" class="role-tag">{{ roleLabel }}</el-tag>
-          <el-button type="primary" plain size="small" @click="refreshUser">刷新信息</el-button>
+          <el-dropdown trigger="click" @command="handleProfileCommand" class="profile-dropdown">
+            <div class="profile-pill">
+              <el-avatar :size="28" class="profile-avatar">
+                <el-icon><User /></el-icon>
+              </el-avatar>
+              <div class="profile-texts">
+                <p class="profile-name">{{ user?.username || '用户' }}</p>
+                <p class="profile-role">{{ roleLabel }}</p>
+              </div>
+            </div>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="change-password">修改密码</el-dropdown-item>
+                <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <el-dropdown v-if="isDev" trigger="click" @command="switchRole">
             <el-button size="small" plain>切换角色(开发)</el-button>
             <template #dropdown>
@@ -221,7 +211,6 @@ import {
   DataAnalysis,
   Lock,
   SwitchButton,
-  Upload,
   TrendCharts,
   Money,
   Collection,
@@ -254,10 +243,11 @@ const breadcrumb = computed(() => {
     '/dashboard/change-password': '修改密码',
     '/dashboard/driver': '司机面板',
     '/dashboard/approvals': '审批管理',
-    '/dashboard/vehicles': '车辆管理',
+    '/dashboard/personnel-vehicles': '人员和车辆管理',
     '/dashboard/dispatches': '调度管理',
-    '/dashboard/users/import': '导入功能',
-    '/dashboard/admins': '管理员管理',
+    '/dashboard/vehicles': '人员和车辆管理',
+    '/dashboard/users/import': '人员和车辆管理',
+    '/dashboard/admins': '人员和车辆管理',
     '/dashboard/reports': '报表可视化',
     '/dashboard/fuel-prices': '油价管理',
     '/dashboard/approver-records': '审批记录'
@@ -289,15 +279,14 @@ const greeting = computed(() => {
 const primaryAction = computed(() => {
   if (isDriver.value) return { label: '进入司机面板', path: '/dashboard/driver' };
   if (isApprover.value) return { label: '进入审批管理', path: '/dashboard/approvals' };
-  if (isAdmin.value) return { label: '管理车辆', path: '/dashboard/vehicles' };
+  if (isAdmin.value) return { label: '人员和车辆管理', path: '/dashboard/personnel-vehicles' };
   return { label: '立即发起申请', path: '/dashboard/applications/create' };
 });
 
 const quickActions = computed(() => {
   const base = [
     { label: '我的申请', desc: '查看进度与审批意见', path: '/dashboard/applications' },
-    { label: '创建申请', desc: '提交新的用车需求', path: '/dashboard/applications/create' },
-    { label: '修改密码', desc: '修改当前登录账号密码', path: '/dashboard/change-password' }
+    { label: '创建申请', desc: '提交新的用车需求', path: '/dashboard/applications/create' }
   ];
 
   const approverExtra = [
@@ -309,9 +298,7 @@ const quickActions = computed(() => {
   ];
 
   const adminExtra = [
-    { label: '导入功能', desc: '单个或批量导入普通用户/审批员', path: '/dashboard/users/import' },
-    { label: '管理员管理', desc: '单个新增管理员（需密码确认）', path: '/dashboard/admins' },
-    { label: '车辆管理', desc: '维护车辆档案与状态', path: '/dashboard/vehicles' },
+    { label: '人员和车辆管理', desc: '导入人员、管理员维护与车辆司机管理', path: '/dashboard/personnel-vehicles' },
     { label: '调度管理', desc: '安排调度与司机', path: '/dashboard/dispatches' },
     { label: '报表可视化', desc: '查看使用率与费用趋势', path: '/dashboard/reports' },
     { label: '油价管理', desc: '维护油价并用于费用计算', path: '/dashboard/fuel-prices' },
@@ -376,15 +363,13 @@ const menuGroups = computed(() => {
     groups.push({
       title: '用户与资源',
       items: [
-        { label: '导入中心', path: '/dashboard/users/import', icon: Upload },
-        { label: '管理员管理', path: '/dashboard/admins', icon: User }
+        { label: '人员和车辆管理', path: '/dashboard/personnel-vehicles', icon: User }
       ]
     });
 
     groups.push({
       title: '调度与车辆',
       items: [
-        { label: '车辆管理', path: '/dashboard/vehicles', icon: Van },
         { label: '调度管理', path: '/dashboard/dispatches', icon: DataAnalysis },
         { label: '油价管理', path: '/dashboard/fuel-prices', icon: Money }
       ]
@@ -416,6 +401,16 @@ const handleNav = (path) => {
 
 // 手动刷新用户资料
 const refreshUser = () => loadUser();
+
+const handleProfileCommand = (command) => {
+  if (command === 'change-password') {
+    handleNav('/dashboard/change-password');
+    return;
+  }
+  if (command === 'logout') {
+    logout();
+  }
+};
 
 // 开发环境下快速切换演示角色
 const switchRole = (roleKey) => {
@@ -511,39 +506,6 @@ watch(route, () => {
   background: #5f7f24 !important;
 }
 
-.user-info {
-  display: flex;
-  align-items: center;
-  padding: 1.25rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  margin-top: auto;
-  background-color: rgba(0, 0, 0, 0.2);
-  border-radius: 8px;
-  margin: 1rem 0.75rem 0;
-}
-
-.user-avatar {
-  background: #f4f7ed;
-  color: #556b2f;
-}
-
-.user-details {
-  margin-left: 0.75rem;
-}
-
-.username {
-  margin: 0;
-  font-weight: 600;
-  font-size: 0.875rem;
-  color: #ecf0f1;
-}
-
-.role {
-  margin: 0;
-  font-size: 0.75rem;
-  color: #bdc3c7;
-}
-
 .header {
   background: #f1f4ea;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
@@ -579,6 +541,45 @@ watch(route, () => {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.profile-dropdown {
+  cursor: pointer;
+}
+
+.profile-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 6px;
+  border: 1px solid #d8e1c7;
+  border-radius: 999px;
+  background: #ffffff;
+}
+
+.profile-avatar {
+  background: #eef3df;
+  color: #556b2f;
+}
+
+.profile-texts {
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-name {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #2d3436;
+}
+
+.profile-role {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.2;
+  color: #6b755a;
 }
 
 .role-tag {
@@ -732,15 +733,23 @@ watch(route, () => {
   background: #fbfcf8;
 }
 
+:deep(.tips-card .el-card__body) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 16px;
+  row-gap: 6px;
+  align-items: start;
+}
+
 .tip-row {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 10px 0;
+  gap: 8px;
+  padding: 6px 0;
 }
 
 .tip-row + .tip-row {
-  border-top: 1px dashed #d9dfcc;
+  border-top: none;
 }
 
 .tip-dot {
@@ -758,9 +767,9 @@ watch(route, () => {
 }
 
 .tip-text {
-  margin: 3px 0 0;
+  margin: 2px 0 0;
   color: #6b755a;
-  line-height: 1.5;
+  line-height: 1.35;
 }
 
 .drawer-content {
@@ -911,6 +920,14 @@ watch(route, () => {
 
   .action-grid,
   .panel-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tips-card {
+    display: block;
+  }
+
+  :deep(.tips-card .el-card__body) {
     grid-template-columns: 1fr;
   }
 

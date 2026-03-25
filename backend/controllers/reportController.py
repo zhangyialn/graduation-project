@@ -3,7 +3,7 @@
 # 报表统计控制器
 from flask import request, jsonify
 from sqlalchemy import func, extract, case
-from models.index import db, CarApplication, Expense, Trip, Dispatch, Vehicle, Department, User, Driver
+from models.index import db, CarApplication, Expense, Trip, Dispatch, Vehicle, Department, User, RoleEnum
 
 
 # 部门用车频率统计
@@ -165,7 +165,7 @@ def get_driver_workload():
 
         result = []
         for stat in stats:
-            driver = Driver.query.get(stat.driver_id)
+            driver = User.query.filter_by(id=stat.driver_id, role=RoleEnum.driver, is_deleted=False).first()
             result.append({
                 'driver_id': stat.driver_id,
                 'driver_name': driver.name if driver else '未知司机',

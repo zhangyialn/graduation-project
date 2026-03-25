@@ -3,7 +3,7 @@
 # 用车申请控制器
 from datetime import datetime
 from flask import request, jsonify
-from models.index import db, CarApplication, Driver, Vehicle
+from models.index import db, CarApplication, User, Vehicle, RoleEnum
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 import json
@@ -40,11 +40,11 @@ def _is_driver_locked(driver_id, exclude_application_id=None):
 
 # 校验司机+车辆是否都可用，并且司机没有冲突申请
 def _validate_driver_available(driver_id, exclude_application_id=None):
-    driver = Driver.query.get(driver_id)
-    if not driver or driver.is_deleted:
+    driver = User.query.filter_by(id=driver_id, role=RoleEnum.driver, is_deleted=False).first()
+    if not driver:
         return False, '司机不存在', None
 
-    if _enum_value(driver.status) != 'available':
+    if _enum_value(driver.driver_status) != 'available':
         return False, '司机当前不可用', None
 
     vehicle = Vehicle.query.get(driver.vehicle_id)

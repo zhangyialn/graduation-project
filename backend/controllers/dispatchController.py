@@ -2,7 +2,7 @@
 
 # 调度管理控制器
 from flask import request, jsonify
-from models.index import db, Dispatch, Vehicle, Driver, CarApplication
+from models.index import db, Dispatch, Vehicle, User, CarApplication, RoleEnum
 from flask_jwt_extended import jwt_required
 
 
@@ -78,8 +78,8 @@ def create_dispatch():
         if application.driver_id and int(expected_driver_id) != int(application.driver_id):
             return jsonify({'success': False, 'message': '该申请已指定司机，不能更换'}), 400
 
-        driver = Driver.query.get(int(expected_driver_id))
-        if not driver or driver.is_deleted:
+        driver = User.query.filter_by(id=int(expected_driver_id), role=RoleEnum.driver, is_deleted=False).first()
+        if not driver:
             return jsonify({'success': False, 'message': '司机不存在'})
 
         # 司机和车辆强绑定：优先取司机绑定车辆
@@ -95,7 +95,7 @@ def create_dispatch():
         if _enum_value(vehicle.status) != 'available':
             return jsonify({'success': False, 'message': '车辆不可用'})
 
-        if _enum_value(driver.status) != 'available':
+        if _enum_value(driver.driver_status) != 'available':
             return jsonify({'success': False, 'message': '司机不可用'})
         
         # 检查车辆时间冲突
@@ -144,7 +144,7 @@ def create_dispatch():
         vehicle.status = 'in_use'
         
         # 更新司机状态为忙碌
-        driver.status = 'busy'
+        driver.driver_status = 'busy'
         
         # 更新申请状态为已调度
         application.status = 'dispatched'
@@ -195,9 +195,9 @@ def cancel_dispatch(id):
             vehicle.status = 'available'
         
         # 恢复司机状态
-        driver = Driver.query.get(dispatch.driver_id)
+        driver = User.query.filter_by(id=dispatch.driver_id, role=RoleEnum.driver, is_deleted=False).first()
         if driver:
-            driver.status = 'available'
+            driver.driver_status = 'available'
         
         # 恢复申请状态
         application = CarApplication.query.get(dispatch.application_id)
@@ -231,7 +231,7 @@ def recommend_dispatch(application_id):
         if _enum_value(application.status) != 'approved':
             return jsonify({'success': False, 'message': '仅已批准申请可推荐调度'}), 400
 
-        candidates_query = Driver.query.filter_by(is_deleted=False, status='available')
+        candidates_query = User.query.filter_by(role=RoleEnum.driver, is_deleted=False, driver_status='available')
         if application.driver_id:
             candidates_query = candidates_query.filter_by(id=application.driver_id)
         candidates = candidates_query.all()

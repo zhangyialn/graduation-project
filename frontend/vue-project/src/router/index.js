@@ -11,10 +11,8 @@ import CreateApplication from '../components/Application/CreateApplication.vue';
 import ApplicationList from '../components/Application/ApplicationList.vue';
 import ApprovalList from '../components/Approval/ApprovalLiat.vue';
 import ApprovalDetail from '../components/Approval/ApprovalDetail.vue';
-import VehicleList from '../components/Vehicle/VehicleList.vue';
 import DispatchList from '../components/Dispatch/DispatchList.vue';
-import UserImport from '../views/UserImport.vue';
-import AdminManagement from '../views/AdminManagement.vue';
+import PersonnelVehicleManagement from '../views/PersonnelVehicleManagement.vue';
 import Reports from '../views/Reports.vue';
 import FuelPrices from '../views/FuelPrices.vue';
 import ApproverRecords from '../views/ApproverRecords.vue';
@@ -54,10 +52,11 @@ const routes = [
       { path: 'applications', name: 'ApplicationList', component: ApplicationList, meta: { requiresAuth: true } },
       { path: 'approvals', name: 'ApprovalList', component: ApprovalList, meta: { requiresAuth: true } },
       { path: 'approvals/:applicationId', name: 'ApprovalDetail', component: ApprovalDetail, meta: { requiresAuth: true } },
-      { path: 'vehicles', name: 'VehicleList', component: VehicleList, meta: { requiresAuth: true } },
+      { path: 'vehicles', name: 'VehicleList', component: PersonnelVehicleManagement, meta: { requiresAuth: true, roles: ['admin'] } },
       { path: 'dispatches', name: 'DispatchList', component: DispatchList, meta: { requiresAuth: true } },
-      { path: 'users/import', name: 'UserImport', component: UserImport, meta: { requiresAuth: true, roles: ['admin'] } },
-      { path: 'admins', name: 'AdminManagement', component: AdminManagement, meta: { requiresAuth: true, roles: ['admin'] } },
+      { path: 'personnel-vehicles', name: 'PersonnelVehicleManagement', component: PersonnelVehicleManagement, meta: { requiresAuth: true, roles: ['admin'] } },
+      { path: 'users/import', name: 'UserImport', component: PersonnelVehicleManagement, meta: { requiresAuth: true, roles: ['admin'] } },
+      { path: 'admins', name: 'AdminManagement', component: PersonnelVehicleManagement, meta: { requiresAuth: true, roles: ['admin'] } },
       { path: 'reports', name: 'Reports', component: Reports, meta: { requiresAuth: true } },
       { path: 'fuel-prices', name: 'FuelPrices', component: FuelPrices, meta: { requiresAuth: true } },
       { path: 'approver-records', name: 'ApproverRecords', component: ApproverRecords, meta: { requiresAuth: true } },

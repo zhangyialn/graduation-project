@@ -1,31 +1,27 @@
 """司机工作台控制器。"""
 
-# 司机主面板控制器
 from flask import request, jsonify
 from flask_jwt_extended import get_jwt_identity
-from models.index import db, Driver, Dispatch, Trip, Vehicle, CarApplication, User
+from models.index import db, Dispatch, Trip, Vehicle, CarApplication, User, RoleEnum
 
 
-# 兼容 Enum/字符串状态读取
 def _enum_value(value):
     return value.value if hasattr(value, 'value') else value
 
 
-# 获取当前登录账号绑定的司机档案
-def _get_current_driver():
+def _get_current_driver_user():
     current_user_id = get_jwt_identity()
-    return Driver.query.filter_by(user_id=current_user_id, is_deleted=False).first(), current_user_id
+    user = User.query.filter_by(id=current_user_id, role=RoleEnum.driver, is_deleted=False).first()
+    return user, current_user_id
 
 
-# 司机主面板数据
-# 司机首页数据：司机/车辆信息 + 当前任务列表
 def get_my_dashboard():
     try:
-        driver, _current_user_id = _get_current_driver()
+        driver, _current_user_id = _get_current_driver_user()
         if not driver:
-            return jsonify({'success': False, 'message': '当前账号未绑定司机档案'}), 404
+            return jsonify({'success': False, 'message': '当前账号不是司机账号'}), 404
 
-        vehicle = Vehicle.query.get(driver.vehicle_id)
+        vehicle = Vehicle.query.get(driver.vehicle_id) if driver.vehicle_id else None
 
         active_dispatches = Dispatch.query.filter(
             Dispatch.driver_id == driver.id,
@@ -57,7 +53,7 @@ def get_my_dashboard():
                 'driver': {
                     'id': driver.id,
                     'name': driver.name,
-                    'status': _enum_value(driver.status),
+                    'status': _enum_value(driver.driver_status),
                     'vehicle_id': driver.vehicle_id
                 },
                 'vehicle': {
@@ -72,13 +68,11 @@ def get_my_dashboard():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-# 司机更新个人状态
-# 司机更新个人状态
 def update_my_status():
     try:
-        driver, _current_user_id = _get_current_driver()
+        driver, _current_user_id = _get_current_driver_user()
         if not driver:
-            return jsonify({'success': False, 'message': '当前账号未绑定司机档案'}), 404
+            return jsonify({'success': False, 'message': '当前账号不是司机账号'}), 404
 
         data = request.json or {}
         status = data.get('status')
@@ -93,7 +87,7 @@ def update_my_status():
             if active_dispatch:
                 return jsonify({'success': False, 'message': '司机存在进行中的任务，不能设为可用'}), 400
 
-        driver.status = status
+        driver.driver_status = status
         db.session.commit()
         return jsonify({'success': True, 'data': driver.to_dict()})
     except Exception as e:
@@ -101,13 +95,11 @@ def update_my_status():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-# 司机更新车辆状态
-# 司机更新所绑定车辆状态
 def update_my_vehicle_status():
     try:
-        driver, _current_user_id = _get_current_driver()
+        driver, _current_user_id = _get_current_driver_user()
         if not driver:
-            return jsonify({'success': False, 'message': '当前账号未绑定司机档案'}), 404
+            return jsonify({'success': False, 'message': '当前账号不是司机账号'}), 404
 
         data = request.json or {}
         status = data.get('status')
@@ -134,13 +126,11 @@ def update_my_vehicle_status():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-# 司机更换绑定车辆（通过车牌号）
-# 司机按车牌号更换绑定车辆
 def bind_vehicle_by_plate():
     try:
-        driver, _current_user_id = _get_current_driver()
+        driver, _current_user_id = _get_current_driver_user()
         if not driver:
-            return jsonify({'success': False, 'message': '当前账号未绑定司机档案'}), 404
+            return jsonify({'success': False, 'message': '当前账号不是司机账号'}), 404
 
         active_dispatch = Dispatch.query.filter(
             Dispatch.driver_id == driver.id,
@@ -158,10 +148,11 @@ def bind_vehicle_by_plate():
         if not vehicle:
             return jsonify({'success': False, 'message': '车牌号不存在'}), 404
 
-        other_driver = Driver.query.filter(
-            Driver.vehicle_id == vehicle.id,
-            Driver.id != driver.id,
-            Driver.is_deleted == False
+        other_driver = User.query.filter(
+            User.role == RoleEnum.driver,
+            User.vehicle_id == vehicle.id,
+            User.id != driver.id,
+            User.is_deleted == False
         ).first()
         if other_driver:
             return jsonify({'success': False, 'message': '该车辆已绑定其他司机'}), 400

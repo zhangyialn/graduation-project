@@ -1,23 +1,31 @@
 """车辆与司机管理控制器。"""
 
-# 车辆管理控制器
 from flask import request, jsonify
 from flask_jwt_extended import get_jwt_identity
-from models.index import db, Vehicle, Driver, User, RoleEnum, CarApplication
+from flask_bcrypt import generate_password_hash
+from models.index import db, Vehicle, User, RoleEnum, CarApplication
 
 
 LOCKED_APPLICATION_STATUSES = ['pending', 'approved', 'dispatched']
 
 
-# 兼容 Enum/字符串状态读取
+def _build_username(phone):
+    base = str(phone)
+    candidate = base
+    suffix = 1
+    while User.query.filter_by(username=candidate).first():
+        suffix += 1
+        candidate = f'{base}_{suffix}'
+    return candidate
+
+
 def _enum_value(value):
     return value.value if hasattr(value, 'value') else value
 
 
-# 判断司机是否被进行中的申请占用
-def _driver_is_locked(driver_id, exclude_application_id=None):
+def _driver_is_locked(driver_user_id, exclude_application_id=None):
     query = CarApplication.query.filter(
-        CarApplication.driver_id == driver_id,
+        CarApplication.driver_id == driver_user_id,
         CarApplication.status.in_(LOCKED_APPLICATION_STATUSES)
     )
     if exclude_application_id:
@@ -25,8 +33,19 @@ def _driver_is_locked(driver_id, exclude_application_id=None):
     return query.first() is not None
 
 
-# 获取所有车辆
-# 查询车辆列表（过滤软删除）
+def _driver_to_dict(driver_user):
+    payload = driver_user.to_dict()
+    vehicle = Vehicle.query.get(driver_user.vehicle_id) if driver_user.vehicle_id else None
+    payload['status'] = driver_user.driver_status.value if driver_user.driver_status else None
+    payload['vehicle_plate_number'] = vehicle.plate_number if vehicle else None
+    payload['vehicle_status'] = _enum_value(vehicle.status) if vehicle else None
+    payload['user_id'] = driver_user.id
+    payload['locked_by_application'] = _driver_is_locked(driver_user.id)
+    return payload
+
+
+# ==================== 车辆接口 ====================
+
 def get_vehicles():
     try:
         vehicles = Vehicle.query.filter_by(is_deleted=False).all()
@@ -35,8 +54,6 @@ def get_vehicles():
         return jsonify({'success': False, 'message': str(e)})
 
 
-# 获取单个车辆
-# 查询单辆车详情
 def get_vehicle(id):
     try:
         vehicle = Vehicle.query.get(id)
@@ -47,8 +64,6 @@ def get_vehicle(id):
         return jsonify({'success': False, 'message': str(e)})
 
 
-# 创建车辆
-# 创建车辆
 def create_vehicle():
     try:
         data = request.json
@@ -72,8 +87,6 @@ def create_vehicle():
         return jsonify({'success': False, 'message': str(e)})
 
 
-# 更新车辆
-# 更新车辆信息
 def update_vehicle(id):
     try:
         vehicle = Vehicle.query.get(id)
@@ -99,15 +112,14 @@ def update_vehicle(id):
         return jsonify({'success': False, 'message': str(e)})
 
 
-# 删除车辆
-# 软删除车辆（已绑定司机时不允许删除）
 def delete_vehicle(id):
     try:
         vehicle = Vehicle.query.get(id)
         if not vehicle or vehicle.is_deleted:
             return jsonify({'success': False, 'message': '车辆不存在'})
 
-        if Driver.query.filter_by(vehicle_id=id, is_deleted=False).first():
+        bound_driver = User.query.filter_by(role=RoleEnum.driver, vehicle_id=id, is_deleted=False).first()
+        if bound_driver:
             return jsonify({'success': False, 'message': '该车辆已绑定司机，不能删除'}), 400
 
         vehicle.is_deleted = True
@@ -120,8 +132,6 @@ def delete_vehicle(id):
         return jsonify({'success': False, 'message': str(e)})
 
 
-# 获取可用车辆列表
-# 查询可用车辆
 def get_available_vehicles():
     try:
         vehicles = Vehicle.query.filter_by(status='available', is_deleted=False).all()
@@ -130,67 +140,52 @@ def get_available_vehicles():
         return jsonify({'success': False, 'message': str(e)})
 
 
-# ==================== 司机管理接口 ====================
+# ==================== 司机接口（基于 users.role=driver） ====================
 
-# 司机视图组装：附带用户信息、车辆信息、占用状态
-def _driver_to_dict(driver):
-    payload = driver.to_dict()
-    vehicle = Vehicle.query.get(driver.vehicle_id) if driver.vehicle_id else None
-    user = User.query.get(driver.user_id) if driver.user_id else None
-    payload['vehicle_plate_number'] = vehicle.plate_number if vehicle else None
-    payload['vehicle_status'] = _enum_value(vehicle.status) if vehicle else None
-    payload['username'] = user.username if user else None
-    payload['user_role'] = _enum_value(user.role) if user else None
-    payload['locked_by_application'] = _driver_is_locked(driver.id)
-    return payload
-
-
-# 获取所有司机
-# 查询司机列表
 def get_drivers():
     try:
-        drivers = Driver.query.filter_by(is_deleted=False).all()
+        drivers = User.query.filter_by(role=RoleEnum.driver, is_deleted=False).all()
         return jsonify({'success': True, 'data': [_driver_to_dict(driver) for driver in drivers]})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
 
-# 创建司机
-# 创建司机档案并绑定用户/车辆
 def create_driver():
     try:
-        data = request.json
-
-        required_fields = ['name', 'phone', 'license_number', 'user_id', 'vehicle_id']
+        data = request.json or {}
+        required_fields = ['name', 'phone', 'license_number', 'vehicle_id']
         missing = [field for field in required_fields if data.get(field) in [None, '']]
         if missing:
             return jsonify({'success': False, 'message': f'缺少必填字段: {", ".join(missing)}'}), 400
 
-        user = User.query.get(int(data['user_id']))
-        if not user or user.is_deleted:
-            return jsonify({'success': False, 'message': '绑定用户不存在'}), 400
+        phone = str(data['phone']).strip()
+        license_number = str(data['license_number']).strip()
+        vehicle_id = int(data['vehicle_id'])
 
-        if _enum_value(user.role) != RoleEnum.driver.value:
-            return jsonify({'success': False, 'message': '绑定用户角色必须为 driver'}), 400
+        if User.query.filter_by(phone=phone, is_deleted=False).first():
+            return jsonify({'success': False, 'message': '手机号已存在'}), 400
 
-        vehicle = Vehicle.query.get(int(data['vehicle_id']))
+        if User.query.filter_by(license_number=license_number, is_deleted=False).first():
+            return jsonify({'success': False, 'message': '驾驶证号已存在'}), 400
+
+        vehicle = Vehicle.query.get(vehicle_id)
         if not vehicle or vehicle.is_deleted:
             return jsonify({'success': False, 'message': '绑定车辆不存在'}), 400
 
-        if Driver.query.filter_by(user_id=int(data['user_id']), is_deleted=False).first():
-            return jsonify({'success': False, 'message': '该用户已绑定司机档案'}), 400
-
-        if Driver.query.filter_by(vehicle_id=int(data['vehicle_id']), is_deleted=False).first():
+        if User.query.filter_by(role=RoleEnum.driver, vehicle_id=vehicle_id, is_deleted=False).first():
             return jsonify({'success': False, 'message': '该车辆已被其他司机绑定'}), 400
 
-        driver = Driver(
-            user_id=int(data['user_id']),
-            vehicle_id=int(data['vehicle_id']),
-            name=data['name'],
-            phone=data['phone'],
-            license_number=data['license_number'],
+        driver = User(
+            username=_build_username(phone),
+            password=generate_password_hash(phone).decode('utf-8'),
+            name=str(data['name']).strip(),
+            phone=phone,
+            role=RoleEnum.driver,
+            vehicle_id=vehicle_id,
+            license_number=license_number,
+            driver_status=data.get('status', 'available'),
             hire_date=data.get('hire_date'),
-            status=data.get('status', 'available'),
+            must_change_password=True,
             created_by=get_jwt_identity()
         )
         db.session.add(driver)
@@ -201,50 +196,45 @@ def create_driver():
         return jsonify({'success': False, 'message': str(e)})
 
 
-# 更新司机
-# 更新司机档案
 def update_driver(id):
     try:
-        driver = Driver.query.get(id)
-        if not driver or driver.is_deleted:
+        driver = User.query.filter_by(id=id, role=RoleEnum.driver, is_deleted=False).first()
+        if not driver:
             return jsonify({'success': False, 'message': '司机不存在'})
 
-        data = request.json
-        if data.get('user_id') is not None and int(data.get('user_id')) != driver.user_id:
-            user = User.query.get(int(data.get('user_id')))
-            if not user or user.is_deleted:
-                return jsonify({'success': False, 'message': '绑定用户不存在'}), 400
-            if _enum_value(user.role) != RoleEnum.driver.value:
-                return jsonify({'success': False, 'message': '绑定用户角色必须为 driver'}), 400
-            existing = Driver.query.filter(
-                Driver.user_id == int(data.get('user_id')),
-                Driver.id != id,
-                Driver.is_deleted == False
-            ).first()
-            if existing:
-                return jsonify({'success': False, 'message': '该用户已绑定其他司机档案'}), 400
-            driver.user_id = int(data.get('user_id'))
+        data = request.json or {}
 
-        if data.get('vehicle_id') is not None and int(data.get('vehicle_id')) != driver.vehicle_id:
-            vehicle = Vehicle.query.get(int(data.get('vehicle_id')))
+        if data.get('vehicle_id') is not None and int(data.get('vehicle_id')) != int(driver.vehicle_id or 0):
+            vehicle_id = int(data.get('vehicle_id'))
+            vehicle = Vehicle.query.get(vehicle_id)
             if not vehicle or vehicle.is_deleted:
                 return jsonify({'success': False, 'message': '绑定车辆不存在'}), 400
-            existing = Driver.query.filter(
-                Driver.vehicle_id == int(data.get('vehicle_id')),
-                Driver.id != id,
-                Driver.is_deleted == False
+            existing = User.query.filter(
+                User.role == RoleEnum.driver,
+                User.vehicle_id == vehicle_id,
+                User.id != id,
+                User.is_deleted == False
             ).first()
             if existing:
                 return jsonify({'success': False, 'message': '该车辆已被其他司机绑定'}), 400
-            driver.vehicle_id = int(data.get('vehicle_id'))
+            driver.vehicle_id = vehicle_id
 
         new_status = data.get('status')
         if new_status == 'available' and _driver_is_locked(driver.id):
             return jsonify({'success': False, 'message': '司机有进行中的申请，不能设置为可用'}), 400
 
+        if data.get('phone') and data.get('phone') != driver.phone:
+            if User.query.filter(User.phone == data.get('phone'), User.id != id, User.is_deleted == False).first():
+                return jsonify({'success': False, 'message': '手机号已存在'}), 400
+            driver.phone = data.get('phone')
+
+        if data.get('license_number') and data.get('license_number') != driver.license_number:
+            if User.query.filter(User.license_number == data.get('license_number'), User.id != id, User.is_deleted == False).first():
+                return jsonify({'success': False, 'message': '驾驶证号已存在'}), 400
+            driver.license_number = data.get('license_number')
+
         driver.name = data.get('name', driver.name)
-        driver.phone = data.get('phone', driver.phone)
-        driver.status = new_status or driver.status
+        driver.driver_status = new_status or driver.driver_status
         driver.hire_date = data.get('hire_date', driver.hire_date)
 
         db.session.commit()
@@ -254,18 +244,17 @@ def update_driver(id):
         return jsonify({'success': False, 'message': str(e)})
 
 
-# 删除司机
-# 软删除司机（存在进行中申请时不允许）
 def delete_driver(id):
     try:
-        driver = Driver.query.get(id)
-        if not driver or driver.is_deleted:
+        driver = User.query.filter_by(id=id, role=RoleEnum.driver, is_deleted=False).first()
+        if not driver:
             return jsonify({'success': False, 'message': '司机不存在'})
 
         if _driver_is_locked(id):
             return jsonify({'success': False, 'message': '司机有进行中的申请，不能删除'}), 400
 
         driver.is_deleted = True
+        driver.is_active = False
         driver.deleted_at = db.func.now()
         driver.deleted_by = get_jwt_identity()
         db.session.commit()
@@ -275,14 +264,12 @@ def delete_driver(id):
         return jsonify({'success': False, 'message': str(e)})
 
 
-# 获取可用司机列表
-# 查询可分配司机（司机可用 + 车辆可用 + 无进行中申请）
 def get_available_drivers():
     try:
-        drivers = Driver.query.filter_by(status='available', is_deleted=False).all()
+        drivers = User.query.filter_by(role=RoleEnum.driver, driver_status='available', is_deleted=False).all()
         result = []
         for driver in drivers:
-            vehicle = Vehicle.query.get(driver.vehicle_id)
+            vehicle = Vehicle.query.get(driver.vehicle_id) if driver.vehicle_id else None
             if not vehicle or vehicle.is_deleted:
                 continue
             if _enum_value(vehicle.status) != 'available':

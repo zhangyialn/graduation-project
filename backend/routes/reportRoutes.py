@@ -1,3 +1,5 @@
+"""统计报表相关路由定义。"""
+
 # 报表相关路由
 from flask import Blueprint
 from controllers.reportController import get_department_usage, get_department_expenses, get_vehicle_usage, get_monthly_stats, get_driver_workload, get_user_application_stats

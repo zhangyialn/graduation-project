@@ -1,3 +1,5 @@
+"""车辆与司机管理相关路由定义。"""
+
 # 车辆相关路由
 from flask import Blueprint
 from controllers.vehicleController import get_vehicles, get_vehicle, create_vehicle, update_vehicle, delete_vehicle, get_available_vehicles, get_drivers, create_driver, update_driver, delete_driver, get_available_drivers

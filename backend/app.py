@@ -1,3 +1,5 @@
+"""Flask 应用入口。"""
+
 from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
@@ -46,6 +48,7 @@ app.register_blueprint(reportBlueprint)
 print('蓝图注册完成')
 
 @app.route('/')
+# 健康检查与基础连通性验证接口
 def index():
     print('访问服务器成功')
     return jsonify({'success': True, 'message': '访问服务器成功', 'data': None})

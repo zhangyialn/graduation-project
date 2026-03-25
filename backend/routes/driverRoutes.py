@@ -1,3 +1,5 @@
+"""司机工作台相关路由定义。"""
+
 from flask import Blueprint
 from controllers.driverController import get_my_dashboard, update_my_status, update_my_vehicle_status, bind_vehicle_by_plate
 from middleware.auth_middleware import role_required

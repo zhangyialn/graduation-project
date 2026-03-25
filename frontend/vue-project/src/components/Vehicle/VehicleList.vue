@@ -1,3 +1,4 @@
+<!-- VehicleList：车辆与司机的统一管理页面 -->
 <template>
   <el-card class="vehicle-list-card" shadow="hover">
     <template #header>
@@ -251,6 +252,7 @@ const driverRules = reactive({
 const vehicleFormRef = ref(null);
 const driverFormRef = ref(null);
 
+// 将车辆状态映射为标签类型
 const vehicleStatusType = (status) => {
   const typeMap = {
     available: 'success',
@@ -260,6 +262,7 @@ const vehicleStatusType = (status) => {
   return typeMap[status] || 'info';
 };
 
+// 将司机状态映射为标签类型
 const driverStatusType = (status) => {
   const typeMap = {
     available: 'success',
@@ -269,6 +272,7 @@ const driverStatusType = (status) => {
   return typeMap[status] || 'info';
 };
 
+// 获取车辆列表
 const fetchVehicles = async () => {
   try {
     loading.value = true;
@@ -281,6 +285,7 @@ const fetchVehicles = async () => {
   }
 };
 
+// 获取司机列表
 const fetchDrivers = async () => {
   try {
     loading.value = true;
@@ -293,6 +298,7 @@ const fetchDrivers = async () => {
   }
 };
 
+// 获取用户列表（用于筛选司机账号）
 const fetchUsers = async () => {
   try {
     const response = await axios.get('/api/users');
@@ -302,6 +308,7 @@ const fetchUsers = async () => {
   }
 };
 
+// 打开车辆编辑/新增弹窗并回填表单
 const openVehicleDialog = (vehicle = null) => {
   if (vehicle) {
     vehicleForm.id = vehicle.id;
@@ -331,6 +338,7 @@ const openVehicleDialog = (vehicle = null) => {
   vehicleDialogVisible.value = true;
 };
 
+// 打开司机编辑/新增弹窗并回填表单
 const openDriverDialog = (driver = null) => {
   if (driver) {
     driverForm.id = driver.id;
@@ -354,6 +362,7 @@ const openDriverDialog = (driver = null) => {
   driverDialogVisible.value = true;
 };
 
+// 保存车辆信息（新增或编辑）
 const saveVehicle = async () => {
   try {
     await vehicleFormRef.value.validate();
@@ -370,10 +379,10 @@ const saveVehicle = async () => {
       fuel_consumption_per_100km: vehicleForm.fuel_consumption_per_100km
     };
     if (vehicleForm.id) {
-      // 编辑车辆
+      // 更新车辆
       await axios.put(`/api/vehicles/${vehicleForm.id}`, vehiclePayload);
     } else {
-      // 添加车辆
+      // 新增车辆
       await axios.post('/api/vehicles', vehiclePayload);
     }
     vehicleDialogVisible.value = false;
@@ -385,6 +394,7 @@ const saveVehicle = async () => {
   }
 };
 
+// 保存司机信息（新增或编辑）
 const saveDriver = async () => {
   try {
     await driverFormRef.value.validate();
@@ -398,10 +408,10 @@ const saveDriver = async () => {
       status: driverForm.status
     };
     if (driverForm.id) {
-      // 编辑司机
+      // 更新司机
       await axios.put(`/api/vehicles/drivers/${driverForm.id}`, driverPayload);
     } else {
-      // 添加司机
+      // 新增司机
       await axios.post('/api/vehicles/drivers', driverPayload);
     }
     driverDialogVisible.value = false;
@@ -413,6 +423,7 @@ const saveDriver = async () => {
   }
 };
 
+// 删除车辆并刷新列表
 const deleteVehicle = async (id) => {
   try {
     await axios.delete(`/api/vehicles/${id}`);
@@ -422,6 +433,7 @@ const deleteVehicle = async (id) => {
   }
 };
 
+// 删除司机并刷新列表
 const deleteDriver = async (id) => {
   try {
     await axios.delete(`/api/vehicles/drivers/${id}`);
@@ -431,6 +443,7 @@ const deleteDriver = async (id) => {
   }
 };
 
+// 更新屏幕宽度用于移动端判断
 const updateWidth = () => {
   screenWidth.value = window.innerWidth;
 };

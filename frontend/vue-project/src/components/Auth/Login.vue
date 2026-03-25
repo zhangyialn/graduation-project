@@ -1,3 +1,4 @@
+<!-- 登录页：账号登录 + 首个管理员初始化入口展示 -->
 <template>
   <div class="login-container">
     <el-card class="login-card" shadow="hover">
@@ -23,6 +24,10 @@
           <el-link type="primary" @click="$router.push('/forgot-password')">
             忘记密码？
           </el-link>
+          <el-divider v-if="showBootstrapEntry" direction="vertical" />
+          <el-link v-if="showBootstrapEntry" type="info" @click="$router.push('/bootstrap-admin')">
+            初始化首个管理员
+          </el-link>
         </el-form-item>
       </el-form>
     </el-card>
@@ -30,7 +35,7 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { notifyError, notifyWarning } from '../../utils/notify';
@@ -50,13 +55,31 @@ const rules = reactive({
 const error = ref('');
 const loading = ref(false);
 const loginForm = ref(null);
+const showBootstrapEntry = ref(false);
 
+// 查询初始化入口状态：仅在系统未创建管理员时显示入口
+const fetchBootstrapStatus = async () => {
+  try {
+    const response = await axios.get('/api/auth/bootstrap-status');
+    showBootstrapEntry.value = !!response.data?.data?.enabled;
+  } catch (_err) {
+    showBootstrapEntry.value = false;
+  }
+};
+
+// 提交登录并写入会话；首次登录强制跳转改密页
 const handleLogin = async () => {
   try {
     await loginForm.value.validate();
     loading.value = true;
     const response = await axios.post('/api/auth/login', form);
-    authStore.setSession(response.data.data.access_token, response.data.data.user);
+    const user = response.data.data.user;
+    authStore.setSession(response.data.data.access_token, user);
+    if (user?.must_change_password) {
+      notifyWarning('首次登录请先修改密码');
+      router.push('/dashboard/change-password');
+      return;
+    }
     router.push('/dashboard');
   } catch (err) {
     if (err?.response) {
@@ -71,6 +94,8 @@ const handleLogin = async () => {
     loading.value = false;
   }
 };
+
+onMounted(fetchBootstrapStatus);
 </script>
 
 <style scoped>

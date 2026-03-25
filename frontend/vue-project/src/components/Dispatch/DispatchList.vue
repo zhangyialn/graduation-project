@@ -1,3 +1,4 @@
+<!-- 调度管理页：调度列表、创建调度、智能推荐调度 -->
 <template>
   <el-card class="dispatch-list-card" shadow="hover">
     <template #header>
@@ -176,6 +177,7 @@ const rules = reactive({
 
 const dispatchForm = ref(null);
 
+// 规范化燃油类型，统一到油价 store 可识别的名称
 const normalizeFuelType = (fuelType) => {
   const value = (fuelType || '').trim();
   if (!value) return '92号汽油';
@@ -208,6 +210,7 @@ const estimatedFuelCostPerKmHint = computed(() => {
   return `${perKm.toFixed(2)} 元/公里`;
 });
 
+// 确保当日油价已加载，供预估油费展示
 const ensureDailyFuelPrice = async (force = false) => {
   try {
     await fuelStore.fetchOilPrice({ force });
@@ -218,6 +221,7 @@ const ensureDailyFuelPrice = async (force = false) => {
   }
 };
 
+// 将调度状态映射为标签样式
 const statusType = (status) => {
   const typeMap = {
     scheduled: 'warning',
@@ -228,6 +232,7 @@ const statusType = (status) => {
   return typeMap[status] || 'info';
 };
 
+// 拉取调度列表
 const fetchDispatches = async () => {
   try {
     loading.value = true;
@@ -240,6 +245,7 @@ const fetchDispatches = async () => {
   }
 };
 
+// 打开新增调度弹窗，并预加载可选数据
 const openAddDialog = async () => {
   form.application_id = '';
   form.vehicle_id = '';
@@ -257,6 +263,7 @@ const openAddDialog = async () => {
   dialogVisible.value = true;
 };
 
+// 拉取待调度申请
 const fetchPendingApplications = async () => {
   try {
     const response = await axios.get('/api/dispatches/pending');
@@ -266,6 +273,7 @@ const fetchPendingApplications = async () => {
   }
 };
 
+// 拉取可用车辆
 const fetchAvailableVehicles = async () => {
   try {
     const response = await axios.get('/api/vehicles/available');
@@ -275,6 +283,7 @@ const fetchAvailableVehicles = async () => {
   }
 };
 
+// 拉取可用司机
 const fetchAvailableDrivers = async () => {
   try {
     const response = await axios.get('/api/vehicles/drivers/available');
@@ -284,6 +293,7 @@ const fetchAvailableDrivers = async () => {
   }
 };
 
+// 根据申请获取智能调度推荐
 const fetchDispatchRecommendation = async (applicationId) => {
   if (!applicationId) return;
   try {
@@ -312,6 +322,7 @@ const fetchDispatchRecommendation = async (applicationId) => {
   }
 };
 
+// 应用推荐结果到表单
 const applyRecommendation = (candidate) => {
   if (!candidate) return;
   recommendation.value = candidate;
@@ -320,6 +331,7 @@ const applyRecommendation = (candidate) => {
   form.vehicle_id = candidate.vehicle_id;
 };
 
+// 提交新增调度
 const handleAddDispatch = async () => {
   try {
     await dispatchForm.value.validate();
@@ -346,6 +358,7 @@ const handleAddDispatch = async () => {
   }
 };
 
+// 开始执行调度
 const startDispatch = async (id) => {
   try {
     await axios.post(`/api/dispatches/${id}/start`, {});
@@ -355,6 +368,7 @@ const startDispatch = async (id) => {
   }
 };
 
+// 取消调度
 const cancelDispatch = async (id) => {
   try {
     await axios.post(`/api/dispatches/${id}/cancel`, {});
@@ -364,6 +378,7 @@ const cancelDispatch = async (id) => {
   }
 };
 
+// 响应窗口变化，切换桌面/移动布局
 const updateWidth = () => {
   screenWidth.value = window.innerWidth;
 };

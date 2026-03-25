@@ -5,7 +5,7 @@
 </template>
 
 <script setup>
-// App.vue
+// 根组件仅作为路由容器，不承载具体业务逻辑
 </script>
 
 <style>

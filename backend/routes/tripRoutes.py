@@ -1,3 +1,5 @@
+"""出车与费用相关路由定义。"""
+
 # 出车记录相关路由
 from flask import Blueprint
 from controllers.tripController import get_trips, get_trip, create_trip, end_trip, get_trip_expense, update_trip_expense, get_fuel_prices, create_fuel_price

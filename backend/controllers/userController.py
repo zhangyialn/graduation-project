@@ -1,22 +1,34 @@
+"""用户与部门管理控制器。"""
+
 # 用户管理控制器
 from flask import request, jsonify
 from models.index import db, User, Department, RoleEnum, UserImportBatch
-from flask_bcrypt import generate_password_hash
+from flask_bcrypt import generate_password_hash, check_password_hash
 from flask_jwt_extended import get_jwt_identity
 import pandas as pd
 
 
+ALLOWED_IMPORT_ROLES = {RoleEnum.user.value, RoleEnum.approver.value}
+
+
+# 将输入角色安全映射到系统枚举（兼容旧角色别名）
 def _safe_role(role_value):
     if not role_value:
         return RoleEnum.user
     if isinstance(role_value, RoleEnum):
         return role_value
+    role_text = str(role_value or '').strip().lower()
+    if role_text == 'leader':
+        return RoleEnum.approver
+    if role_text == 'dispatcher':
+        return RoleEnum.admin
     try:
-        return RoleEnum(role_value)
+        return RoleEnum(role_text)
     except Exception:
         return RoleEnum.user
 
 
+# 依据手机号生成不冲突的用户名
 def _build_username(phone):
     base = str(phone)
     candidate = base
@@ -27,7 +39,25 @@ def _build_username(phone):
     return candidate
 
 
+# 校验导入角色，仅允许 user/approver
+def _validate_import_role(role_value):
+    role_enum = _safe_role(role_value)
+    role_text = role_enum.value
+    if role_text not in ALLOWED_IMPORT_ROLES:
+        return None
+    return role_enum
+
+
+# 校验操作人密码（兼容历史明文）
+def _verify_password(stored_password, plain_password):
+    try:
+        return check_password_hash(str(stored_password or ''), str(plain_password or ''))
+    except Exception:
+        return str(stored_password or '') == str(plain_password or '')
+
+
 # 获取所有用户
+# 查询用户列表（过滤软删除）
 def get_users():
     try:
         users = User.query.filter_by(is_deleted=False).all()
@@ -37,6 +67,7 @@ def get_users():
 
 
 # 获取单个用户
+# 查询单个用户
 def get_user(id):
     try:
         user = User.query.get(id)
@@ -48,6 +79,7 @@ def get_user(id):
 
 
 # 创建用户
+# 创建用户（默认密码为手机号，首次登录强制改密）
 def create_user():
     try:
         data = request.json
@@ -71,6 +103,10 @@ def create_user():
         hashed_password = generate_password_hash(default_password).decode('utf-8')
         current_user_id = get_jwt_identity()
 
+        role_enum = _validate_import_role(data.get('role'))
+        if role_enum is None:
+            return jsonify({'success': False, 'message': '导入功能仅支持创建普通用户(user)或审批员(approver)'}), 400
+
         user = User(
             username=username,
             password=hashed_password,
@@ -78,7 +114,8 @@ def create_user():
             email=email,
             phone=phone,
             department_id=data.get('department_id'),
-            role=_safe_role(data.get('role')),
+            role=role_enum,
+            must_change_password=True,
             created_by=current_user_id
         )
         db.session.add(user)
@@ -90,6 +127,7 @@ def create_user():
 
 
 # 更新用户
+# 更新用户信息
 def update_user(id):
     try:
         user = User.query.get(id)
@@ -112,6 +150,7 @@ def update_user(id):
 
 
 # 删除用户
+# 软删除用户
 def delete_user(id):
     try:
         user = User.query.get(id)
@@ -130,6 +169,7 @@ def delete_user(id):
 
 
 # Excel导入用户
+# Excel 批量导入用户
 def import_users_excel():
     try:
         if 'file' not in request.files:
@@ -181,7 +221,12 @@ def import_users_excel():
             if email and User.query.filter_by(email=email).first():
                 email = None
 
-            role = _safe_role(str(row.get('role', 'user')).strip() or 'user')
+            role_value = str(row.get('role', 'user')).strip() or 'user'
+            role = _validate_import_role(role_value)
+            if role is None:
+                failed_rows += 1
+                failure_messages.append(f'第{index + 2}行：角色仅支持 user 或 approver')
+                continue
             department_raw = row.get('department_id', None)
             department_id = None if pd.isna(department_raw) else int(department_raw)
 
@@ -193,6 +238,7 @@ def import_users_excel():
                 phone=phone,
                 department_id=department_id,
                 role=role,
+                must_change_password=True,
                 import_batch_id=batch.id,
                 created_by=current_user_id
             )
@@ -222,6 +268,7 @@ def import_users_excel():
 
 
 # 部门管理接口
+# 查询部门列表
 def get_departments():
     try:
         departments = Department.query.all()
@@ -230,6 +277,7 @@ def get_departments():
         return jsonify({'success': False, 'message': str(e)})
 
 
+# 创建部门
 def create_department():
     try:
         data = request.json
@@ -240,6 +288,63 @@ def create_department():
         db.session.add(department)
         db.session.commit()
         return jsonify({'success': True, 'data': department.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)})
+
+
+# 由当前管理员创建新管理员（需二次密码确认）
+def create_admin_user():
+    try:
+        data = request.json or {}
+        name = (data.get('name') or '').strip()
+        phone = (data.get('phone') or '').strip()
+        operator_password = data.get('operator_password')
+
+        if not name or not phone or not operator_password:
+            return jsonify({'success': False, 'message': '姓名、手机号、当前管理员密码为必填项'}), 400
+
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        if not current_user or current_user.is_deleted:
+            return jsonify({'success': False, 'message': '当前管理员不存在'}), 404
+
+        if not _verify_password(current_user.password, operator_password):
+            return jsonify({'success': False, 'message': '当前管理员密码错误，无法创建新管理员'}), 400
+
+        if User.query.filter_by(phone=phone).first():
+            return jsonify({'success': False, 'message': '手机号已存在'}), 400
+
+        username = (data.get('username') or '').strip() or _build_username(phone)
+        if User.query.filter_by(username=username).first():
+            return jsonify({'success': False, 'message': '用户名已存在'}), 400
+
+        email = (data.get('email') or '').strip() or None
+        if email and User.query.filter_by(email=email).first():
+            return jsonify({'success': False, 'message': '邮箱已存在'}), 400
+
+        default_password = str(phone)
+        hashed_password = generate_password_hash(default_password).decode('utf-8')
+
+        user = User(
+            username=username,
+            password=hashed_password,
+            name=name,
+            email=email,
+            phone=phone,
+            department_id=data.get('department_id'),
+            role=RoleEnum.admin,
+            must_change_password=True,
+            created_by=current_user_id
+        )
+        db.session.add(user)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'data': user.to_dict(),
+            'message': '管理员创建成功，默认密码为手机号'
+        })
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)})

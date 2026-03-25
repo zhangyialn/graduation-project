@@ -15,4 +15,7 @@ class Config:
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'your-secret-key-change-this-in-production')
     JWT_ACCESS_TOKEN_EXPIRES = 3600
     JWT_REFRESH_TOKEN_EXPIRES = 604800
+    BOOTSTRAP_ADMIN_KEY = os.getenv('BOOTSTRAP_ADMIN_KEY', '')
+    BOOTSTRAP_TOKEN_EXPIRES = int(os.getenv('BOOTSTRAP_TOKEN_EXPIRES', '600'))
+    BOOTSTRAP_LOCAL_ONLY = os.getenv('BOOTSTRAP_LOCAL_ONLY', 'true').lower() == 'true'
     

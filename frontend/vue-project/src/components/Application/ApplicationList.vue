@@ -1,3 +1,4 @@
+<!-- ApplicationList：用户查看与取消本人用车申请 -->
 <template>
   <el-card class="application-list-card" shadow="hover">
     <template #header>
@@ -62,6 +63,7 @@ const error = ref('');
 const screenWidth = ref(window.innerWidth);
 const isMobile = computed(() => screenWidth.value < 900);
 
+// 将申请状态映射为标签类型
 const statusType = (status) => {
   const typeMap = {
     pending: 'warning',
@@ -72,11 +74,13 @@ const statusType = (status) => {
   return typeMap[status] || 'info';
 };
 
+// 统一格式化日期显示
 const formatDate = (value) => {
   if (!value) return '-';
   return new Date(value).toLocaleString();
 };
 
+// 拉取当前登录用户的申请列表
 const fetchApplications = async () => {
   try {
     const user = authStore.user;
@@ -93,6 +97,7 @@ const fetchApplications = async () => {
   }
 };
 
+// 取消待审批申请后刷新列表
 const cancelApplication = async (id) => {
   try {
     await axios.post(`/api/applications/${id}/cancel`, {});
@@ -102,6 +107,7 @@ const cancelApplication = async (id) => {
   }
 };
 
+// 更新屏幕宽度用于移动端布局判断
 const updateWidth = () => {
   screenWidth.value = window.innerWidth;
 };

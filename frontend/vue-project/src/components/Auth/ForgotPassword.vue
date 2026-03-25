@@ -1,3 +1,4 @@
+<!-- ForgotPassword：通过用户名与手机号验证后重置密码 -->
 <template>
   <div class="forgot-password-container">
     <el-card class="forgot-password-card" shadow="hover">
@@ -89,6 +90,7 @@ const form = reactive({
   confirmPassword: ''
 });
 
+// 校验确认密码与新密码是否一致
 const validateConfirmPassword = (rule, value, callback) => {
   if (value !== form.newPassword) {
     callback(new Error('两次输入的密码不一致'));
@@ -110,6 +112,7 @@ const rules = reactive({
   ]
 });
 
+// 第一步：校验身份信息
 const handleVerify = async () => {
   try {
     await forgotForm.value.validateField(['username', 'phone']);
@@ -134,6 +137,7 @@ const handleVerify = async () => {
   }
 };
 
+// 第二步：提交新密码完成重置
 const handleResetPassword = async () => {
   try {
     await forgotForm.value.validateField(['username', 'phone', 'newPassword', 'confirmPassword']);

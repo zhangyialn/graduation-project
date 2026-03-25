@@ -1,3 +1,4 @@
+<!-- 审批详情页：查看申请详情、提交审批、查看历史审批 -->
 <template>
   <el-card class="detail-card" shadow="hover">
     <template #header>
@@ -69,9 +70,12 @@ const submitting = ref(false);
 const error = ref('');
 const form = reactive({ comment: '', start_point: '' });
 
+// 将业务状态映射为标签样式
 const statusType = (status) => ({ pending: 'warning', approved: 'success', rejected: 'danger', completed: 'info' }[status] || 'info');
+// 时间格式化显示
 const formatDate = (v) => v ? new Date(v).toLocaleString() : '-';
 
+// 拉取申请详情与历史审批记录
 const fetchData = async () => {
   try {
     loading.value = true;
@@ -91,6 +95,7 @@ const fetchData = async () => {
   }
 };
 
+// 提交审批动作（同意/驳回）
 const submit = async (status) => {
   try {
     if (!application.value) return;

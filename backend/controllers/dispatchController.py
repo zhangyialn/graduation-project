@@ -1,13 +1,17 @@
+"""调度控制器。"""
+
 # 调度管理控制器
 from flask import request, jsonify
 from models.index import db, Dispatch, Vehicle, Driver, CarApplication
 from flask_jwt_extended import jwt_required
 
 
+# 兼容 Enum/字符串状态读取
 def _enum_value(value):
     return value.value if hasattr(value, 'value') else value
 
 
+# 统计司机当前进行中的调度任务数
 def _driver_active_dispatch_count(driver_id):
     return Dispatch.query.filter(
         Dispatch.driver_id == driver_id,
@@ -15,6 +19,7 @@ def _driver_active_dispatch_count(driver_id):
     ).count()
 
 
+# 生成推荐说明（座位匹配 + 当前任务负载）
 def _build_recommend_reason(seat_count, passenger_count, active_count):
     reasons = []
     if seat_count >= passenger_count:
@@ -30,6 +35,7 @@ def _build_recommend_reason(seat_count, passenger_count, active_count):
 
 
 # 获取所有调度
+# 查询调度列表（可按状态筛选）
 def get_dispatches():
     try:
         # 支持按状态筛选
@@ -44,6 +50,7 @@ def get_dispatches():
 
 
 # 获取单个调度
+# 查询单条调度详情
 def get_dispatch(id):
     try:
         dispatch = Dispatch.query.get(id)
@@ -55,6 +62,7 @@ def get_dispatch(id):
 
 
 # 创建调度（分配车辆和司机）
+# 创建调度：校验申请、司机、车辆和时段冲突
 def create_dispatch():
     try:
         data = request.json
@@ -149,6 +157,7 @@ def create_dispatch():
 
 
 # 开始出车
+# 将调度状态从 scheduled 推进到 in_progress
 def start_dispatch(id):
     try:
         dispatch = Dispatch.query.get(id)
@@ -167,6 +176,7 @@ def start_dispatch(id):
 
 
 # 取消调度
+# 取消调度并回滚车辆/司机/申请状态
 def cancel_dispatch(id):
     try:
         dispatch = Dispatch.query.get(id)
@@ -202,6 +212,7 @@ def cancel_dispatch(id):
 
 
 # 获取待调度列表（已批准但未调度的申请）
+# 查询待调度申请（已批准但未调度）
 def get_pending_dispatches():
     try:
         applications = CarApplication.query.filter_by(status='approved').all()
@@ -210,6 +221,7 @@ def get_pending_dispatches():
         return jsonify({'success': False, 'message': str(e)})
 
 
+# 为申请推荐司机与车辆（按座位匹配和负载评分）
 def recommend_dispatch(application_id):
     try:
         application = CarApplication.query.get(application_id)

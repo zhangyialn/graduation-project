@@ -1,3 +1,5 @@
+"""中间件模块导出入口。"""
+
 # middleware 包初始化
 from .auth_middleware import jwt_required, role_required
 from .error_middleware import error_handler, register_error_handlers

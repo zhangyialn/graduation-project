@@ -1,3 +1,4 @@
+<!-- ApproverRecords：审批员查看个人与全量审批记录 -->
 <template>
   <div class="page">
     <div class="header-row">
@@ -75,6 +76,7 @@ const screenWidth = ref(window.innerWidth);
 const isMobile = computed(() => screenWidth.value < 900);
 const authStore = useAuthStore();
 
+// 根据当前筛选条件加载审批记录数据
 const fetchData = async () => {
   try {
     loading.value = true;
@@ -93,6 +95,7 @@ const fetchData = async () => {
   }
 };
 
+// 更新屏幕宽度用于移动端适配
 const updateWidth = () => {
   screenWidth.value = window.innerWidth;
 };

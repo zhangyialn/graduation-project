@@ -1,3 +1,4 @@
+<!-- 司机工作台：司机状态、车辆状态、当前任务与结束行程 -->
 <template>
   <el-card class="driver-card" shadow="hover">
     <template #header>
@@ -114,6 +115,7 @@ const endForm = ref({
   end_fuel: 0
 });
 
+// 将司机/车辆/任务状态映射为标签样式
 const statusType = (status) => ({
   available: 'success',
   unavailable: 'danger',
@@ -124,8 +126,10 @@ const statusType = (status) => ({
   busy: 'warning'
 }[status] || 'info');
 
+// 时间格式化显示
 const formatDate = (value) => value ? new Date(value).toLocaleString() : '-';
 
+// 拉取司机工作台数据
 const fetchDashboard = async () => {
   try {
     loading.value = true;
@@ -142,6 +146,7 @@ const fetchDashboard = async () => {
   }
 };
 
+// 更新司机状态
 const updateDriverStatus = async () => {
   try {
     saving.value = true;
@@ -155,6 +160,7 @@ const updateDriverStatus = async () => {
   }
 };
 
+// 更新绑定车辆状态
 const updateVehicleStatus = async () => {
   try {
     saving.value = true;
@@ -168,6 +174,7 @@ const updateVehicleStatus = async () => {
   }
 };
 
+// 通过车牌号更换绑定车辆
 const bindVehicle = async () => {
   try {
     saving.value = true;
@@ -182,12 +189,14 @@ const bindVehicle = async () => {
   }
 };
 
+// 打开“结束行程”弹窗并初始化提交数据
 const openEndDialog = (row) => {
   currentTripId.value = row.trip_id;
   endForm.value = { end_mileage: 0, end_fuel: 0 };
   endDialogVisible.value = true;
 };
 
+// 提交结束行程（里程/油量）
 const submitEndTrip = async () => {
   try {
     if (!currentTripId.value) return;

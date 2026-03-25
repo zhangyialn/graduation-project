@@ -1,3 +1,5 @@
+"""用车申请控制器。"""
+
 # 用车申请控制器
 from datetime import datetime
 from flask import request, jsonify
@@ -10,10 +12,12 @@ import json
 LOCKED_APPLICATION_STATUSES = ['pending', 'approved', 'dispatched']
 
 
+# 兼容 Enum/字符串两种状态值读取
 def _enum_value(value):
     return value.value if hasattr(value, 'value') else value
 
 
+# 解析 ISO 时间字符串，兼容带 Z 后缀的 UTC 文本
 def _parse_datetime(value):
     if not value:
         return None
@@ -23,6 +27,7 @@ def _parse_datetime(value):
     return datetime.fromisoformat(text)
 
 
+# 判断司机是否已绑定到进行中的申请，避免重复占用
 def _is_driver_locked(driver_id, exclude_application_id=None):
     query = CarApplication.query.filter(
         CarApplication.driver_id == driver_id,
@@ -33,6 +38,7 @@ def _is_driver_locked(driver_id, exclude_application_id=None):
     return query.first() is not None
 
 
+# 校验司机+车辆是否都可用，并且司机没有冲突申请
 def _validate_driver_available(driver_id, exclude_application_id=None):
     driver = Driver.query.get(driver_id)
     if not driver or driver.is_deleted:
@@ -54,6 +60,7 @@ def _validate_driver_available(driver_id, exclude_application_id=None):
     return True, '', driver
 
 
+# 本地轻量地址清洗：去空白、去中英文标点
 def _simple_normalize_text(text):
     value = str(text or '').strip()
     value = ' '.join(value.split())
@@ -61,6 +68,7 @@ def _simple_normalize_text(text):
     return value
 
 
+# 将在线地理服务返回的结构化地址拼接为中文文本
 def _build_address_text(address=None):
     payload = address or {}
     province = payload.get('state') or payload.get('province') or ''
@@ -71,6 +79,7 @@ def _build_address_text(address=None):
     return ''.join([part for part in [province, city, district, road, number] if part])
 
 
+# 调用在线地理服务做地址标准化
 def _normalize_address_online(text):
     query = urlencode({
         'q': text,
@@ -97,6 +106,7 @@ def _normalize_address_online(text):
 
 
 # 获取所有申请
+# 查询申请列表（支持按状态筛选）
 def get_applications():
     try:
         # 支持按状态筛选
@@ -111,6 +121,7 @@ def get_applications():
 
 
 # 获取单个申请
+# 查询单条申请详情
 def get_application(id):
     try:
         application = CarApplication.query.get(id)
@@ -122,6 +133,7 @@ def get_application(id):
 
 
 # 创建用车申请
+# 创建用车申请并校验司机可用性
 def create_application():
     try:
         data = request.json
@@ -162,6 +174,7 @@ def create_application():
 
 
 # 更新申请
+# 更新申请（仅待审批状态允许修改）
 def update_application(id):
     try:
         application = CarApplication.query.get(id)
@@ -201,6 +214,7 @@ def update_application(id):
 
 
 # 取消申请
+# 取消申请（仅 pending/approved 可取消）
 def cancel_application(id):
     try:
         application = CarApplication.query.get(id)
@@ -220,6 +234,7 @@ def cancel_application(id):
 
 
 # 获取我的申请列表
+# 查询当前用户发起的申请
 def get_my_applications(user_id):
     try:
         applications = CarApplication.query.filter_by(applicant_id=user_id).all()
@@ -229,6 +244,7 @@ def get_my_applications(user_id):
 
 
 # 获取待审批列表（部门领导使用）
+# 查询部门待审批申请
 def get_pending_applications(department_id):
     try:
         applications = CarApplication.query.filter_by(
@@ -240,6 +256,7 @@ def get_pending_applications(department_id):
         return jsonify({'success': False, 'message': str(e)})
 
 
+# 地址标准化接口：优先在线标准化，失败则回退本地清洗
 def normalize_address():
     try:
         data = request.json or {}

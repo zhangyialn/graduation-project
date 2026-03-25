@@ -1,3 +1,4 @@
+<!-- 审批列表页：展示待审批申请与审批统计 -->
 <template>
   <el-card class="approval-card" shadow="hover">
     <template #header>
@@ -74,9 +75,12 @@ const loading = ref(false);
 const screenWidth = ref(window.innerWidth);
 const isMobile = computed(() => screenWidth.value < 900);
 
+// 将业务状态映射为标签样式
 const statusType = (status) => ({ pending: 'warning', approved: 'success', rejected: 'danger', completed: 'info' }[status] || 'info');
+// 时间格式化显示
 const formatDate = (v) => v ? new Date(v).toLocaleString() : '-';
 
+// 按部门拉取待审批申请
 const fetchApplications = async () => {
   try {
     loading.value = true;
@@ -90,6 +94,7 @@ const fetchApplications = async () => {
   }
 };
 
+// 拉取审批统计数据
 const fetchApprovalStatistics = async () => {
   try {
     const response = await axios.get('/api/approvals/statistics');
@@ -99,8 +104,10 @@ const fetchApprovalStatistics = async () => {
   }
 };
 
+// 跳转审批详情页
 const goDetail = (id) => router.push(`/dashboard/approvals/${id}`);
 
+// 响应窗口变化，切换桌面/移动布局
 const updateWidth = () => {
   screenWidth.value = window.innerWidth;
 };

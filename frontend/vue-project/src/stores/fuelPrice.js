@@ -1,3 +1,4 @@
+/** fuelPrice：地区定位与当日油价缓存 */
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import axios from 'axios';
@@ -11,6 +12,7 @@ const fuelFieldMap = {
   '0号柴油': 'n0'
 };
 
+// 规范化地区名称，保证后端接口可识别
 const normalizeRegionName = (value) => {
   if (!value || typeof value !== 'string') return '';
   const trimmed = value.trim();
@@ -19,6 +21,7 @@ const normalizeRegionName = (value) => {
   return `${trimmed}省`;
 };
 
+// 兼容多种第三方接口返回结构并提取油价数据
 const pickOilPayload = (raw) => {
   if (!raw) return null;
   if (Array.isArray(raw)) return raw[0] || null;
@@ -30,8 +33,10 @@ const pickOilPayload = (raw) => {
   return null;
 };
 
+// 获取当天日期字符串
 const getToday = () => new Date().toISOString().slice(0, 10);
 
+// 从逆地理编码结果中提取地区名称
 const getRegionFromReverseGeo = (payload) => {
   const candidates = [
     payload?.principalSubdivision,
@@ -62,6 +67,7 @@ export const useFuelPriceStore = defineStore('fuelPrice', () => {
     return Number.isFinite(value) ? value : null;
   });
 
+  // 持久化油价与定位相关状态
   const persist = () => {
     if (typeof window === 'undefined') return;
     const snapshot = {
@@ -76,6 +82,7 @@ export const useFuelPriceStore = defineStore('fuelPrice', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
   };
 
+  // 从本地恢复油价与定位状态
   const hydrate = () => {
     if (typeof window === 'undefined') return;
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -94,12 +101,14 @@ export const useFuelPriceStore = defineStore('fuelPrice', () => {
     }
   };
 
+  // 设置地区名称并标记为手动来源
   const setRegionName = (value) => {
     regionName.value = normalizeRegionName(value) || regionName.value;
     locationSource.value = 'manual';
     persist();
   };
 
+  // 设置当前油品类型
   const setFuelType = (fuelType) => {
     if (!fuelFieldMap[fuelType]) return;
     selectedFuelType.value = fuelType;
@@ -108,6 +117,7 @@ export const useFuelPriceStore = defineStore('fuelPrice', () => {
 
   const needFetchToday = computed(() => lastOilFetchDate.value !== getToday());
 
+  // 优先使用浏览器定位识别地区
   const detectRegionByGeolocation = async () => {
     if (!navigator.geolocation) throw new Error('当前浏览器不支持定位');
     const position = await new Promise((resolve, reject) => {
@@ -139,6 +149,7 @@ export const useFuelPriceStore = defineStore('fuelPrice', () => {
     return detected;
   };
 
+  // 浏览器定位失败时回退为IP定位
   const detectRegionByIP = async () => {
     const res = await axios.get('https://ipapi.co/json/');
     const detected = normalizeRegionName(res.data?.region || res.data?.region_name || '');
@@ -149,6 +160,7 @@ export const useFuelPriceStore = defineStore('fuelPrice', () => {
     return detected;
   };
 
+  // 自动识别地区（GPS优先，IP兜底）
   const detectRegion = async () => {
     loadingLocation.value = true;
     lastError.value = '';
@@ -166,6 +178,7 @@ export const useFuelPriceStore = defineStore('fuelPrice', () => {
     }
   };
 
+  // 拉取并缓存指定地区当日油价
   const fetchOilPrice = async ({ force = false, customRegionName = '' } = {}) => {
     const targetRegion = normalizeRegionName(customRegionName) || regionName.value;
     if (!targetRegion) {
@@ -203,6 +216,7 @@ export const useFuelPriceStore = defineStore('fuelPrice', () => {
     }
   };
 
+  // 页面启动时初始化地区与当日油价
   const initializeDailyOilPrice = async () => {
     hydrate();
     await detectRegion();

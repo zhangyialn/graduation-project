@@ -1,3 +1,4 @@
+<!-- Reports：报表可视化页面，展示趋势、费用与工作量 -->
 <template>
   <div class="page">
     <div class="header-row">
@@ -78,8 +79,10 @@ let monthlyStatsChart = null;
 let driverWorkloadChart = null;
 let userStatsChart = null;
 
+// 金额格式化为人民币文本
 const currency = (value) => `¥${Number(value || 0).toFixed(2)}`;
 
+// 并行拉取所有报表数据并触发图表渲染
 const fetchAll = async () => {
   try {
     loading.value = true;
@@ -107,12 +110,14 @@ const fetchAll = async () => {
   }
 };
 
+// 获取或初始化ECharts实例
 const ensureChart = (chartRef, chart) => {
   if (!chartRef.value) return chart;
   if (!chart) return echarts.init(chartRef.value);
   return chart;
 };
 
+// 渲染部门用车频率图
 const renderDepartmentUsageChart = () => {
   departmentUsageChart = ensureChart(departmentUsageChartRef, departmentUsageChart);
   if (!departmentUsageChart) return;
@@ -127,6 +132,7 @@ const renderDepartmentUsageChart = () => {
   });
 };
 
+// 渲染部门费用堆叠柱状图
 const renderDepartmentExpensesChart = () => {
   departmentExpensesChart = ensureChart(departmentExpensesChartRef, departmentExpensesChart);
   if (!departmentExpensesChart) return;
@@ -148,6 +154,7 @@ const renderDepartmentExpensesChart = () => {
   });
 };
 
+// 渲染车辆使用次数与费用图
 const renderVehicleUsageChart = () => {
   vehicleUsageChart = ensureChart(vehicleUsageChartRef, vehicleUsageChart);
   if (!vehicleUsageChart) return;
@@ -167,6 +174,7 @@ const renderVehicleUsageChart = () => {
   });
 };
 
+// 渲染月度申请与费用趋势图
 const renderMonthlyStatsChart = () => {
   monthlyStatsChart = ensureChart(monthlyStatsChartRef, monthlyStatsChart);
   if (!monthlyStatsChart) return;
@@ -186,6 +194,7 @@ const renderMonthlyStatsChart = () => {
   });
 };
 
+// 渲染司机工作量图
 const renderDriverWorkloadChart = () => {
   driverWorkloadChart = ensureChart(driverWorkloadChartRef, driverWorkloadChart);
   if (!driverWorkloadChart) return;
@@ -205,6 +214,7 @@ const renderDriverWorkloadChart = () => {
   });
 };
 
+// 渲染用户申请与费用散点图
 const renderUserStatsChart = () => {
   userStatsChart = ensureChart(userStatsChartRef, userStatsChart);
   if (!userStatsChart) return;
@@ -232,6 +242,7 @@ const renderUserStatsChart = () => {
   });
 };
 
+// 按当前折叠面板状态渲染图表
 const renderAllCharts = () => {
   renderMonthlyStatsChart();
   renderDepartmentExpensesChart();
@@ -243,6 +254,7 @@ const renderAllCharts = () => {
   }
 };
 
+// 窗口尺寸变化时重绘图表尺寸
 const handleResize = () => {
   departmentUsageChart?.resize();
   departmentExpensesChart?.resize();

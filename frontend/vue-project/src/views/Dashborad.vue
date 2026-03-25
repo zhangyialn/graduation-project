@@ -1,3 +1,4 @@
+<!-- Dashborad：按角色展示导航、首页卡片与功能入口 -->
 <template>
   <el-container class="dashboard-container">
     <el-aside v-if="!isMobile" width="250px" class="sidebar">
@@ -43,9 +44,13 @@
           <template #icon><el-icon><DataAnalysis /></el-icon></template>
           <span>调度管理</span>
         </el-menu-item>
-        <el-menu-item index="/dashboard/users/import" v-if="isApprover || isAdmin">
+        <el-menu-item index="/dashboard/users/import" v-if="isAdmin">
           <template #icon><el-icon><Upload /></el-icon></template>
-          <span>批量导入</span>
+          <span>导入中心</span>
+        </el-menu-item>
+        <el-menu-item index="/dashboard/admins" v-if="isAdmin">
+          <template #icon><el-icon><User /></el-icon></template>
+          <span>管理员管理</span>
         </el-menu-item>
         <el-menu-item index="/dashboard/reports" v-if="isApprover || isAdmin">
           <template #icon><el-icon><TrendCharts /></el-icon></template>
@@ -239,7 +244,7 @@ const isMobile = computed(() => screenWidth.value < 900);
 const activeMenu = computed(() => route.path);
 const role = computed(() => user.value?.role || 'user');
 const isDriver = computed(() => role.value === 'driver');
-const isApprover = computed(() => role.value === 'leader' || role.value === 'approver');
+const isApprover = computed(() => role.value === 'approver');
 const isAdmin = computed(() => role.value === 'admin');
 
 const breadcrumb = computed(() => {
@@ -251,7 +256,8 @@ const breadcrumb = computed(() => {
     '/dashboard/approvals': '审批管理',
     '/dashboard/vehicles': '车辆管理',
     '/dashboard/dispatches': '调度管理',
-    '/dashboard/users/import': '批量导入',
+    '/dashboard/users/import': '导入功能',
+    '/dashboard/admins': '管理员管理',
     '/dashboard/reports': '报表可视化',
     '/dashboard/fuel-prices': '油价管理',
     '/dashboard/approver-records': '审批记录'
@@ -261,7 +267,7 @@ const breadcrumb = computed(() => {
 
 const subtitle = computed(() => {
   if (isDriver.value) return '司机工作台，查看接驾信息与结束行程';
-  if (isApprover.value) return '审批员工作台，查看审批与导入用户';
+  if (isApprover.value) return '审批员工作台，专注审批与记录';
   if (isAdmin.value) return '管理员工作台，管理车辆与调度';
   return '快速提交用车申请，查看审批状态';
 });
@@ -295,8 +301,7 @@ const quickActions = computed(() => {
   ];
 
   const approverExtra = [
-    { label: '审批管理', desc: '处理待审批的用车申请', path: '/dashboard/approvals' },
-    { label: '批量导入用户', desc: '支持Excel导入普通用户', path: '/dashboard/users/import' }
+    { label: '审批管理', desc: '处理待审批的用车申请', path: '/dashboard/approvals' }
   ];
 
   const driverExtra = [
@@ -304,6 +309,8 @@ const quickActions = computed(() => {
   ];
 
   const adminExtra = [
+    { label: '导入功能', desc: '单个或批量导入普通用户/审批员', path: '/dashboard/users/import' },
+    { label: '管理员管理', desc: '单个新增管理员（需密码确认）', path: '/dashboard/admins' },
     { label: '车辆管理', desc: '维护车辆档案与状态', path: '/dashboard/vehicles' },
     { label: '调度管理', desc: '安排调度与司机', path: '/dashboard/dispatches' },
     { label: '报表可视化', desc: '查看使用率与费用趋势', path: '/dashboard/reports' },
@@ -311,7 +318,7 @@ const quickActions = computed(() => {
     { label: '审批记录', desc: '查看审批员/用户的审批记录', path: '/dashboard/approver-records' }
   ];
 
-  if (isAdmin.value) return [...approverExtra, ...adminExtra, ...base];
+  if (isAdmin.value) return [...adminExtra, ...approverExtra, ...base];
   if (isDriver.value) return [...driverExtra, ...base];
   if (isApprover.value) return [...approverExtra, ...base];
   return base;
@@ -350,7 +357,6 @@ const menuGroups = computed(() => {
       title: '审批',
       items: [
         { label: '审批管理', path: '/dashboard/approvals', icon: Check },
-        { label: '批量导入', path: '/dashboard/users/import', icon: Upload },
         { label: '报表可视化', path: '/dashboard/reports', icon: TrendCharts },
         { label: '审批记录', path: '/dashboard/approver-records', icon: Collection }
       ]
@@ -368,6 +374,14 @@ const menuGroups = computed(() => {
 
   if (isAdmin.value) {
     groups.push({
+      title: '用户与资源',
+      items: [
+        { label: '导入中心', path: '/dashboard/users/import', icon: Upload },
+        { label: '管理员管理', path: '/dashboard/admins', icon: User }
+      ]
+    });
+
+    groups.push({
       title: '调度与车辆',
       items: [
         { label: '车辆管理', path: '/dashboard/vehicles', icon: Van },
@@ -380,16 +394,19 @@ const menuGroups = computed(() => {
   return groups;
 });
 
+// 从本地会话恢复当前用户信息
 const loadUser = () => {
   authStore.hydrate();
   user.value = authStore.user || null;
 };
 
+// 清理登录态并跳转登录页
 const logout = () => {
   authStore.clearSession();
   handleNav('/login');
 };
 
+// 统一处理导航与首页/子页状态切换
 const handleNav = (path) => {
   featureDrawer.value = false;
   if (!path) return;
@@ -397,13 +414,15 @@ const handleNav = (path) => {
   currentStep.value = (path === '/dashboard' || path === '/dashboard/home') ? 'home' : 'child';
 };
 
+// 手动刷新用户资料
 const refreshUser = () => loadUser();
 
+// 开发环境下快速切换演示角色
 const switchRole = (roleKey) => {
   const templates = {
     user: { id: 1, username: 'user-demo', role: 'user' },
     driver: { id: 4, username: 'driver-demo', role: 'driver' },
-    approver: { id: 2, username: 'approver-demo', role: 'leader' },
+    approver: { id: 2, username: 'approver-demo', role: 'approver' },
     admin: { id: 3, username: 'admin-demo', role: 'admin' }
   };
   const payload = templates[roleKey];
@@ -412,6 +431,7 @@ const switchRole = (roleKey) => {
   loadUser();
 };
 
+// 更新屏幕宽度用于移动端判断
 const updateWidth = () => {
   screenWidth.value = window.innerWidth;
 };

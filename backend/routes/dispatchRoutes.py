@@ -1,3 +1,5 @@
+"""调度相关路由定义。"""
+
 # 调度相关路由
 from flask import Blueprint
 from controllers.dispatchController import get_dispatches, get_dispatch, create_dispatch, start_dispatch, cancel_dispatch, get_pending_dispatches, recommend_dispatch

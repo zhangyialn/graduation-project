@@ -1,19 +1,24 @@
+"""司机工作台控制器。"""
+
 # 司机主面板控制器
 from flask import request, jsonify
 from flask_jwt_extended import get_jwt_identity
 from models.index import db, Driver, Dispatch, Trip, Vehicle, CarApplication, User
 
 
+# 兼容 Enum/字符串状态读取
 def _enum_value(value):
     return value.value if hasattr(value, 'value') else value
 
 
+# 获取当前登录账号绑定的司机档案
 def _get_current_driver():
     current_user_id = get_jwt_identity()
     return Driver.query.filter_by(user_id=current_user_id, is_deleted=False).first(), current_user_id
 
 
 # 司机主面板数据
+# 司机首页数据：司机/车辆信息 + 当前任务列表
 def get_my_dashboard():
     try:
         driver, _current_user_id = _get_current_driver()
@@ -68,6 +73,7 @@ def get_my_dashboard():
 
 
 # 司机更新个人状态
+# 司机更新个人状态
 def update_my_status():
     try:
         driver, _current_user_id = _get_current_driver()
@@ -96,6 +102,7 @@ def update_my_status():
 
 
 # 司机更新车辆状态
+# 司机更新所绑定车辆状态
 def update_my_vehicle_status():
     try:
         driver, _current_user_id = _get_current_driver()
@@ -128,6 +135,7 @@ def update_my_vehicle_status():
 
 
 # 司机更换绑定车辆（通过车牌号）
+# 司机按车牌号更换绑定车辆
 def bind_vehicle_by_plate():
     try:
         driver, _current_user_id = _get_current_driver()

@@ -1,3 +1,5 @@
+"""路由蓝图统一导出入口。"""
+
 # routes 包初始化
 from .userRoutes import userBlueprint
 from .vehicleRoutes import vehicleBlueprint

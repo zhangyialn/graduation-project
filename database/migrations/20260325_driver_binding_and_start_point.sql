@@ -1,9 +1,9 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
--- 1) 扩展 users.role，增加 driver
+-- 1) 规范 users.role：仅保留 user/driver/approver/admin
 ALTER TABLE users
-  MODIFY COLUMN role ENUM('user','driver','approver','dispatcher','leader','admin')
+  MODIFY COLUMN role ENUM('user','driver','approver','admin')
   NOT NULL DEFAULT 'user';
 
 -- 2) 扩展 drivers 表：绑定 user 和 vehicle，并统一状态

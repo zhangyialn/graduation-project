@@ -1,3 +1,5 @@
+"""用车申请相关路由定义。"""
+
 # 用车申请相关路由
 from flask import Blueprint
 from controllers.applicationController import get_applications, get_application, create_application, update_application, cancel_application, get_my_applications, get_pending_applications, normalize_address

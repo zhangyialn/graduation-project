@@ -1,3 +1,5 @@
+"""车辆与司机管理控制器。"""
+
 # 车辆管理控制器
 from flask import request, jsonify
 from flask_jwt_extended import get_jwt_identity
@@ -7,10 +9,12 @@ from models.index import db, Vehicle, Driver, User, RoleEnum, CarApplication
 LOCKED_APPLICATION_STATUSES = ['pending', 'approved', 'dispatched']
 
 
+# 兼容 Enum/字符串状态读取
 def _enum_value(value):
     return value.value if hasattr(value, 'value') else value
 
 
+# 判断司机是否被进行中的申请占用
 def _driver_is_locked(driver_id, exclude_application_id=None):
     query = CarApplication.query.filter(
         CarApplication.driver_id == driver_id,
@@ -22,6 +26,7 @@ def _driver_is_locked(driver_id, exclude_application_id=None):
 
 
 # 获取所有车辆
+# 查询车辆列表（过滤软删除）
 def get_vehicles():
     try:
         vehicles = Vehicle.query.filter_by(is_deleted=False).all()
@@ -31,6 +36,7 @@ def get_vehicles():
 
 
 # 获取单个车辆
+# 查询单辆车详情
 def get_vehicle(id):
     try:
         vehicle = Vehicle.query.get(id)
@@ -41,6 +47,7 @@ def get_vehicle(id):
         return jsonify({'success': False, 'message': str(e)})
 
 
+# 创建车辆
 # 创建车辆
 def create_vehicle():
     try:
@@ -66,6 +73,7 @@ def create_vehicle():
 
 
 # 更新车辆
+# 更新车辆信息
 def update_vehicle(id):
     try:
         vehicle = Vehicle.query.get(id)
@@ -92,6 +100,7 @@ def update_vehicle(id):
 
 
 # 删除车辆
+# 软删除车辆（已绑定司机时不允许删除）
 def delete_vehicle(id):
     try:
         vehicle = Vehicle.query.get(id)
@@ -112,6 +121,7 @@ def delete_vehicle(id):
 
 
 # 获取可用车辆列表
+# 查询可用车辆
 def get_available_vehicles():
     try:
         vehicles = Vehicle.query.filter_by(status='available', is_deleted=False).all()
@@ -122,6 +132,7 @@ def get_available_vehicles():
 
 # ==================== 司机管理接口 ====================
 
+# 司机视图组装：附带用户信息、车辆信息、占用状态
 def _driver_to_dict(driver):
     payload = driver.to_dict()
     vehicle = Vehicle.query.get(driver.vehicle_id) if driver.vehicle_id else None
@@ -135,6 +146,7 @@ def _driver_to_dict(driver):
 
 
 # 获取所有司机
+# 查询司机列表
 def get_drivers():
     try:
         drivers = Driver.query.filter_by(is_deleted=False).all()
@@ -144,6 +156,7 @@ def get_drivers():
 
 
 # 创建司机
+# 创建司机档案并绑定用户/车辆
 def create_driver():
     try:
         data = request.json
@@ -189,6 +202,7 @@ def create_driver():
 
 
 # 更新司机
+# 更新司机档案
 def update_driver(id):
     try:
         driver = Driver.query.get(id)
@@ -241,6 +255,7 @@ def update_driver(id):
 
 
 # 删除司机
+# 软删除司机（存在进行中申请时不允许）
 def delete_driver(id):
     try:
         driver = Driver.query.get(id)
@@ -261,6 +276,7 @@ def delete_driver(id):
 
 
 # 获取可用司机列表
+# 查询可分配司机（司机可用 + 车辆可用 + 无进行中申请）
 def get_available_drivers():
     try:
         drivers = Driver.query.filter_by(status='available', is_deleted=False).all()

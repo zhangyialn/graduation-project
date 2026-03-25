@@ -1,3 +1,4 @@
+<!-- FuelPrices：按地区获取并展示当日油价 -->
 <template>
   <div class="page">
     <div class="header-row">
@@ -56,8 +57,10 @@ const prices = ref([]);
 const error = ref('');
 const success = ref('');
 const fuelStore = useFuelPriceStore();
+// 生成当天日期（YYYY-MM-DD）
 const today = () => new Date().toISOString().slice(0, 10);
 
+// 设置错误提示并清空成功提示
 const setError = (message) => {
   error.value = message || '';
   if (message) {
@@ -65,6 +68,7 @@ const setError = (message) => {
   }
 };
 
+// 设置成功提示并清空错误提示
 const setSuccess = (message) => {
   success.value = message || '';
   if (message) {
@@ -95,6 +99,7 @@ const form = ref({
   effective_date: today()
 });
 
+// 获取后端已保存的油价记录
 const fetchPrices = async () => {
   try {
     const res = await axios.get('/api/trips/fuel-prices');
@@ -104,6 +109,7 @@ const fetchPrices = async () => {
   }
 };
 
+// 将Store中的当前油价同步到表单
 const syncPriceFromStore = () => {
   if (fuelStore.currentFuelPrice !== null && fuelStore.currentFuelPrice !== undefined) {
     form.value.price = fuelStore.currentFuelPrice;
@@ -111,6 +117,7 @@ const syncPriceFromStore = () => {
   form.value.effective_date = today();
 };
 
+// 按当前地区与油品拉取当日油价
 const fetchDailyOilPrice = async ({ force = false } = {}) => {
   try {
     setError('');
@@ -131,6 +138,7 @@ const fetchDailyOilPrice = async ({ force = false } = {}) => {
   }
 };
 
+// 重新定位地区后强制刷新油价
 const refreshByLocation = async () => {
   try {
     setError('');

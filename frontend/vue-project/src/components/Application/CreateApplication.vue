@@ -1,3 +1,4 @@
+<!-- 用车申请创建页：支持定位起点、地址标准化、司机选择与提交 -->
 <template>
   <el-card class="application-card" shadow="hover">
     <template #header>
@@ -92,6 +93,7 @@ const normalizingStartPoint = ref(false);
 const normalizingDestination = ref(false);
 const applicationForm = ref(null);
 
+// 设置错误消息（并清空成功消息）
 const setError = (message) => {
   error.value = message || '';
   if (message) {
@@ -99,6 +101,7 @@ const setError = (message) => {
   }
 };
 
+// 设置成功消息（并清空错误消息）
 const setSuccess = (message) => {
   success.value = message || '';
   if (message) {
@@ -106,17 +109,20 @@ const setSuccess = (message) => {
   }
 };
 
+// 拉取当前可分配司机列表
 const fetchAvailableDrivers = async () => {
   const response = await axios.get('/api/vehicles/drivers/available');
   availableDrivers.value = response.data?.data || [];
 };
 
+// 统一坐标精度，避免提交过长小数
 const formatCoordinate = (value) => {
   const number = Number(value);
   if (!Number.isFinite(number)) return '';
   return number.toFixed(6);
 };
 
+// 将逆地理结果拼装为更符合中文阅读习惯的地址文本
 const buildAddressText = (address = {}) => {
   const province = address.state || address.province || '';
   const city = address.city || address.town || address.county || address.state_district || '';
@@ -128,6 +134,7 @@ const buildAddressText = (address = {}) => {
   return parts.join('');
 };
 
+// 调用地理服务把经纬度转换为地址
 const reverseGeocode = async (lat, lng) => {
   const query = new URLSearchParams({
     format: 'jsonv2',
@@ -147,6 +154,7 @@ const reverseGeocode = async (lat, lng) => {
   return result.display_name || '';
 };
 
+// 获取浏览器定位结果
 const getCurrentPosition = () => new Promise((resolve, reject) => {
   if (!navigator.geolocation) {
     reject(new Error('当前浏览器不支持定位'));
@@ -163,6 +171,7 @@ const getCurrentPosition = () => new Promise((resolve, reject) => {
   );
 });
 
+// 用定位结果自动回填起点；解析地址失败时降级为坐标描述
 const fillStartPointByLocation = async () => {
   try {
     locating.value = true;
@@ -192,6 +201,7 @@ const fillStartPointByLocation = async () => {
   }
 };
 
+// 调用后端地址标准化接口，提升审批与调度的一致性
 const normalizeAddressField = async (fieldName) => {
   const value = (form[fieldName] || '').trim();
   if (!value) {
@@ -217,6 +227,7 @@ const normalizeAddressField = async (fieldName) => {
   }
 };
 
+// 校验并提交申请：提交前尝试标准化起点和目的地
 const handleSubmit = async () => {
   try {
     await applicationForm.value.validate();
@@ -259,6 +270,7 @@ const handleSubmit = async () => {
   }
 };
 
+// 重置表单输入
 const resetForm = () => {
   applicationForm.value.resetFields();
 };

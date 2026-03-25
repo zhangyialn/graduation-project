@@ -1,3 +1,5 @@
+"""统计报表控制器。"""
+
 # 报表统计控制器
 from flask import request, jsonify
 from sqlalchemy import func, extract, case
@@ -5,6 +7,7 @@ from models.index import db, CarApplication, Expense, Trip, Dispatch, Vehicle, D
 
 
 # 部门用车频率统计
+# 按部门统计用车频率与累计用车天数
 def get_department_usage():
     try:
         stats = db.session.query(
@@ -31,6 +34,7 @@ def get_department_usage():
 
 
 # 部门费用统计
+# 按部门统计费用构成（油费/维护费/其他费）
 def get_department_expenses():
     try:
         start_date = request.args.get('start_date')
@@ -73,6 +77,7 @@ def get_department_expenses():
 
 
 # 车辆使用与费用统计
+# 按车辆统计使用次数、里程与费用
 def get_vehicle_usage():
     try:
         stats = db.session.query(
@@ -106,6 +111,7 @@ def get_vehicle_usage():
 
 
 # 月度用车统计
+# 月度统计：申请量与总费用
 def get_monthly_stats():
     try:
         year = request.args.get('year')
@@ -144,6 +150,7 @@ def get_monthly_stats():
 
 
 # 司机工作量统计
+# 司机工作量统计：行程数与里程
 def get_driver_workload():
     try:
         stats = db.session.query(
@@ -172,6 +179,7 @@ def get_driver_workload():
 
 
 # 用户申请次数/用车次数/总费用统计（可视化）
+# 用户用车画像：申请次数、实际用车次数、总费用
 def get_user_application_stats():
     try:
         stats = db.session.query(

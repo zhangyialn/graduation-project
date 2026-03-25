@@ -1,3 +1,5 @@
+"""审批流程控制器。"""
+
 # 审批记录控制器
 from flask import request, jsonify
 from models.index import db, Approval, User, CarApplication
@@ -5,12 +7,14 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
 
+# 兼容 Enum/字符串状态读取
 def _enum_value(value):
     return value.value if hasattr(value, 'value') else value
 
 
 # 获取所有审批记录
 
+# 查询审批记录列表（可按状态筛选）
 def get_approvals():
     try:
         # 支持按状态筛选
@@ -25,6 +29,7 @@ def get_approvals():
 
 
 # 获取单个审批记录
+# 查询单条审批记录
 def get_approval(id):
     try:
         approval = Approval.query.get(id)
@@ -36,6 +41,7 @@ def get_approval(id):
 
 
 # 获取某申请的所有审批记录
+# 查询某个申请对应的全部审批记录
 def get_application_approvals(application_id):
     try:
         approvals = Approval.query.filter_by(application_id=application_id).all()
@@ -45,6 +51,7 @@ def get_application_approvals(application_id):
 
 
 # 获取某审批人的所有审批记录
+# 查询某个审批人的审批记录
 def get_approver_approvals(approver_id):
     try:
         approvals = Approval.query.filter_by(approver_id=approver_id).all()
@@ -54,6 +61,7 @@ def get_approver_approvals(approver_id):
 
 
 # 获取审批统计（按审批人统计）
+# 审批统计：按审批人汇总总数/通过数/驳回数
 def get_approval_statistics():
     try:
         from sqlalchemy import func
@@ -82,6 +90,7 @@ def get_approval_statistics():
 
 
 # 提交审批结果（同意/驳回）
+# 提交审批结果并同步更新申请状态
 def submit_approval(application_id):
     try:
         data = request.json or {}

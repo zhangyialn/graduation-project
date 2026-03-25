@@ -1,3 +1,5 @@
+"""数据库模型与业务枚举定义。"""
+
 # 定义数据库模型
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
@@ -8,16 +10,16 @@ db = SQLAlchemy()
 
 
 # 定义角色枚举
+# 系统用户角色枚举
 class RoleEnum(enum.Enum):
     user = 'user'
     driver = 'driver'
     approver = 'approver'
-    dispatcher = 'dispatcher'
-    leader = 'leader'
     admin = 'admin'
 
 
 # 定义车辆状态枚举
+# 车辆状态枚举
 class VehicleStatusEnum(enum.Enum):
     available = 'available'
     in_use = 'in_use'
@@ -26,6 +28,7 @@ class VehicleStatusEnum(enum.Enum):
 
 
 # 定义司机状态枚举
+# 司机状态枚举
 class DriverStatusEnum(enum.Enum):
     available = 'available'
     busy = 'busy'
@@ -33,6 +36,7 @@ class DriverStatusEnum(enum.Enum):
 
 
 # 定义申请状态枚举
+# 用车申请状态枚举
 class ApplicationStatusEnum(enum.Enum):
     pending = 'pending'
     approved = 'approved'
@@ -43,12 +47,14 @@ class ApplicationStatusEnum(enum.Enum):
 
 
 # 定义审批结果枚举
+# 审批结果状态枚举
 class ApprovalStatusEnum(enum.Enum):
     approved = 'approved'
     rejected = 'rejected'
 
 
 # 定义调度状态枚举
+# 调度状态枚举
 class DispatchStatusEnum(enum.Enum):
     scheduled = 'scheduled'
     in_progress = 'in_progress'
@@ -57,12 +63,14 @@ class DispatchStatusEnum(enum.Enum):
 
 
 # 定义出车状态枚举
+# 行程状态枚举
 class TripStatusEnum(enum.Enum):
     started = 'started'
     completed = 'completed'
 
 
 # 用户导入批次表模型（Excel导入）
+# 用户导入批次模型（记录一次 Excel 导入过程）
 class UserImportBatch(db.Model):
     __tablename__ = 'user_import_batches'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -74,6 +82,7 @@ class UserImportBatch(db.Model):
     remark = db.Column(db.String(500), nullable=True)
     created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
 
+    # 转换为前端可直接消费的字典结构
     def to_dict(self):
         return {
             'id': self.id,
@@ -88,6 +97,7 @@ class UserImportBatch(db.Model):
 
 
 # 用户表模型
+# 用户模型
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -99,6 +109,7 @@ class User(db.Model):
     department_id = db.Column(db.Integer, nullable=True)
     role = db.Column(db.Enum(RoleEnum), nullable=False, default=RoleEnum.user)
     import_batch_id = db.Column(db.Integer, nullable=True)
+    must_change_password = db.Column(db.Boolean, nullable=False, default=False)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     is_deleted = db.Column(db.Boolean, nullable=False, default=False)
     created_by = db.Column(db.Integer, nullable=True)
@@ -108,6 +119,7 @@ class User(db.Model):
     created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
     updated_at = db.Column(db.TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # 转换为前端可直接消费的字典结构
     def to_dict(self):
         return {
             'id': self.id,
@@ -118,6 +130,7 @@ class User(db.Model):
             'department_id': self.department_id,
             'role': self.role.value if self.role else None,
             'import_batch_id': self.import_batch_id,
+            'must_change_password': self.must_change_password,
             'is_active': self.is_active,
             'is_deleted': self.is_deleted,
             'created_by': self.created_by,
@@ -130,6 +143,7 @@ class User(db.Model):
 
 
 # 部门表模型
+# 部门模型
 class Department(db.Model):
     __tablename__ = 'departments'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -138,6 +152,7 @@ class Department(db.Model):
     created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
     updated_at = db.Column(db.TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # 转换为前端可直接消费的字典结构
     def to_dict(self):
         return {
             'id': self.id,
@@ -149,6 +164,7 @@ class Department(db.Model):
 
 
 # 车辆表模型
+# 车辆模型
 class Vehicle(db.Model):
     __tablename__ = 'vehicles'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -170,6 +186,7 @@ class Vehicle(db.Model):
     created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
     updated_at = db.Column(db.TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # 转换为前端可直接消费的字典结构
     def to_dict(self):
         return {
             'id': self.id,
@@ -194,6 +211,7 @@ class Vehicle(db.Model):
 
 
 # 司机表模型
+# 司机模型（与用户、车辆一对一绑定）
 class Driver(db.Model):
     __tablename__ = 'drivers'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -211,6 +229,7 @@ class Driver(db.Model):
     created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
     updated_at = db.Column(db.TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # 转换为前端可直接消费的字典结构
     def to_dict(self):
         return {
             'id': self.id,
@@ -231,6 +250,7 @@ class Driver(db.Model):
 
 
 # 用车申请表模型
+# 用车申请模型
 class CarApplication(db.Model):
     __tablename__ = 'car_applications'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -253,6 +273,7 @@ class CarApplication(db.Model):
     created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
     updated_at = db.Column(db.TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # 转换为前端可直接消费的字典结构
     def to_dict(self):
         return {
             'id': self.id,
@@ -278,6 +299,7 @@ class CarApplication(db.Model):
 
 
 # 审批记录表模型
+# 审批记录模型
 class Approval(db.Model):
     __tablename__ = 'approvals'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -287,6 +309,7 @@ class Approval(db.Model):
     comment = db.Column(db.String(200), nullable=True)
     approved_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
 
+    # 转换为前端可直接消费的字典结构
     def to_dict(self):
         return {
             'id': self.id,
@@ -299,6 +322,7 @@ class Approval(db.Model):
 
 
 # 调度表模型
+# 调度模型
 class Dispatch(db.Model):
     __tablename__ = 'dispatches'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -311,6 +335,7 @@ class Dispatch(db.Model):
     created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
     updated_at = db.Column(db.TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # 转换为前端可直接消费的字典结构
     def to_dict(self):
         return {
             'id': self.id,
@@ -326,6 +351,7 @@ class Dispatch(db.Model):
 
 
 # 出车记录表模型
+# 出车行程模型
 class Trip(db.Model):
     __tablename__ = 'trips'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -342,6 +368,7 @@ class Trip(db.Model):
     created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
     updated_at = db.Column(db.TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # 转换为前端可直接消费的字典结构
     def to_dict(self):
         return {
             'id': self.id,
@@ -361,6 +388,7 @@ class Trip(db.Model):
 
 
 # 费用表模型
+# 费用模型（与行程一对一）
 class Expense(db.Model):
     __tablename__ = 'expenses'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -375,6 +403,7 @@ class Expense(db.Model):
     created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
     updated_at = db.Column(db.TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # 转换为前端可直接消费的字典结构
     def to_dict(self):
         return {
             'id': self.id,
@@ -392,6 +421,7 @@ class Expense(db.Model):
 
 
 # 燃油价格表模型
+# 燃油价格模型
 class FuelPrice(db.Model):
     __tablename__ = 'fuel_prices'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -401,6 +431,7 @@ class FuelPrice(db.Model):
     source = db.Column(db.String(100), nullable=True)
     created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
 
+    # 转换为前端可直接消费的字典结构
     def to_dict(self):
         return {
             'id': self.id,

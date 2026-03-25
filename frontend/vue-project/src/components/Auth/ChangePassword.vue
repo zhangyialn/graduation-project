@@ -1,3 +1,4 @@
+<!-- 修改密码页：用于首次登录或日常改密 -->
 <template>
   <el-card class="change-password-card" shadow="hover">
     <template #header>
@@ -32,16 +33,19 @@
 import { reactive, ref } from 'vue';
 import axios from 'axios';
 import { Lock } from '@element-plus/icons-vue';
+import { useAuthStore } from '../../stores/auth';
 import { notifyError, notifySuccess } from '../../utils/notify';
 
 const loading = ref(false);
 const formRef = ref(null);
+const authStore = useAuthStore();
 const form = reactive({
   old_password: '',
   new_password: '',
   confirm_password: ''
 });
 
+// 校验“确认新密码”是否与新密码一致
 const validateConfirmPassword = (_rule, value, callback) => {
   if (!value) {
     callback(new Error('请再次输入新密码'));
@@ -63,6 +67,7 @@ const rules = reactive({
   confirm_password: [{ validator: validateConfirmPassword, trigger: 'blur' }]
 });
 
+// 提交改密请求，并同步清除 must_change_password 标记
 const handleSubmit = async () => {
   try {
     await formRef.value.validate();
@@ -73,6 +78,13 @@ const handleSubmit = async () => {
       new_password: form.new_password
     });
 
+    if (authStore.user) {
+      authStore.setUser({
+        ...authStore.user,
+        must_change_password: false
+      });
+    }
+
     notifySuccess('密码修改成功，请牢记新密码');
     handleReset();
   } catch (err) {
@@ -82,6 +94,7 @@ const handleSubmit = async () => {
   }
 };
 
+// 重置表单并清理校验状态
 const handleReset = () => {
   form.old_password = '';
   form.new_password = '';

@@ -16,7 +16,7 @@ authBlueprint.route('/register', methods=['POST'])(
 	)(register)
 )
 authBlueprint.route('/login', methods=['POST'])(
-	validate_request(required_fields=['username', 'password'])(login)
+	validate_request(required_fields=['username', 'password'], username_min_length=None)(login)
 )
 authBlueprint.route('/refresh', methods=['POST'])(jwt_required()(refresh))
 authBlueprint.route('/me', methods=['GET'])(jwt_required()(get_current_user))

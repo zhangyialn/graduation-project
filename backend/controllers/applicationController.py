@@ -137,10 +137,20 @@ def get_application(id):
 def create_application():
     try:
         data = request.json
-        required_fields = ['applicant_id', 'department_id', 'driver_id', 'start_time', 'purpose', 'destination', 'passenger_count']
+        required_fields = ['applicant_id', 'driver_id', 'start_time', 'purpose', 'destination', 'passenger_count']
         missing = [field for field in required_fields if data.get(field) in [None, '']]
         if missing:
             return jsonify({'success': False, 'message': f'缺少必填字段: {", ".join(missing)}'}), 400
+
+        applicant = User.query.filter_by(id=int(data['applicant_id']), is_deleted=False).first()
+        if not applicant:
+            return jsonify({'success': False, 'message': '申请人不存在'}), 404
+        if applicant.department_id in [None, 0]:
+            return jsonify({'success': False, 'message': '申请人未配置所属部门，无法提交申请'}), 400
+
+        request_department_id = data.get('department_id')
+        if request_department_id not in [None, ''] and int(request_department_id) != int(applicant.department_id):
+            return jsonify({'success': False, 'message': '部门必须与申请人所属部门一致'}), 400
 
         ok, message, _driver = _validate_driver_available(int(data['driver_id']))
         if not ok:
@@ -151,7 +161,7 @@ def create_application():
 
         application = CarApplication(
             applicant_id=int(data['applicant_id']),
-            department_id=int(data['department_id']) if data.get('department_id') is not None else None,
+            department_id=int(applicant.department_id),
             driver_id=int(data['driver_id']),
             start_point=data.get('start_point'),
             start_time=start_time,

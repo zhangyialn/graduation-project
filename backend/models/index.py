@@ -364,8 +364,6 @@ class Expense(db.Model):
     cost_per_km = db.Column(db.DECIMAL(10, 4), nullable=False, default=0.0000)
     fuel_price = db.Column(db.DECIMAL(10, 2), nullable=False, default=0.00)
     fuel_cost = db.Column(db.DECIMAL(10, 2), default=0.00)
-    maintenance_cost = db.Column(db.DECIMAL(10, 2), default=0.00)
-    other_cost = db.Column(db.DECIMAL(10, 2), default=0.00)
     total_cost = db.Column(db.DECIMAL(10, 2), default=0.00)
     created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
     updated_at = db.Column(db.TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -379,8 +377,6 @@ class Expense(db.Model):
             'cost_per_km': float(self.cost_per_km) if self.cost_per_km else 0.00,
             'fuel_price': float(self.fuel_price) if self.fuel_price else 0.00,
             'fuel_cost': float(self.fuel_cost) if self.fuel_cost else 0.00,
-            'maintenance_cost': float(self.maintenance_cost) if self.maintenance_cost else 0.00,
-            'other_cost': float(self.other_cost) if self.other_cost else 0.00,
             'total_cost': float(self.total_cost) if self.total_cost else 0.00,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None

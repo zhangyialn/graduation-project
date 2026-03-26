@@ -249,7 +249,7 @@ COMMIT;
 
 -- ====================
 -- 费用表（可视化统计友好）
--- 费用建议：total_cost = fuel_cost + maintenance_cost + other_cost
+-- 当前费用口径：仅统计燃油费用（total_cost = fuel_cost）
 -- fuel_cost 可由 mileage_km * cost_per_km 计算
 -- ====================
 DROP TABLE IF EXISTS `expenses`;
@@ -260,8 +260,6 @@ CREATE TABLE `expenses`  (
   `cost_per_km` decimal(10, 4) NOT NULL DEFAULT 0.0000,
   `fuel_price` decimal(10, 2) NOT NULL DEFAULT 0.00,
   `fuel_cost` decimal(10, 2) NULL DEFAULT 0.00,
-  `maintenance_cost` decimal(10, 2) NULL DEFAULT 0.00,
-  `other_cost` decimal(10, 2) NULL DEFAULT 0.00,
   `total_cost` decimal(10, 2) NULL DEFAULT 0.00,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

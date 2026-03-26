@@ -17,6 +17,15 @@ import time
 BOOTSTRAP_NONCE_USED_AT = {}
 
 
+def _normalize_identity(identity):
+    if identity is None:
+        return None
+    try:
+        return int(identity)
+    except Exception:
+        return identity
+
+
 # 统一密码校验入口：优先按哈希校验，并兼容历史明文密码
 def _verify_password(user, plain_password):
     stored_password = str(user.password or '')
@@ -176,7 +185,7 @@ def login():
 # 使用刷新令牌换取新的访问令牌
 def refresh():
     try:
-        current_user_id = get_jwt_identity()
+        current_user_id = _normalize_identity(get_jwt_identity())
         access_token = create_access_token(identity=str(current_user_id))
         
         return jsonify({
@@ -193,7 +202,7 @@ def refresh():
 # 获取当前登录用户的最新资料
 def get_current_user():
     try:
-        current_user_id = get_jwt_identity()
+        current_user_id = _normalize_identity(get_jwt_identity())
         user = User.query.get(current_user_id)
         
         if not user:
@@ -211,7 +220,7 @@ def get_current_user():
 # 已登录用户主动修改密码
 def change_password():
     try:
-        current_user_id = get_jwt_identity()
+        current_user_id = _normalize_identity(get_jwt_identity())
         user = User.query.get(current_user_id)
         
         if not user:
@@ -243,7 +252,7 @@ def change_password():
 # 账号设置：同一入口修改用户名和/或密码
 def update_account_settings():
     try:
-        current_user_id = get_jwt_identity()
+        current_user_id = _normalize_identity(get_jwt_identity())
         user = User.query.get(current_user_id)
 
         if not user:

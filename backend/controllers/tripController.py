@@ -265,14 +265,8 @@ def end_trip(id):
             fuel_cost = fuel_used * fuel_price_value if fuel_price_value > 0 else 0.0
             cost_per_km = (fuel_cost / mileage) if mileage > 0 else 0.0
 
-        # 维护费用（可由前端传入，默认 0）
-        maintenance_cost = float(data.get('maintenance_cost', 0))
-        
-        # 其他费用
-        other_cost = float(data.get('other_cost', 0))
-        
-        # 总费用
-        total_cost = fuel_cost + maintenance_cost + other_cost
+        # 总费用（当前仅统计燃油费用）
+        total_cost = fuel_cost
         trip.total_cost = total_cost
         
         # 费用记录：已存在则更新，不存在则创建
@@ -283,8 +277,6 @@ def end_trip(id):
                 mileage_km=mileage,
                 cost_per_km=cost_per_km,
                 fuel_cost=fuel_cost,
-                maintenance_cost=maintenance_cost,
-                other_cost=other_cost,
                 total_cost=total_cost,
                 fuel_price=fuel_price_value
             )
@@ -293,8 +285,6 @@ def end_trip(id):
             expense.mileage_km = mileage
             expense.cost_per_km = cost_per_km
             expense.fuel_cost = fuel_cost
-            expense.maintenance_cost = maintenance_cost
-            expense.other_cost = other_cost
             expense.total_cost = total_cost
             expense.fuel_price = fuel_price_value
         
@@ -323,18 +313,27 @@ def get_trip_expense(id):
         return jsonify({'success': False, 'message': str(e)})
 
 
-# 更新费用（用于添加过路费等其他费用）
-# 更新行程费用补充项（如维护费/其他费）
+# 更新费用（仅支持燃油相关字段）
+# 更新行程费用（燃油费用口径）
 def update_trip_expense(id):
     try:
         expense = Expense.query.filter_by(trip_id=id).first()
         if not expense:
             return jsonify({'success': False, 'message': '费用记录不存在'})
         
-        data = request.json
-        expense.other_cost = data.get('other_cost', expense.other_cost)
-        expense.maintenance_cost = data.get('maintenance_cost', expense.maintenance_cost)
-        expense.total_cost = float(expense.fuel_cost) + float(expense.maintenance_cost) + float(expense.other_cost)
+        data = request.json or {}
+        if data.get('fuel_cost') is not None:
+            expense.fuel_cost = float(data.get('fuel_cost'))
+        if data.get('fuel_price') is not None:
+            expense.fuel_price = float(data.get('fuel_price'))
+        if data.get('mileage_km') is not None:
+            expense.mileage_km = float(data.get('mileage_km'))
+        if data.get('cost_per_km') is not None:
+            expense.cost_per_km = float(data.get('cost_per_km'))
+        expense.total_cost = float(expense.fuel_cost or 0)
+        trip = Trip.query.get(id)
+        if trip:
+            trip.total_cost = expense.total_cost
         
         db.session.commit()
         return jsonify({'success': True, 'data': expense.to_dict()})

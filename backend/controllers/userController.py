@@ -66,6 +66,25 @@ def _validate_driver_binding(vehicle_id, current_user_id=None):
     return True, ''
 
 
+def _normalize_department_id(raw_value):
+    if raw_value in [None, '']:
+        return None
+    try:
+        return int(raw_value)
+    except Exception:
+        return None
+
+
+def _validate_department(department_id):
+    normalized_id = _normalize_department_id(department_id)
+    if not normalized_id:
+        return None, '部门为必填项'
+    department = Department.query.get(normalized_id)
+    if not department:
+        return None, '部门不存在，请先创建部门'
+    return department, ''
+
+
 # 校验操作人密码（兼容历史明文）
 def _verify_password(stored_password, plain_password):
     try:
@@ -113,6 +132,10 @@ def create_user():
         if role_enum is None:
             return jsonify({'success': False, 'message': '导入功能仅支持创建普通用户(user)、审批员(approver)或司机(driver)'}), 400
 
+        department, department_error = _validate_department(data.get('department_id'))
+        if department_error:
+            return jsonify({'success': False, 'message': department_error}), 400
+
         input_username = (data.get('username') or '').strip()
         default_base = name
         username = input_username or _build_username(default_base)
@@ -139,7 +162,7 @@ def create_user():
             name=name,
             email=email,
             phone=phone,
-            department_id=data.get('department_id'),
+            department_id=department.id,
             role=role_enum,
             vehicle_id=int(vehicle_id) if vehicle_id not in [None, ''] else None,
             driver_status='available',
@@ -166,6 +189,14 @@ def update_user(id):
         data = request.json
         next_role = _safe_role(data.get('role', user.role))
         next_vehicle_id = data.get('vehicle_id', user.vehicle_id)
+
+        next_department_id = data.get('department_id', user.department_id)
+        if next_role in [RoleEnum.user, RoleEnum.approver, RoleEnum.driver]:
+            department, department_error = _validate_department(next_department_id)
+            if department_error:
+                return jsonify({'success': False, 'message': department_error}), 400
+            next_department_id = department.id
+
         if next_role == RoleEnum.driver:
             ok, message = _validate_driver_binding(next_vehicle_id, current_user_id=id)
             if not ok:
@@ -174,7 +205,7 @@ def update_user(id):
         user.name = data.get('name', user.name)
         user.email = data.get('email', user.email)
         user.phone = data.get('phone', user.phone)
-        user.department_id = data.get('department_id', user.department_id)
+        user.department_id = next_department_id
         user.role = next_role
         user.vehicle_id = int(next_vehicle_id) if next_vehicle_id not in [None, ''] else None
         user.license_number = data.get('license_number', user.license_number)
@@ -227,9 +258,9 @@ def import_users_excel():
             return jsonify({'success': False, 'message': '仅支持 .xlsx/.xls 文件'}), 400
 
         df = pd.read_excel(file)
-        required_columns = {'name', 'phone'}
+        required_columns = {'name', 'phone', 'department_id', 'department_name'}
         if not required_columns.issubset(set(df.columns)):
-            return jsonify({'success': False, 'message': 'Excel列必须包含: name, phone'}), 400
+            return jsonify({'success': False, 'message': 'Excel列必须包含: name, phone, department_id, department_name'}), 400
 
         current_user_id = get_jwt_identity()
         batch = UserImportBatch(
@@ -274,8 +305,36 @@ def import_users_excel():
             username = input_username or _build_username(default_username_base)
             if User.query.filter_by(username=username).first():
                 username = _build_username(default_username_base)
-            department_raw = row.get('department_id', None)
-            department_id = None if pd.isna(department_raw) else int(department_raw)
+            department_id_raw = row.get('department_id', None)
+            department_name_raw = row.get('department_name', None)
+            if pd.isna(department_id_raw) or pd.isna(department_name_raw):
+                failed_rows += 1
+                failure_messages.append(f'第{index + 2}行：department_id 和 department_name 为必填')
+                continue
+
+            try:
+                department_id = int(department_id_raw)
+            except Exception:
+                failed_rows += 1
+                failure_messages.append(f'第{index + 2}行：department_id 必须为整数')
+                continue
+
+            department_name = str(department_name_raw).strip()
+            if not department_name:
+                failed_rows += 1
+                failure_messages.append(f'第{index + 2}行：department_name 不能为空')
+                continue
+
+            department = Department.query.get(department_id)
+            if not department:
+                failed_rows += 1
+                failure_messages.append(f'第{index + 2}行：部门ID不存在，请先创建部门')
+                continue
+
+            if str(department.name).strip() != department_name:
+                failed_rows += 1
+                failure_messages.append(f'第{index + 2}行：department_id 与 department_name 不匹配')
+                continue
 
             vehicle_raw = row.get('vehicle_id', None)
             vehicle_id = None if pd.isna(vehicle_raw) else int(vehicle_raw)
@@ -338,7 +397,19 @@ def import_users_excel():
 def get_departments():
     try:
         departments = Department.query.all()
-        return jsonify({'success': True, 'data': [dept.to_dict() for dept in departments]})
+        leader_ids = [dept.leader_id for dept in departments if dept.leader_id]
+        leaders = User.query.filter(User.id.in_(leader_ids)).all() if leader_ids else []
+        leader_map = {item.id: item for item in leaders}
+
+        result = []
+        for dept in departments:
+            payload = dept.to_dict()
+            leader = leader_map.get(dept.leader_id)
+            payload['leader_name'] = leader.name if leader else None
+            payload['leader_label'] = f"{leader.name}({leader.id})" if leader else None
+            result.append(payload)
+
+        return jsonify({'success': True, 'data': result})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -346,14 +417,63 @@ def get_departments():
 # 创建部门
 def create_department():
     try:
-        data = request.json
+        data = request.json or {}
+        name = str(data.get('name') or '').strip()
+        if not name:
+            return jsonify({'success': False, 'message': '部门名称不能为空'}), 400
+
+        if Department.query.filter_by(name=name).first():
+            return jsonify({'success': False, 'message': '部门名称已存在'}), 400
+
         department = Department(
-            name=data['name'],
-            leader_id=data['leader_id']
+            name=name,
+            leader_id=None
         )
         db.session.add(department)
         db.session.commit()
         return jsonify({'success': True, 'data': department.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)})
+
+
+def get_admin_options():
+    try:
+        admins = User.query.filter_by(role=RoleEnum.admin, is_deleted=False).all()
+        data = [{
+            'id': item.id,
+            'name': item.name,
+            'label': f'{item.name}({item.id})'
+        } for item in admins]
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+def assign_department_leader(department_id):
+    try:
+        department = Department.query.get(department_id)
+        if not department:
+            return jsonify({'success': False, 'message': '部门不存在'}), 404
+
+        data = request.json or {}
+        leader_id = data.get('leader_id')
+        if leader_id in [None, '']:
+            return jsonify({'success': False, 'message': 'leader_id 为必填'}), 400
+
+        leader = User.query.filter_by(id=int(leader_id), role=RoleEnum.admin, is_deleted=False).first()
+        if not leader:
+            return jsonify({'success': False, 'message': '负责人必须是有效管理员'}), 400
+
+        department.leader_id = leader.id
+        leader.department_id = department.id
+        leader.updated_by = get_jwt_identity()
+        db.session.commit()
+
+        payload = department.to_dict()
+        payload['leader_name'] = leader.name
+        payload['leader_label'] = f'{leader.name}({leader.id})'
+        return jsonify({'success': True, 'data': payload, 'message': '部门负责人设置成功'})
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)})

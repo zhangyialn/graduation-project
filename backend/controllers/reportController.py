@@ -21,9 +21,11 @@ def get_department_usage():
         result = []
         for stat in stats:
             department = Department.query.get(stat.department_id)
+            department_name = department.name if department else f'部门{stat.department_id}'
             result.append({
                 'department_id': stat.department_id,
-                'department_name': department.name if department else '未知部门',
+                'department_name': department_name,
+                'department_label': f'{stat.department_id} - {department_name}' if stat.department_id is not None else department_name,
                 'total_count': stat.total_count,
                 'total_days': stat.total_days or 0
             })
@@ -34,7 +36,7 @@ def get_department_usage():
 
 
 # 部门费用统计
-# 按部门统计费用构成（油费/维护费/其他费）
+# 按部门统计费用（当前口径：燃油费）
 def get_department_expenses():
     try:
         start_date = request.args.get('start_date')
@@ -42,33 +44,31 @@ def get_department_expenses():
 
         query = db.session.query(
             CarApplication.department_id,
-            func.sum(Expense.total_cost).label('total_expense'),
-            func.sum(Expense.fuel_cost).label('fuel_expense'),
-            func.sum(Expense.maintenance_cost).label('maintenance_expense'),
-            func.sum(Expense.other_cost).label('other_expense')
+            func.sum(func.coalesce(Expense.total_cost, Trip.total_cost, 0)).label('total_expense'),
+            func.sum(func.coalesce(Expense.fuel_cost, Expense.total_cost, Trip.total_cost, 0)).label('fuel_expense')
         ).join(
-            Trip, Expense.trip_id == Trip.id
+            Dispatch, Dispatch.application_id == CarApplication.id
         ).join(
-            Dispatch, Trip.dispatch_id == Dispatch.id
-        ).join(
-            CarApplication, Dispatch.application_id == CarApplication.id
+            Trip, Trip.dispatch_id == Dispatch.id
+        ).outerjoin(
+            Expense, Expense.trip_id == Trip.id
         )
 
         if start_date and end_date:
             query = query.filter(CarApplication.created_at.between(start_date, end_date))
 
-        stats = query.group_by(CarApplication.department_id).all()
+        stats = query.filter(Trip.status == 'completed').group_by(CarApplication.department_id).all()
 
         result = []
         for stat in stats:
             department = Department.query.get(stat.department_id)
+            department_name = department.name if department else f'部门{stat.department_id}'
             result.append({
                 'department_id': stat.department_id,
-                'department_name': department.name if department else '未知部门',
+                'department_name': department_name,
+                'department_label': f'{stat.department_id} - {department_name}' if stat.department_id is not None else department_name,
                 'total_expense': float(stat.total_expense or 0),
-                'fuel_expense': float(stat.fuel_expense or 0),
-                'maintenance_expense': float(stat.maintenance_expense or 0),
-                'other_expense': float(stat.other_expense or 0)
+                'fuel_expense': float(stat.fuel_expense or 0)
             })
 
         return jsonify({'success': True, 'data': result})
@@ -84,7 +84,7 @@ def get_vehicle_usage():
             Dispatch.vehicle_id,
             func.count(Dispatch.id).label('usage_count'),
             func.sum(func.coalesce(Trip.distance_km, 0)).label('total_mileage'),
-            func.sum(Expense.total_cost).label('total_expense')
+            func.sum(func.coalesce(Expense.total_cost, Trip.total_cost, 0)).label('total_expense')
         ).join(
             Trip, Dispatch.id == Trip.dispatch_id
         ).outerjoin(
@@ -123,7 +123,7 @@ def get_monthly_stats():
         stats = db.session.query(
             extract('month', CarApplication.created_at).label('month'),
             func.count(CarApplication.id).label('application_count'),
-            func.sum(Expense.total_cost).label('total_expense')
+            func.sum(func.coalesce(Expense.total_cost, Trip.total_cost, 0)).label('total_expense')
         ).join(
             Dispatch, CarApplication.id == Dispatch.application_id
         ).join(
@@ -187,7 +187,7 @@ def get_user_application_stats():
             User.name.label('user_name'),
             func.count(func.distinct(CarApplication.id)).label('application_count'),
             func.sum(case((CarApplication.status.in_(['dispatched', 'completed']), 1), else_=0)).label('usage_count'),
-            func.sum(Expense.total_cost).label('total_expense')
+            func.sum(func.coalesce(Expense.total_cost, Trip.total_cost, 0)).label('total_expense')
         ).outerjoin(
             CarApplication, CarApplication.applicant_id == User.id
         ).outerjoin(

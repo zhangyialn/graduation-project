@@ -8,8 +8,8 @@
       </div>
     </template>
     <el-form :model="form" :rules="rules" ref="applicationForm" label-width="120px">
-      <el-form-item label="部门ID" prop="department_id">
-        <el-input v-model.number="form.department_id" placeholder="请输入部门ID" />
+      <el-form-item label="部门(ID)" prop="department_id">
+        <el-input v-model="form.department_label" disabled placeholder="当前用户所属部门" />
       </el-form-item>
       <el-form-item label="用车事由" prop="purpose">
         <el-input v-model="form.purpose" placeholder="请输入用车事由" />
@@ -67,7 +67,8 @@ import { notifyError, notifySuccess, notifyWarning } from '../../utils/notify';
 const router = useRouter();
 const authStore = useAuthStore();
 const form = reactive({
-  department_id: 1,
+  department_id: null,
+  department_label: '',
   purpose: '',
   start_time: '',
   start_point: '',
@@ -76,8 +77,9 @@ const form = reactive({
   passenger_count: 1
 });
 const availableDrivers = ref([]);
+const departments = ref([]);
 const rules = reactive({
-  department_id: [{ required: true, message: '请输入部门ID', trigger: 'blur' }],
+  department_id: [{ required: true, message: '用户部门缺失，请联系管理员', trigger: 'change' }],
   purpose: [{ required: true, message: '请输入用车事由', trigger: 'blur' }],
   start_time: [{ required: true, message: '请选择开始时间', trigger: 'change' }],
   start_point: [{ required: true, message: '请输入起点', trigger: 'blur' }],
@@ -113,6 +115,42 @@ const setSuccess = (message) => {
 const fetchAvailableDrivers = async () => {
   const response = await axios.get('/api/vehicles/drivers/available');
   availableDrivers.value = response.data?.data || [];
+};
+
+const fetchDepartments = async () => {
+  const response = await axios.get('/api/users/departments');
+  departments.value = response.data?.data || [];
+  console.log('Fetched departments:', departments.value);
+};
+
+const refreshCurrentUser = async () => {
+  try {
+    const response = await axios.get('/api/auth/me');
+    const latestUser = response.data?.data;
+    if (latestUser) {
+      authStore.setUser(latestUser);
+      return true;
+    }
+    return false;
+  } catch (_err) {
+    return false;
+  }
+};
+
+const syncDepartmentFromCurrentUser = () => {
+  const user = authStore.user;
+  const departmentId = user?.department_id;
+  if ([null, undefined, '', 0, '0'].includes(departmentId)) {
+    form.department_id = null;
+    form.department_label = '';
+    return false;
+  }
+
+  form.department_id = Number(departmentId);
+  const currentDepartment = departments.value.find(item => Number(item.id) === Number(departmentId));
+  const departmentName = currentDepartment?.name || '未知部门';
+  form.department_label = `${departmentName}（${departmentId}）`;
+  return true;
 };
 
 // 统一坐标精度，避免提交过长小数
@@ -234,6 +272,10 @@ const handleSubmit = async () => {
     loading.value = true;
     setError('');
     setSuccess('');
+    const refreshed = await refreshCurrentUser();
+    if (refreshed) {
+      syncDepartmentFromCurrentUser();
+    }
     const user = authStore.user;
     if (!user) {
       setError('用户信息不存在');
@@ -272,11 +314,30 @@ const handleSubmit = async () => {
 
 // 重置表单输入
 const resetForm = () => {
-  applicationForm.value.resetFields();
+  form.purpose = '';
+  form.start_time = '';
+  form.start_point = '';
+  form.driver_id = '';
+  form.destination = '';
+  form.passenger_count = 1;
+  applicationForm.value?.clearValidate();
 };
 
 onMounted(async () => {
   try {
+    authStore.hydrate();
+    const refreshed = await refreshCurrentUser();
+    if (!refreshed) {
+      setError('获取当前用户信息失败，请重新登录后重试');
+      return;
+    }
+    await fetchDepartments();
+    const synced = syncDepartmentFromCurrentUser();
+    console.log('Department sync status:', synced, 'Current department_id:', form.department_id);
+    if (!synced) {
+      setError('当前账号未配置部门，无法提交用车申请，请联系管理员设置所属部门');
+      return;
+    }
     await fetchAvailableDrivers();
     if (!form.start_point) {
       await fillStartPointByLocation();

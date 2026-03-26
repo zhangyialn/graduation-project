@@ -6,10 +6,48 @@
         <div class="card-header">
           <div>
             <div class="title">用户导入功能</div>
-            <div class="hint">支持单个导入与Excel批量导入，支持普通用户/审批员/司机；未填用户名时默认使用姓名，默认密码为手机号</div>
+            <div class="hint">支持单个导入与Excel批量导入，支持普通用户/审批员/司机；部门为必填，支持先创建部门后单独设置负责人</div>
           </div>
         </div>
       </template>
+
+      <el-card shadow="never" class="department-card">
+        <div class="department-title">部门管理</div>
+        <el-form :model="departmentForm" :rules="departmentRules" ref="departmentFormRef" inline class="department-form-row">
+          <el-form-item label="部门名称" prop="name" class="department-form-item">
+            <el-input v-model="departmentForm.name" placeholder="请输入部门名称" style="width: 220px" />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" plain :loading="creatingDepartment" @click="submitDepartment">创建部门</el-button>
+          </el-form-item>
+        </el-form>
+        <el-form :model="leaderForm" :rules="leaderRules" ref="leaderFormRef" inline class="department-form-row">
+          <el-form-item label="选择部门" prop="department_id" class="department-form-item">
+            <el-select v-model="leaderForm.department_id" placeholder="请选择部门" style="width: 220px">
+              <el-option
+                v-for="item in departments"
+                :key="item.id"
+                :label="`${item.id} - ${item.name}`"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="负责人（管理员）" prop="leader_id" class="department-form-item">
+            <el-select v-model="leaderForm.leader_id" placeholder="请选择管理员" style="width: 220px">
+              <el-option
+                v-for="item in adminOptions"
+                :key="item.id"
+                :label="item.label"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="success" plain :loading="assigningLeader" @click="submitAssignLeader">确定负责人</el-button>
+          </el-form-item>
+        </el-form>
+        <div class="department-list">当前部门：{{ departmentSummary }}</div>
+      </el-card>
 
       <el-tabs v-model="activeTab">
         <el-tab-pane label="单个导入" name="single">
@@ -26,8 +64,15 @@
             <el-form-item label="邮箱">
               <el-input v-model="singleForm.email" placeholder="可选" />
             </el-form-item>
-            <el-form-item label="部门ID">
-              <el-input-number v-model="singleForm.department_id" :min="1" controls-position="right" />
+            <el-form-item label="所属部门" prop="department_id">
+              <el-select v-model="singleForm.department_id" placeholder="请选择部门（ID + 名称）" style="width: 100%">
+                <el-option
+                  v-for="item in departments"
+                  :key="item.id"
+                  :label="`${item.id} - ${item.name}`"
+                  :value="item.id"
+                />
+              </el-select>
             </el-form-item>
             <el-form-item label="用户角色" prop="role">
               <el-select v-model="singleForm.role" placeholder="请选择角色" style="width: 100%">
@@ -73,7 +118,7 @@
             <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
             <div class="el-upload__text">拖拽或点击上传</div>
             <template #tip>
-              <div class="el-upload__tip">Excel列至少包含 name、phone；role 可选 user/approver/driver；当 role=driver 时 vehicle_id 必填</div>
+              <div class="el-upload__tip">Excel列必须包含 name、phone、department_id、department_name；role 可选 user/approver/driver；当 role=driver 时 vehicle_id 必填</div>
             </template>
           </el-upload>
 
@@ -97,7 +142,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, watch, onMounted } from 'vue';
+import { reactive, ref, watch, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { UploadFilled } from '@element-plus/icons-vue';
@@ -111,11 +156,17 @@ const fileList = ref([]);
 const fileRef = ref(null);
 const loadingSingle = ref(false);
 const loadingBatch = ref(false);
+const creatingDepartment = ref(false);
+const assigningLeader = ref(false);
 const result = ref(null);
 const error = ref('');
 const success = ref('');
 const singleFormRef = ref(null);
+const departmentFormRef = ref(null);
+const leaderFormRef = ref(null);
 const vehicles = ref([]);
+const departments = ref([]);
+const adminOptions = ref([]);
 
 const singleForm = reactive({
   name: '',
@@ -131,6 +182,7 @@ const singleForm = reactive({
 const singleRules = reactive({
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
   phone: [{ required: true, message: '请输入手机号', trigger: 'blur' }],
+  department_id: [{ required: true, message: '请选择部门', trigger: 'change' }],
   role: [{ required: true, message: '请选择角色', trigger: 'change' }],
   vehicle_id: [{
     validator: (_rule, value, callback) => {
@@ -144,12 +196,86 @@ const singleRules = reactive({
   }]
 });
 
+const departmentForm = reactive({
+  name: ''
+});
+
+const departmentRules = reactive({
+  name: [{ required: true, message: '请输入部门名称', trigger: 'blur' }]
+});
+
+const leaderForm = reactive({
+  department_id: null,
+  leader_id: null
+});
+
+const leaderRules = reactive({
+  department_id: [{ required: true, message: '请选择部门', trigger: 'change' }],
+  leader_id: [{ required: true, message: '请选择管理员负责人', trigger: 'change' }]
+});
+
+const departmentSummary = computed(() => {
+  if (!departments.value.length) return '暂无部门';
+  return departments.value.map(item => `${item.id}-${item.name}${item.leader_label ? ` 负责人：${item.leader_label}` : ''}`).join('，');
+});
+
 const fetchVehicles = async () => {
   try {
     const response = await axios.get('/api/vehicles');
     vehicles.value = response.data?.data || [];
   } catch (err) {
     error.value = err.response?.data?.message || '获取车辆列表失败';
+  }
+};
+
+const fetchDepartments = async () => {
+  try {
+    const response = await axios.get('/api/users/departments');
+    departments.value = response.data?.data || [];
+  } catch (err) {
+    error.value = err.response?.data?.message || '获取部门列表失败';
+  }
+};
+
+const fetchAdminOptions = async () => {
+  try {
+    const response = await axios.get('/api/users/departments/admin-options');
+    adminOptions.value = response.data?.data || [];
+  } catch (err) {
+    error.value = err.response?.data?.message || '获取管理员列表失败';
+  }
+};
+
+const submitDepartment = async () => {
+  try {
+    await departmentFormRef.value.validate();
+    creatingDepartment.value = true;
+    await axios.post('/api/users/departments', {
+      name: departmentForm.name
+    });
+    success.value = '部门创建成功，请在下方选择管理员负责人';
+    departmentForm.name = '';
+    await fetchDepartments();
+  } catch (err) {
+    error.value = err.response?.data?.message || '创建部门失败';
+  } finally {
+    creatingDepartment.value = false;
+  }
+};
+
+const submitAssignLeader = async () => {
+  try {
+    await leaderFormRef.value.validate();
+    assigningLeader.value = true;
+    await axios.put(`/api/users/departments/${leaderForm.department_id}/leader`, {
+      leader_id: leaderForm.leader_id
+    });
+    success.value = '部门负责人设置成功';
+    await fetchDepartments();
+  } catch (err) {
+    error.value = err.response?.data?.message || '设置负责人失败';
+  } finally {
+    assigningLeader.value = false;
   }
 };
 
@@ -175,7 +301,7 @@ const submitSingleUser = async () => {
       phone: singleForm.phone,
       username: singleForm.username || undefined,
       email: singleForm.email || undefined,
-      department_id: singleForm.department_id || undefined,
+      department_id: singleForm.department_id,
       role: singleForm.role,
       vehicle_id: singleForm.role === 'driver' ? singleForm.vehicle_id : undefined,
       license_number: singleForm.role === 'driver' ? (singleForm.license_number || undefined) : undefined
@@ -236,6 +362,8 @@ onMounted(() => {
     router.replace('/dashboard');
     return;
   }
+  fetchDepartments();
+  fetchAdminOptions();
   fetchVehicles();
 });
 
@@ -279,6 +407,29 @@ watch(success, (message) => {
 .hint {
   color: #667459;
   font-size: 0.95rem;
+}
+
+.department-card {
+  margin-bottom: 12px;
+}
+
+.department-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: #2d3436;
+}
+
+.department-form-row {
+  margin-bottom: 8px;
+}
+
+.department-form-item {
+  margin-right: 16px;
+}
+
+.department-list {
+  color: #667459;
+  font-size: 13px;
 }
 
 .upload {

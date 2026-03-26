@@ -121,7 +121,7 @@ const ensureChart = (chartRef, chart) => {
 const renderDepartmentUsageChart = () => {
   departmentUsageChart = ensureChart(departmentUsageChartRef, departmentUsageChart);
   if (!departmentUsageChart) return;
-  const labels = departmentUsage.value.map(item => item.department_name || '未知部门');
+  const labels = departmentUsage.value.map(item => item.department_label || item.department_name || '未知部门');
   const counts = departmentUsage.value.map(item => Number(item.total_count) || 0);
   departmentUsageChart.setOption({
     tooltip: { trigger: 'axis' },
@@ -132,14 +132,12 @@ const renderDepartmentUsageChart = () => {
   });
 };
 
-// 渲染部门费用堆叠柱状图
+// 渲染部门燃油费用柱状图
 const renderDepartmentExpensesChart = () => {
   departmentExpensesChart = ensureChart(departmentExpensesChartRef, departmentExpensesChart);
   if (!departmentExpensesChart) return;
-  const labels = departmentExpenses.value.map(item => item.department_name || '未知部门');
+  const labels = departmentExpenses.value.map(item => item.department_label || item.department_name || '未知部门');
   const fuel = departmentExpenses.value.map(item => Number(item.fuel_expense) || 0);
-  const maintenance = departmentExpenses.value.map(item => Number(item.maintenance_expense) || 0);
-  const other = departmentExpenses.value.map(item => Number(item.other_expense) || 0);
   departmentExpensesChart.setOption({
     tooltip: { trigger: 'axis', valueFormatter: (value) => currency(value) },
     legend: { top: 0 },
@@ -147,9 +145,7 @@ const renderDepartmentExpensesChart = () => {
     xAxis: { type: 'category', data: labels, axisLabel: { interval: 0, rotate: labels.length > 6 ? 25 : 0 } },
     yAxis: { type: 'value', name: '费用(元)' },
     series: [
-      { name: '燃油', type: 'bar', stack: 'expense', data: fuel, itemStyle: { color: '#6b8e23' } },
-      { name: '维修', type: 'bar', stack: 'expense', data: maintenance, itemStyle: { color: '#d4c5b9' } },
-      { name: '其他', type: 'bar', stack: 'expense', data: other, itemStyle: { color: '#556b2f' } }
+      { name: '燃油费用', type: 'bar', data: fuel, barWidth: '45%', itemStyle: { color: '#6b8e23' } }
     ]
   });
 };
@@ -296,12 +292,14 @@ onBeforeUnmount(() => {
 .title { font-weight: 700; font-size: 1.2rem; color: #2d3436; }
 .hint { color: #667459; }
 .mb { margin-bottom: 12px; }
-.priority-grid, .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+.priority-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(320px, 1fr)); gap: 12px; }
 .more-charts { margin-top: 12px; }
 .card-title { font-weight: 700; }
 .chart { width: 100%; height: 320px; }
 @media (max-width: 768px) {
   .header-row { flex-direction: column; align-items: stretch; }
+  .grid { grid-template-columns: 1fr; }
   .chart { height: 260px; }
 }
 </style>

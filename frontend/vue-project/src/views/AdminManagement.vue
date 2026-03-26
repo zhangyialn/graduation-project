@@ -35,8 +35,15 @@
           <el-input v-model="form.email" placeholder="可选" />
         </el-form-item>
 
-        <el-form-item label="部门ID">
-          <el-input-number v-model="form.department_id" :min="1" controls-position="right" />
+        <el-form-item label="所属部门">
+          <el-select v-model="form.department_id" placeholder="可选：请选择部门（ID + 名称）" style="width: 100%" clearable>
+            <el-option
+              v-for="item in departments"
+              :key="item.id"
+              :label="`${item.id} - ${item.name}`"
+              :value="item.id"
+            />
+          </el-select>
         </el-form-item>
 
         <el-form-item label="当前管理员密码" prop="operator_password">
@@ -53,7 +60,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, watch } from 'vue';
+import { reactive, ref, watch, onMounted } from 'vue';
 import axios from 'axios';
 import { notifyError, notifySuccess } from '../utils/notify';
 
@@ -61,6 +68,7 @@ const loading = ref(false);
 const error = ref('');
 const success = ref('');
 const formRef = ref(null);
+const departments = ref([]);
 
 const form = reactive({
   name: '',
@@ -76,6 +84,15 @@ const rules = reactive({
   phone: [{ required: true, message: '请输入手机号', trigger: 'blur' }],
   operator_password: [{ required: true, message: '请输入当前管理员密码', trigger: 'blur' }]
 });
+
+const fetchDepartments = async () => {
+  try {
+    const response = await axios.get('/api/users/departments');
+    departments.value = response.data?.data || [];
+  } catch (err) {
+    error.value = err.response?.data?.message || '获取部门列表失败';
+  }
+};
 
 // 提交管理员创建请求
 const submit = async () => {
@@ -122,6 +139,10 @@ watch(error, (message) => {
 watch(success, (message) => {
   if (!message) return;
   notifySuccess(message);
+});
+
+onMounted(() => {
+  fetchDepartments();
 });
 </script>
 

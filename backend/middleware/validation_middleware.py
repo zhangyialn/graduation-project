@@ -10,12 +10,13 @@ import re
 
 
 # 生成请求体验证装饰器：按接口声明规则做通用参数校验
-def validate_request(required_fields=None, optional_fields=None):
+def validate_request(required_fields=None, optional_fields=None, username_min_length=3):
     """参数验证装饰器
     
     Args:
         required_fields: 必填字段列表，如 ['username', 'password']
         optional_fields: 可选字段列表，如 ['email', 'phone']
+        username_min_length: 用户名最小长度；传入 None/0 表示不限制长度
     """
     # 返回真正作用于路由处理函数的装饰器
     def decorator(f):
@@ -104,8 +105,8 @@ def validate_request(required_fields=None, optional_fields=None):
                 username_value = data.get('username')
                 if not isinstance(username_value, str):
                     validation_errors.append({'field': 'username', 'message': '用户名必须为字符串'})
-                elif len(username_value) < 3:
-                    validation_errors.append({'field': 'username', 'message': '用户名长度至少3位'})
+                elif username_min_length and len(username_value) < int(username_min_length):
+                    validation_errors.append({'field': 'username', 'message': f'用户名长度至少{int(username_min_length)}位'})
             
             # 返回验证错误
             if validation_errors:

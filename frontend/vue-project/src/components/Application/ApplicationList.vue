@@ -133,7 +133,7 @@
     <el-dialog v-model="rateDialogVisible" title="行程评分" width="420px">
       <el-form label-width="90px">
         <el-form-item label="评分">
-          <el-rate v-model="ratingValue" allow-half show-score score-template="{value} 分" />
+          <FractionStarInput v-model="ratingValue" :size="30" :step="0.25" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -149,6 +149,7 @@ import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import axios from 'axios';
 import { Document, Close } from '@element-plus/icons-vue';
 import { useAuthStore } from '../../stores/auth';
+import FractionStarInput from '../Common/FractionStarInput.vue';
 import { notifyError, notifySuccess, notifyWarning } from '../../utils/notify';
 import { formatBeijingDateTime } from '../../utils/datetime';
 

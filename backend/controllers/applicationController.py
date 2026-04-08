@@ -318,9 +318,25 @@ def normalize_address():
 # 司机推荐：供用户申请页按人数/目的地获取排序候选
 def get_recommended_drivers():
     try:
-        passenger_count = request.args.get('passenger_count', type=int) or 1
+        raw_passenger_count = request.args.get('passenger_count', default='1')
+        try:
+            passenger_count = int(float(raw_passenger_count))
+        except Exception:
+            passenger_count = 1
+        passenger_count = max(1, passenger_count)
         destination = request.args.get('destination', type=str) or ''
         ranked = build_driver_recommendations(passenger_count=passenger_count, destination=destination)
-        return jsonify({'success': True, 'data': ranked})
+
+        # 推荐结果与创建申请使用同一口径：仅返回当前可申请的司机。
+        applyable_ranked = []
+        for item in ranked:
+            driver_id = item.get('driver_id')
+            if driver_id in [None, '']:
+                continue
+            ok, _message, _driver = _validate_driver_available(int(driver_id))
+            if ok:
+                applyable_ranked.append(item)
+
+        return jsonify({'success': True, 'data': applyable_ranked})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500

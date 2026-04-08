@@ -49,13 +49,10 @@
         <el-card shadow="never">
           <p class="meta-title">司机评分均分</p>
           <p v-if="driverRatingAvg === null" class="empty">暂无乘客评分</p>
-          <el-rate
+          <FractionStarDisplay
             v-else
-            :model-value="driverRatingAvg || 0"
-            disabled
-            allow-half
-            show-score
-            score-template="{value} 分"
+            :score="driverRatingAvg || 0"
+            :size="24"
           />
         </el-card>
       </el-col>
@@ -149,6 +146,7 @@ import { ref, watch, onMounted } from 'vue';
 import axios from 'axios';
 import { notifyError, notifySuccess } from '../../utils/notify';
 import { formatBeijingDateTime } from '../../utils/datetime';
+import FractionStarDisplay from '../Common/FractionStarDisplay.vue';
 
 const loading = ref(false);
 const saving = ref(false);

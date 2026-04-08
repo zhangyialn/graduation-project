@@ -1,4 +1,4 @@
-<!-- 用车申请创建页：支持定位起点、地址标准化、司机选择与提交 -->
+<!-- 用车申请创建页：支持定位起点、司机推荐与提交 -->
 <template>
   <el-card class="application-card" shadow="hover">
     <template #header>
@@ -24,15 +24,11 @@
       </el-form-item>
       <el-form-item label="目的地" prop="destination">
         <el-input v-model="form.destination" placeholder="请输入目的地" />
-        <div style="margin-top: 8px; display: flex; gap: 8px;">
-          <el-button plain size="small" @click="normalizeAddressField('destination')" :loading="normalizingDestination">标准化目的地</el-button>
-        </div>
       </el-form-item>
       <el-form-item label="起点" prop="start_point">
         <el-input v-model="form.start_point" :placeholder="locating ? '定位中...' : '请输入起点（可由审批员二次调整）'" />
         <div style="margin-top: 8px; display: flex; gap: 8px;">
           <el-button plain size="small" @click="fillStartPointByLocation" :loading="locating">定位当前位置</el-button>
-          <el-button plain size="small" @click="normalizeAddressField('start_point')" :loading="normalizingStartPoint">标准化起点</el-button>
         </div>
       </el-form-item>
       <el-form-item label="司机" prop="driver_id">
@@ -60,13 +56,7 @@
                 <span>车辆 {{ item.plate_number }}</span>
               </div>
               <div class="recommendation-rate">
-                <el-rate
-                  :model-value="Number(item.recommendation_index || 0)"
-                  disabled
-                  allow-half
-                  show-score
-                  score-template="{value} 分"
-                />
+                <FractionStarDisplay :score="Number(item.recommendation_index || 0)" :size="20" />
                 <el-tag size="small" type="success">推荐指数 {{ Number(item.recommendation_index || 0).toFixed(2) }}/5</el-tag>
               </div>
               <div class="recommendation-desc">{{ (item.reasons || []).join('；') }}</div>
@@ -90,7 +80,13 @@
         </div>
       </el-form-item>
       <el-form-item label="乘车人数" prop="passenger_count">
-        <el-input-number v-model="form.passenger_count" :min="1" :max="10" placeholder="请输入乘车人数" />
+        <el-input-number
+          v-model="form.passenger_count"
+          :min="1"
+          :max="10"
+          placeholder="请输入乘车人数"
+          @change="handlePassengerCountChange"
+        />
       </el-form-item>
       <el-form-item class="form-actions">
         <el-button class="action-btn" type="primary" @click="handleSubmit" :loading="loading">提交申请</el-button>
@@ -106,6 +102,7 @@ import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { DocumentAdd } from '@element-plus/icons-vue';
 import { useAuthStore } from '../../stores/auth';
+import FractionStarDisplay from '../Common/FractionStarDisplay.vue';
 import { notifyError, notifySuccess, notifyWarning } from '../../utils/notify';
 
 const router = useRouter();
@@ -137,8 +134,6 @@ const success = ref('');
 const loading = ref(false);
 const recommendingDrivers = ref(false);
 const locating = ref(false);
-const normalizingStartPoint = ref(false);
-const normalizingDestination = ref(false);
 const applicationForm = ref(null);
 
 const nonRecommendedDrivers = computed(() => {
@@ -172,8 +167,9 @@ const fetchAvailableDrivers = async () => {
 const fetchRecommendedDrivers = async () => {
   try {
     recommendingDrivers.value = true;
+    const normalizedPassengerCount = Math.max(1, Math.floor(Number(form.passenger_count) || 1));
     const params = {
-      passenger_count: Number(form.passenger_count) || 1,
+      passenger_count: normalizedPassengerCount,
       destination: (form.destination || '').trim()
     };
     const response = await axios.get('/api/applications/recommend-drivers', { params });
@@ -193,6 +189,15 @@ const fetchRecommendedDrivers = async () => {
 const applyRecommendedDriver = (item) => {
   if (!item?.driver_id) return;
   form.driver_id = item.driver_id;
+};
+
+// 人数变化后立即重算推荐，避免继续沿用 1 人的结果。
+const handlePassengerCountChange = async () => {
+  const normalized = Math.max(1, Math.floor(Number(form.passenger_count) || 1));
+  if (normalized !== form.passenger_count) {
+    form.passenger_count = normalized;
+  }
+  await fetchRecommendedDrivers();
 };
 
 const fetchDepartments = async () => {
@@ -317,33 +322,7 @@ const fillStartPointByLocation = async () => {
   }
 };
 
-// 调用后端地址标准化接口，提升审批与调度的一致性
-const normalizeAddressField = async (fieldName) => {
-  const value = (form[fieldName] || '').trim();
-  if (!value) {
-    notifyWarning('请先输入地址再标准化');
-    return;
-  }
-
-  const loadingRef = fieldName === 'start_point' ? normalizingStartPoint : normalizingDestination;
-  try {
-    loadingRef.value = true;
-    const response = await axios.post('/api/applications/normalize-address', {
-      text: value
-    });
-    const normalizedText = response.data?.data?.normalized_text;
-    if (normalizedText) {
-      form[fieldName] = normalizedText;
-      notifySuccess('地址标准化完成');
-    }
-  } catch (err) {
-    notifyWarning(err.response?.data?.message || '地址标准化失败，已保留原值');
-  } finally {
-    loadingRef.value = false;
-  }
-};
-
-// 校验并提交申请：提交前尝试标准化起点和目的地
+// 校验并提交申请（按用户输入原始起点/目的地提交）
 const handleSubmit = async () => {
   try {
     await applicationForm.value.validate();
@@ -358,13 +337,6 @@ const handleSubmit = async () => {
     if (!user) {
       setError('用户信息不存在');
       return;
-    }
-
-    if (form.start_point) {
-      await normalizeAddressField('start_point');
-    }
-    if (form.destination) {
-      await normalizeAddressField('destination');
     }
 
     const payload = {
@@ -438,8 +410,17 @@ watch(success, (message) => {
   notifySuccess(message);
 });
 
-watch(() => [form.destination, form.passenger_count], async ([destination, passengerCount]) => {
-  if (!(destination || '').trim() || !passengerCount) return;
+watch(() => form.destination, async () => {
+  await fetchRecommendedDrivers();
+});
+
+watch(() => form.passenger_count, async (passengerCount, previousCount) => {
+  if (passengerCount === previousCount) return;
+  const normalized = Math.max(1, Math.floor(Number(passengerCount) || 1));
+  if (normalized !== passengerCount) {
+    form.passenger_count = normalized;
+    return;
+  }
   await fetchRecommendedDrivers();
 });
 </script>

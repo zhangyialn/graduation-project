@@ -1,14 +1,10 @@
-<!-- 调度管理页：调度列表、创建调度、智能推荐调度 -->
+<!-- 调度管理页：调度列表与状态操作 -->
 <template>
   <el-card class="dispatch-list-card" shadow="hover">
     <template #header>
       <div class="card-header">
         <el-icon class="header-icon"><DataAnalysis /></el-icon>
         <h2>调度管理</h2>
-        <el-button type="primary" @click="openAddDialog">
-          <el-icon><Plus /></el-icon>
-          添加调度
-        </el-button>
       </div>
     </template>
     
@@ -53,191 +49,20 @@
       </el-table-column>
     </el-table>
     
-    <!-- 添加调度对话框 -->
-    <el-dialog v-model="dialogVisible" title="添加调度" width="400px">
-      <el-form :model="form" :rules="rules" ref="dispatchForm" label-width="100px">
-        <el-form-item label="申请ID" prop="application_id">
-          <el-select v-model="form.application_id" placeholder="请选择待调度申请" style="width: 100%">
-            <el-option
-              v-for="item in pendingApplications"
-              :key="item.id"
-              :label="`#${item.id} - ${item.purpose}`"
-              :value="item.id"
-            />
-          </el-select>
-          <div style="margin-top: 8px;">
-            <el-button plain size="small" :disabled="!form.application_id" :loading="recommending" @click="fetchDispatchRecommendation(form.application_id)">
-              智能推荐调度
-            </el-button>
-          </div>
-        </el-form-item>
-        <el-form-item label="车辆ID" prop="vehicle_id">
-          <el-select v-model="form.vehicle_id" placeholder="请选择可用车辆" style="width: 100%">
-            <el-option
-              v-for="item in availableVehicles"
-              :key="item.id"
-              :label="`#${item.id} - ${item.plate_number}`"
-              :value="item.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="司机ID" prop="driver_id">
-          <el-select v-model="form.driver_id" placeholder="请选择可用司机" style="width: 100%">
-            <el-option
-              v-for="item in availableDrivers"
-              :key="item.id"
-              :label="`#${item.id} - ${item.name}`"
-              :value="item.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="当前油价">
-          <div class="fuel-meta">{{ fuelPriceHint }}</div>
-        </el-form-item>
-        <el-form-item label="预估油费/km">
-          <div class="fuel-meta">{{ estimatedFuelCostPerKmHint }}</div>
-        </el-form-item>
-        <el-form-item label="推荐说明" v-if="recommendation">
-          <div class="fuel-meta">
-            <div>推荐司机：{{ recommendation.driver_name }}（ID: {{ recommendation.driver_id }}）</div>
-            <div>推荐车辆：{{ recommendation.plate_number }}（ID: {{ recommendation.vehicle_id }}）</div>
-            <div style="margin: 6px 0;">
-              <el-rate
-                :model-value="normalizeRecommendationIndex(recommendation.recommendation_index)"
-                disabled
-                allow-half
-                show-score
-                score-template="{value} 分"
-              />
-            </div>
-            <div>推荐指数：{{ normalizeRecommendationIndex(recommendation.recommendation_index).toFixed(2) }}/5</div>
-            <div>{{ (recommendation.reasons || []).join('；') }}</div>
-          </div>
-        </el-form-item>
-        <el-form-item label="Top5候选" v-if="recommendationCandidates.length > 0">
-          <div style="width: 100%; display: grid; gap: 8px;">
-            <el-card
-              v-for="item in recommendationCandidates"
-              :key="`${item.driver_id}-${item.vehicle_id}`"
-              shadow="never"
-              style="cursor: pointer; border: 1px solid #dfe6d2;"
-              @click="applyRecommendation(item)"
-            >
-              <div class="fuel-meta">
-                <div>
-                  <strong>
-                    {{ selectedRecommendationKey === `${item.driver_id}-${item.vehicle_id}` ? '已选：' : '' }}
-                    司机{{ item.driver_name }} / 车辆{{ item.plate_number }}
-                  </strong>
-                </div>
-                <div style="margin: 4px 0;">
-                  <el-rate
-                    :model-value="normalizeRecommendationIndex(item.recommendation_index)"
-                    disabled
-                    allow-half
-                    show-score
-                    score-template="{value} 分"
-                  />
-                </div>
-                <div>推荐指数：{{ normalizeRecommendationIndex(item.recommendation_index).toFixed(2) }}/5，任务数：{{ item.active_dispatch_count }}</div>
-                <div>{{ (item.reasons || []).join('；') }}</div>
-              </div>
-            </el-card>
-          </div>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="handleAddDispatch" :loading="loading">保存</el-button>
-        </span>
-      </template>
-    </el-dialog>
-    
   </el-card>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import axios from 'axios';
-import { DataAnalysis, Plus, Check, Close } from '@element-plus/icons-vue';
-import { useFuelPriceStore } from '../../stores/fuelPrice';
-import { useAuthStore } from '../../stores/auth';
-import { notifyError, notifySuccess, notifyWarning } from '../../utils/notify';
+import { DataAnalysis, Check, Close } from '@element-plus/icons-vue';
+import { notifyError } from '../../utils/notify';
 
 const dispatches = ref([]);
-const pendingApplications = ref([]);
-const availableVehicles = ref([]);
-const availableDrivers = ref([]);
-const dialogVisible = ref(false);
 const error = ref('');
 const loading = ref(false);
-const recommending = ref(false);
-const recommendation = ref(null);
-const recommendationCandidates = ref([]);
-const selectedRecommendationKey = ref('');
 const screenWidth = ref(window.innerWidth);
 const isMobile = computed(() => screenWidth.value < 900);
-const fuelStore = useFuelPriceStore();
-const authStore = useAuthStore();
-
-const form = reactive({
-  application_id: '',
-  vehicle_id: '',
-  driver_id: ''
-});
-
-const rules = reactive({
-  application_id: [{ required: true, message: '请输入申请ID', trigger: 'blur' }],
-  vehicle_id: [{ required: true, message: '请输入车辆ID', trigger: 'blur' }],
-  driver_id: [{ required: true, message: '请输入司机ID', trigger: 'blur' }]
-});
-
-const dispatchForm = ref(null);
-
-// 规范化燃油类型，统一到油价 store 可识别的名称
-const normalizeFuelType = (fuelType) => {
-  const value = (fuelType || '').trim();
-  if (!value) return '92号汽油';
-  if (value === '汽油') return '92号汽油';
-  if (value === '柴油') return '0号柴油';
-  return value;
-};
-
-const selectedVehicle = computed(() => {
-  if (!form.vehicle_id) return null;
-  return availableVehicles.value.find(item => item.id === form.vehicle_id) || null;
-});
-
-const currentFuelType = computed(() => normalizeFuelType(selectedVehicle.value?.fuel_type));
-
-const fuelPriceHint = computed(() => {
-  if (fuelStore.currentFuelPrice === null || fuelStore.currentFuelPrice === undefined) {
-    return '暂无油价（将按当日地区自动获取）';
-  }
-  return `${fuelStore.regionName} ${fuelStore.selectedFuelType}：${fuelStore.currentFuelPrice} 元/升`;
-});
-
-const estimatedFuelCostPerKmHint = computed(() => {
-  const consumption = Number(selectedVehicle.value?.fuel_consumption_per_100km);
-  const price = Number(fuelStore.currentFuelPrice);
-  if (!Number.isFinite(consumption) || consumption <= 0 || !Number.isFinite(price) || price <= 0) {
-    return '暂无（需车辆油耗与当日油价）';
-  }
-  const perKm = (consumption / 100) * price;
-  return `${perKm.toFixed(2)} 元/公里`;
-});
-
-// 确保当日油价已加载，供预估油费展示
-const ensureDailyFuelPrice = async (force = false) => {
-  try {
-    await fuelStore.fetchOilPrice({ force });
-  } catch (_err) {
-    if (!error.value && fuelStore.lastError) {
-      error.value = `油价获取失败：${fuelStore.lastError}`;
-    }
-  }
-};
 
 // 将调度状态映射为标签样式
 const statusType = (status) => {
@@ -255,12 +80,6 @@ const canCancelDispatch = (item) => _enumValue(item?.status) === 'scheduled';
 
 const _enumValue = (value) => (value && typeof value === 'object' && 'value' in value ? value.value : value);
 
-const normalizeRecommendationIndex = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return 0;
-  return Math.max(0, Math.min(5, parsed));
-};
-
 // 拉取调度列表
 const fetchDispatches = async () => {
   try {
@@ -269,119 +88,6 @@ const fetchDispatches = async () => {
     dispatches.value = response.data.data;
   } catch (err) {
     error.value = err.response?.data?.message || '获取调度失败';
-  } finally {
-    loading.value = false;
-  }
-};
-
-// 打开新增调度弹窗，并预加载可选数据
-const openAddDialog = async () => {
-  form.application_id = '';
-  form.vehicle_id = '';
-  form.driver_id = '';
-  recommendation.value = null;
-  recommendationCandidates.value = [];
-  selectedRecommendationKey.value = '';
-  error.value = '';
-  await Promise.all([
-    fetchPendingApplications(),
-    fetchAvailableVehicles(),
-    fetchAvailableDrivers()
-  ]);
-  ensureDailyFuelPrice();
-  dialogVisible.value = true;
-};
-
-// 拉取待调度申请
-const fetchPendingApplications = async () => {
-  try {
-    const response = await axios.get('/api/dispatches/pending');
-    pendingApplications.value = response.data.data || [];
-  } catch (err) {
-    error.value = err.response?.data?.message || '获取待调度申请失败';
-  }
-};
-
-// 拉取可用车辆
-const fetchAvailableVehicles = async () => {
-  try {
-    const response = await axios.get('/api/vehicles/available');
-    availableVehicles.value = response.data.data || [];
-  } catch (err) {
-    error.value = err.response?.data?.message || '获取可用车辆失败';
-  }
-};
-
-// 拉取可用司机
-const fetchAvailableDrivers = async () => {
-  try {
-    const response = await axios.get('/api/vehicles/drivers/available');
-    availableDrivers.value = response.data.data || [];
-  } catch (err) {
-    error.value = err.response?.data?.message || '获取可用司机失败';
-  }
-};
-
-// 根据申请获取智能调度推荐
-const fetchDispatchRecommendation = async (applicationId) => {
-  if (!applicationId) return;
-  try {
-    recommending.value = true;
-    const response = await axios.get(`/api/dispatches/recommend/${applicationId}`);
-
-    const best = response.data?.data?.best;
-    const candidates = response.data?.data?.candidates || [];
-    recommendationCandidates.value = candidates;
-    if (!best) {
-      recommendation.value = null;
-      selectedRecommendationKey.value = '';
-      notifyWarning('未找到可调度推荐，请手动选择');
-      return;
-    }
-
-    applyRecommendation(best);
-    notifySuccess('已按智能推荐自动填充');
-  } catch (err) {
-    recommendation.value = null;
-    recommendationCandidates.value = [];
-    selectedRecommendationKey.value = '';
-    error.value = err.response?.data?.message || '获取智能推荐失败';
-  } finally {
-    recommending.value = false;
-  }
-};
-
-// 应用推荐结果到表单
-const applyRecommendation = (candidate) => {
-  if (!candidate) return;
-  recommendation.value = candidate;
-  selectedRecommendationKey.value = `${candidate.driver_id}-${candidate.vehicle_id}`;
-  form.driver_id = candidate.driver_id;
-  form.vehicle_id = candidate.vehicle_id;
-};
-
-// 提交新增调度
-const handleAddDispatch = async () => {
-  try {
-    await dispatchForm.value.validate();
-    loading.value = true;
-    const user = authStore.user;
-
-    if (!user) {
-      error.value = '用户信息不存在';
-      return;
-    }
-
-    await axios.post('/api/dispatches', {
-      application_id: form.application_id,
-      vehicle_id: form.vehicle_id,
-      driver_id: form.driver_id,
-      dispatcher_id: user.id
-    });
-    dialogVisible.value = false;
-    await fetchDispatches();
-  } catch (err) {
-    error.value = err.response?.data?.message || '添加调度失败';
   } finally {
     loading.value = false;
   }
@@ -414,23 +120,11 @@ const updateWidth = () => {
 
 onMounted(() => {
   fetchDispatches();
-  fuelStore.initializeDailyOilPrice().catch(() => null);
   window.addEventListener('resize', updateWidth);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateWidth);
-});
-
-watch(() => form.vehicle_id, async () => {
-  if (!selectedVehicle.value) return;
-  fuelStore.setFuelType(currentFuelType.value);
-  await ensureDailyFuelPrice();
-});
-
-watch(() => form.application_id, async (applicationId) => {
-  if (!dialogVisible.value || !applicationId) return;
-  await fetchDispatchRecommendation(applicationId);
 });
 
 watch(error, (message) => {

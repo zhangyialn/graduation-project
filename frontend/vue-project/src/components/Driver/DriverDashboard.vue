@@ -1,4 +1,4 @@
-<!-- 司机工作台：司机状态、车辆状态、当前任务与结束行程 -->
+<!-- 司机工作台：司机状态、车辆状态、当前任务填报与评分展示 -->
 <template>
   <el-card class="driver-card" shadow="hover">
     <template #header>
@@ -44,6 +44,23 @@
       </el-col>
     </el-row>
 
+    <el-row :gutter="12" class="meta-row">
+      <el-col :xs="24" :sm="12">
+        <el-card shadow="never">
+          <p class="meta-title">司机评分均分</p>
+          <p v-if="driverRatingAvg === null" class="empty">暂无乘客评分</p>
+          <el-rate
+            v-else
+            :model-value="driverRatingAvg || 0"
+            disabled
+            allow-half
+            show-score
+            score-template="{value} 分"
+          />
+        </el-card>
+      </el-col>
+    </el-row>
+
     <el-divider>接驾任务</el-divider>
 
     <div v-if="tasks.length === 0" class="empty">暂无待执行任务</div>
@@ -64,7 +81,13 @@
       <el-table-column prop="actual_start_time" label="行程开始" width="180">
         <template #default="scope">{{ formatDate(scope.row.actual_start_time) }}</template>
       </el-table-column>
-      <el-table-column label="结束行程" width="220" fixed="right">
+      <el-table-column prop="user_rating" label="乘客评分" width="120">
+        <template #default="scope">
+          <span v-if="scope.row.user_rating === null || scope.row.user_rating === undefined">未评分</span>
+          <span v-else>{{ Number(scope.row.user_rating).toFixed(2) }}/5</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="行程填报" width="240" fixed="right">
         <template #default="scope">
           <el-button
             v-if="scope.row.trip_id && !scope.row.passenger_picked_up"
@@ -77,27 +100,47 @@
             v-else-if="scope.row.trip_id"
             type="success"
             size="small"
-            @click="openEndDialog(scope.row)"
-          >结束行程</el-button>
+            @click="openReportDialog(scope.row)"
+          >填报里程油耗</el-button>
           <span v-else>未创建行程记录</span>
         </template>
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="endDialogVisible" title="结束行程" width="420px">
-      <el-form :model="endForm" label-width="100px">
-        <el-form-item label="消耗路程(km)">
-          <el-input-number v-model="endForm.distance_km" :min="0" :step="0.1" style="width:100%" />
+    <el-dialog v-model="reportDialogVisible" title="司机里程油耗填报" width="420px">
+      <el-form :model="reportForm" label-width="100px">
+        <el-form-item label="路程(km)">
+          <el-input-number v-model="reportForm.distance_km" :min="0" :step="0.1" style="width:100%" />
         </el-form-item>
-        <el-form-item label="消耗油量(L)">
-          <el-input-number v-model="endForm.fuel_used" :min="0" :step="0.1" style="width:100%" />
+        <el-form-item label="油耗(L)">
+          <el-input-number v-model="reportForm.fuel_used" :min="0" :step="0.1" style="width:100%" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="endDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitEndTrip" :loading="saving">提交</el-button>
+        <el-button @click="reportDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitDriverReport" :loading="saving">提交</el-button>
       </template>
     </el-dialog>
+
+    <el-divider>已完成行程（最近30条）</el-divider>
+    <div v-if="completedTrips.length === 0" class="empty">暂无已完成行程</div>
+    <el-table v-else :data="completedTrips" border>
+      <el-table-column prop="trip_id" label="行程ID" width="90" />
+      <el-table-column prop="application_id" label="申请ID" width="90" />
+      <el-table-column prop="passenger_name" label="乘客" width="120" />
+      <el-table-column prop="destination" label="目的地" min-width="140" />
+      <el-table-column prop="distance_km" label="里程(km)" width="110" />
+      <el-table-column prop="fuel_used_l" label="油耗(L)" width="100" />
+      <el-table-column prop="user_rating" label="评分" width="120">
+        <template #default="scope">
+          <span v-if="scope.row.user_rating === null || scope.row.user_rating === undefined">未评分</span>
+          <span v-else>{{ Number(scope.row.user_rating).toFixed(2) }}/5</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="actual_end_time" label="结束时间" width="180">
+        <template #default="scope">{{ formatDate(scope.row.actual_end_time) }}</template>
+      </el-table-column>
+    </el-table>
   </el-card>
 </template>
 
@@ -106,24 +149,24 @@ import { ref, watch, onMounted } from 'vue';
 import axios from 'axios';
 import { notifyError, notifySuccess } from '../../utils/notify';
 import { formatBeijingDateTime } from '../../utils/datetime';
-import { useFuelPriceStore } from '../../stores/fuelPrice';
 
 const loading = ref(false);
 const saving = ref(false);
 const error = ref('');
-const fuelStore = useFuelPriceStore();
 
 const driver = ref(null);
 const vehicle = ref(null);
 const tasks = ref([]);
+const completedTrips = ref([]);
+const driverRatingAvg = ref(null);
 
 const driverStatus = ref('available');
 const vehicleStatus = ref('available');
 const plateNumber = ref('');
 
-const endDialogVisible = ref(false);
+const reportDialogVisible = ref(false);
 const currentTripId = ref(null);
-const endForm = ref({
+const reportForm = ref({
   distance_km: 0,
   fuel_used: 0
 });
@@ -150,6 +193,8 @@ const fetchDashboard = async () => {
     driver.value = res.data.data.driver;
     vehicle.value = res.data.data.vehicle;
     tasks.value = res.data.data.tasks || [];
+    completedTrips.value = res.data.data.completed_trips || [];
+    driverRatingAvg.value = res.data.data.driver_rating_avg;
     driverStatus.value = driver.value?.status || 'available';
     vehicleStatus.value = vehicle.value?.status || 'available';
   } catch (err) {
@@ -202,11 +247,14 @@ const bindVehicle = async () => {
   }
 };
 
-// 打开“结束行程”弹窗并初始化提交数据
-const openEndDialog = (row) => {
+// 打开“司机填报”弹窗并回填历史值
+const openReportDialog = (row) => {
   currentTripId.value = row.trip_id;
-  endForm.value = { distance_km: 0, fuel_used: 0 };
-  endDialogVisible.value = true;
+  reportForm.value = {
+    distance_km: Number(row.driver_report_distance_km || 0),
+    fuel_used: Number(row.driver_report_fuel_used_l || 0)
+  };
+  reportDialogVisible.value = true;
 };
 
 const pickupPassenger = async (row) => {
@@ -223,24 +271,20 @@ const pickupPassenger = async (row) => {
   }
 };
 
-// 提交结束行程（里程/油量）
-const submitEndTrip = async () => {
+// 提交司机填报（里程/油量）
+const submitDriverReport = async () => {
   try {
     if (!currentTripId.value) return;
     saving.value = true;
-    if (fuelStore.currentFuelPrice === null || fuelStore.currentFuelPrice === undefined) {
-      await fuelStore.initializeDailyOilPrice();
-    }
-    await axios.post(`/api/trips/${currentTripId.value}/end`, {
-      distance_km: endForm.value.distance_km,
-      fuel_used: endForm.value.fuel_used,
-      fuel_price: fuelStore.currentFuelPrice
+    await axios.post(`/api/trips/${currentTripId.value}/driver-report`, {
+      distance_km: reportForm.value.distance_km,
+      fuel_used: reportForm.value.fuel_used
     });
-    notifySuccess('行程已结束');
-    endDialogVisible.value = false;
+    notifySuccess('司机填报已保存，请通知乘客结束行程');
+    reportDialogVisible.value = false;
     await fetchDashboard();
   } catch (err) {
-    error.value = err.response?.data?.message || '结束行程失败';
+    error.value = err.response?.data?.message || '提交填报失败';
   } finally {
     saving.value = false;
   }

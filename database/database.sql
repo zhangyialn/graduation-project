@@ -229,6 +229,12 @@ CREATE TABLE `trips`  (
   `dispatch_id` int NOT NULL,
   `distance_km` decimal(10, 2) NULL DEFAULT NULL,
   `fuel_used_l` decimal(10, 2) NULL DEFAULT NULL,
+  `driver_report_distance_km` decimal(10, 2) NULL DEFAULT NULL,
+  `driver_report_fuel_used_l` decimal(10, 2) NULL DEFAULT NULL,
+  `driver_reported_at` datetime NULL DEFAULT NULL,
+  `user_rating` decimal(3, 2) NULL DEFAULT NULL,
+  `user_rated_by` int NULL DEFAULT NULL,
+  `user_rated_at` datetime NULL DEFAULT NULL,
   `total_cost` decimal(10, 2) NOT NULL DEFAULT 0.00,
   `passenger_picked_up` tinyint(1) NOT NULL DEFAULT 0,
   `actual_start_time` datetime NULL DEFAULT NULL,
@@ -240,6 +246,7 @@ CREATE TABLE `trips`  (
   PRIMARY KEY (`id`) USING BTREE,
   KEY `idx_trips_dispatch_id` (`dispatch_id`) USING BTREE,
   KEY `idx_trips_status` (`status`) USING BTREE,
+  KEY `idx_trips_user_rating` (`user_rating`) USING BTREE,
   KEY `idx_trips_actual_start_time` (`actual_start_time`) USING BTREE,
   KEY `idx_trips_actual_end_time` (`actual_end_time`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;

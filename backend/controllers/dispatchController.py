@@ -5,34 +5,12 @@ from flask import request, jsonify
 from models.index import db, Dispatch, Vehicle, User, CarApplication, RoleEnum, Trip
 from flask_jwt_extended import jwt_required
 from datetime import datetime
+from controllers.recommendation_utils import build_driver_recommendations
 
 
 # 兼容 Enum/字符串状态读取
 def _enum_value(value):
     return value.value if hasattr(value, 'value') else value
-
-
-# 统计司机当前进行中的调度任务数
-def _driver_active_dispatch_count(driver_id):
-    return Dispatch.query.filter(
-        Dispatch.driver_id == driver_id,
-        Dispatch.status.in_(['scheduled', 'in_progress'])
-    ).count()
-
-
-# 生成推荐说明（座位匹配 + 当前任务负载）
-def _build_recommend_reason(seat_count, passenger_count, active_count):
-    reasons = []
-    if seat_count >= passenger_count:
-        reasons.append(f'座位数满足需求（{seat_count}座）')
-    else:
-        reasons.append(f'座位数不足（{seat_count}座）')
-
-    if active_count == 0:
-        reasons.append('司机当前无进行中任务')
-    else:
-        reasons.append(f'司机当前任务数：{active_count}')
-    return reasons
 
 
 # 获取所有调度
@@ -194,8 +172,12 @@ def cancel_dispatch(id):
         if not dispatch:
             return jsonify({'success': False, 'message': '调度不存在'})
         
-        if _enum_value(dispatch.status) not in ['scheduled', 'in_progress']:
-            return jsonify({'success': False, 'message': '当前状态无法取消'})
+        if _enum_value(dispatch.status) != 'scheduled':
+            return jsonify({'success': False, 'message': '仅未开始的调度可取消'})
+
+        trip = Trip.query.filter_by(dispatch_id=dispatch.id).first()
+        if trip and (trip.passenger_picked_up or trip.actual_start_time is not None):
+            return jsonify({'success': False, 'message': '司机已接到乘客，不能取消调度'}), 400
         
         # 更新调度状态
         dispatch.status = 'cancelled'
@@ -242,41 +224,11 @@ def recommend_dispatch(application_id):
         if _enum_value(application.status) != 'approved':
             return jsonify({'success': False, 'message': '仅已批准申请可推荐调度'}), 400
 
-        candidates_query = User.query.filter_by(role=RoleEnum.driver, is_deleted=False, driver_status='available')
-        if application.driver_id:
-            candidates_query = candidates_query.filter_by(id=application.driver_id)
-        candidates = candidates_query.all()
-
-        ranked = []
-        for driver in candidates:
-            vehicle = Vehicle.query.get(driver.vehicle_id)
-            if not vehicle or vehicle.is_deleted:
-                continue
-            if _enum_value(vehicle.status) != 'available':
-                continue
-
-            seat_count = int(vehicle.seat_count or 0)
-            passenger_count = int(application.passenger_count or 0)
-            if seat_count < passenger_count:
-                continue
-
-            active_count = _driver_active_dispatch_count(driver.id)
-            seat_score = 1 / (1 + max(seat_count - passenger_count, 0))
-            workload_score = 1 / (1 + active_count)
-            final_score = seat_score * 0.65 + workload_score * 0.35
-
-            ranked.append({
-                'driver_id': driver.id,
-                'driver_name': driver.name,
-                'vehicle_id': vehicle.id,
-                'plate_number': vehicle.plate_number,
-                'seat_count': seat_count,
-                'active_dispatch_count': active_count,
-                'score': round(final_score, 4),
-                'reasons': _build_recommend_reason(seat_count, passenger_count, active_count)
-            })
-
-        ranked.sort(key=lambda item: item['score'], reverse=True)
+        ranked = build_driver_recommendations(
+            passenger_count=application.passenger_count,
+            destination=application.destination,
+            specific_driver_id=application.driver_id
+        )
         best = ranked[0] if ranked else None
 
         return jsonify({

@@ -2,7 +2,7 @@
 
 # 审批记录控制器
 from flask import request, jsonify
-from models.index import db, Approval, User, CarApplication
+from models.index import db, Approval, User, CarApplication, Dispatch, Vehicle, RoleEnum
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from sqlalchemy.orm import aliased
@@ -147,6 +147,41 @@ def submit_approval(application_id):
         application.approved_by = current_user_id
         application.approved_at = approval_time
 
+        auto_dispatch = None
+        if status == 'approved':
+            driver = User.query.filter_by(id=application.driver_id, role=RoleEnum.driver, is_deleted=False).first()
+            vehicle = Vehicle.query.get(driver.vehicle_id) if driver and driver.vehicle_id else None
+
+            can_auto_dispatch = (
+                driver
+                and vehicle
+                and not vehicle.is_deleted
+                and _enum_value(driver.driver_status) == 'available'
+                and _enum_value(vehicle.status) == 'available'
+            )
+
+            if can_auto_dispatch:
+                existing_dispatch = Dispatch.query.filter(
+                    Dispatch.application_id == application.id,
+                    Dispatch.status.in_(['scheduled', 'in_progress'])
+                ).first()
+
+                if existing_dispatch:
+                    auto_dispatch = existing_dispatch
+                else:
+                    auto_dispatch = Dispatch(
+                        application_id=application.id,
+                        vehicle_id=vehicle.id,
+                        driver_id=driver.id,
+                        dispatcher_id=current_user_id,
+                        status='scheduled'
+                    )
+                    db.session.add(auto_dispatch)
+
+                application.status = 'dispatched'
+                driver.driver_status = 'busy'
+                vehicle.status = 'in_use'
+
         db.session.commit()
 
         return jsonify({
@@ -154,7 +189,8 @@ def submit_approval(application_id):
             'message': '审批提交成功',
             'data': {
                 'application': application.to_dict(),
-                'approval': approval.to_dict()
+                'approval': approval.to_dict(),
+                'auto_dispatch': auto_dispatch.to_dict() if auto_dispatch else None
             }
         })
     except Exception as e:

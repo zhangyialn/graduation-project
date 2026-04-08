@@ -24,7 +24,7 @@
         <p class="mobile-line">司机ID：{{ item.driver_id ?? '-' }}</p>
         <div class="mobile-actions">
           <el-button type="success" size="small" @click="startDispatch(item.id)" v-if="item.status === 'scheduled'">开始</el-button>
-          <el-button type="danger" size="small" @click="cancelDispatch(item.id)">取消</el-button>
+          <el-button type="danger" size="small" @click="cancelDispatch(item.id)" v-if="canCancelDispatch(item)">取消</el-button>
         </div>
       </el-card>
     </div>
@@ -45,7 +45,7 @@
             <el-icon><Check /></el-icon>
             开始
           </el-button>
-          <el-button type="danger" size="small" @click="cancelDispatch(scope.row.id)">
+          <el-button type="danger" size="small" @click="cancelDispatch(scope.row.id)" v-if="canCancelDispatch(scope.row)">
             <el-icon><Close /></el-icon>
             取消
           </el-button>
@@ -101,7 +101,16 @@
           <div class="fuel-meta">
             <div>推荐司机：{{ recommendation.driver_name }}（ID: {{ recommendation.driver_id }}）</div>
             <div>推荐车辆：{{ recommendation.plate_number }}（ID: {{ recommendation.vehicle_id }}）</div>
-            <div>匹配分：{{ recommendation.score }}</div>
+            <div style="margin: 6px 0;">
+              <el-rate
+                :model-value="normalizeRecommendationIndex(recommendation.recommendation_index)"
+                disabled
+                allow-half
+                show-score
+                score-template="{value} 分"
+              />
+            </div>
+            <div>推荐指数：{{ normalizeRecommendationIndex(recommendation.recommendation_index).toFixed(2) }}/5</div>
             <div>{{ (recommendation.reasons || []).join('；') }}</div>
           </div>
         </el-form-item>
@@ -121,7 +130,16 @@
                     司机{{ item.driver_name }} / 车辆{{ item.plate_number }}
                   </strong>
                 </div>
-                <div>匹配分：{{ item.score }}，任务数：{{ item.active_dispatch_count }}</div>
+                <div style="margin: 4px 0;">
+                  <el-rate
+                    :model-value="normalizeRecommendationIndex(item.recommendation_index)"
+                    disabled
+                    allow-half
+                    show-score
+                    score-template="{value} 分"
+                  />
+                </div>
+                <div>推荐指数：{{ normalizeRecommendationIndex(item.recommendation_index).toFixed(2) }}/5，任务数：{{ item.active_dispatch_count }}</div>
                 <div>{{ (item.reasons || []).join('；') }}</div>
               </div>
             </el-card>
@@ -230,6 +248,17 @@ const statusType = (status) => {
     cancelled: 'danger'
   };
   return typeMap[status] || 'info';
+};
+
+// 仅未开始调度可取消
+const canCancelDispatch = (item) => _enumValue(item?.status) === 'scheduled';
+
+const _enumValue = (value) => (value && typeof value === 'object' && 'value' in value ? value.value : value);
+
+const normalizeRecommendationIndex = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.min(5, parsed));
 };
 
 // 拉取调度列表

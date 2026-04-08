@@ -55,9 +55,46 @@ def get_my_dashboard():
                 'trip_id': trip.id if trip else None,
                 'trip_status': _enum_value(trip.status) if trip else None,
                 'passenger_picked_up': (bool(trip.passenger_picked_up) or bool(trip.actual_start_time)) if trip else False,
+                'driver_report_distance_km': float(trip.driver_report_distance_km) if trip and trip.driver_report_distance_km is not None else None,
+                'driver_report_fuel_used_l': float(trip.driver_report_fuel_used_l) if trip and trip.driver_report_fuel_used_l is not None else None,
+                'driver_reported_at': trip.driver_reported_at.isoformat() if trip and trip.driver_reported_at else None,
+                'user_rating': float(trip.user_rating) if trip and trip.user_rating is not None else None,
                 'actual_start_time': trip.actual_start_time.isoformat() if trip and trip.actual_start_time else None,
                 'actual_end_time': trip.actual_end_time.isoformat() if trip and trip.actual_end_time else None
             })
+
+        completed_dispatches = Dispatch.query.filter(
+            Dispatch.driver_id == driver.id,
+            Dispatch.status == 'completed'
+        ).order_by(Dispatch.updated_at.desc(), Dispatch.id.desc()).limit(30).all()
+
+        completed_rows = []
+        ratings = []
+        for dispatch in completed_dispatches:
+            application = CarApplication.query.get(dispatch.application_id)
+            applicant = User.query.get(application.applicant_id) if application else None
+            trip = Trip.query.filter_by(dispatch_id=dispatch.id).first()
+            if not trip:
+                continue
+
+            trip_rating = float(trip.user_rating) if trip.user_rating is not None else None
+            if trip_rating is not None:
+                ratings.append(trip_rating)
+
+            completed_rows.append({
+                'dispatch_id': dispatch.id,
+                'application_id': application.id if application else None,
+                'passenger_name': applicant.name if applicant else None,
+                'destination': application.destination if application else None,
+                'trip_id': trip.id,
+                'distance_km': float(trip.distance_km) if trip.distance_km is not None else None,
+                'fuel_used_l': float(trip.fuel_used_l) if trip.fuel_used_l is not None else None,
+                'user_rating': trip_rating,
+                'actual_start_time': trip.actual_start_time.isoformat() if trip.actual_start_time else None,
+                'actual_end_time': trip.actual_end_time.isoformat() if trip.actual_end_time else None
+            })
+
+        driver_rating_avg = round(sum(ratings) / len(ratings), 2) if ratings else None
 
         db.session.commit()
 
@@ -75,7 +112,9 @@ def get_my_dashboard():
                     'plate_number': vehicle.plate_number if vehicle else None,
                     'status': _enum_value(vehicle.status) if vehicle else None
                 },
-                'tasks': rows
+                'tasks': rows,
+                'completed_trips': completed_rows,
+                'driver_rating_avg': driver_rating_avg
             }
         })
     except Exception as e:

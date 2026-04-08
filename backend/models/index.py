@@ -327,6 +327,12 @@ class Trip(db.Model):
     dispatch_id = db.Column(db.Integer, nullable=False)
     distance_km = db.Column(db.DECIMAL(10, 2), nullable=True)
     fuel_used_l = db.Column(db.DECIMAL(10, 2), nullable=True)
+    driver_report_distance_km = db.Column(db.DECIMAL(10, 2), nullable=True)
+    driver_report_fuel_used_l = db.Column(db.DECIMAL(10, 2), nullable=True)
+    driver_reported_at = db.Column(db.DateTime, nullable=True)
+    user_rating = db.Column(db.DECIMAL(3, 2), nullable=True)
+    user_rated_by = db.Column(db.Integer, nullable=True)
+    user_rated_at = db.Column(db.DateTime, nullable=True)
     total_cost = db.Column(db.DECIMAL(10, 2), nullable=False, default=0.00)
     passenger_picked_up = db.Column(db.Boolean, nullable=False, default=False)
     actual_start_time = db.Column(db.DateTime, nullable=True)
@@ -341,8 +347,14 @@ class Trip(db.Model):
         return {
             'id': self.id,
             'dispatch_id': self.dispatch_id,
-            'distance_km': float(self.distance_km) if self.distance_km else None,
+            'distance_km': float(self.distance_km) if self.distance_km is not None else None,
             'fuel_used_l': float(self.fuel_used_l) if self.fuel_used_l is not None else None,
+            'driver_report_distance_km': float(self.driver_report_distance_km) if self.driver_report_distance_km is not None else None,
+            'driver_report_fuel_used_l': float(self.driver_report_fuel_used_l) if self.driver_report_fuel_used_l is not None else None,
+            'driver_reported_at': self.driver_reported_at.isoformat() if self.driver_reported_at else None,
+            'user_rating': float(self.user_rating) if self.user_rating is not None else None,
+            'user_rated_by': self.user_rated_by,
+            'user_rated_at': self.user_rated_at.isoformat() if self.user_rated_at else None,
             'total_cost': float(self.total_cost) if self.total_cost is not None else 0.00,
             'passenger_picked_up': bool(self.passenger_picked_up),
             'actual_start_time': self.actual_start_time.isoformat() if self.actual_start_time else None,

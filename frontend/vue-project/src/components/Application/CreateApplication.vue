@@ -36,14 +36,58 @@
         </div>
       </el-form-item>
       <el-form-item label="司机" prop="driver_id">
-        <el-select v-model="form.driver_id" placeholder="请选择可用司机" style="width: 100%">
-          <el-option
-            v-for="item in availableDrivers"
-            :key="item.id"
-            :label="`${item.name}（${item.vehicle_plate_number || '未绑定车牌'}）`"
-            :value="item.id"
-          />
-        </el-select>
+        <div style="width: 100%; display: grid; gap: 10px;">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <el-button
+              plain
+              size="small"
+              :loading="recommendingDrivers"
+              @click="fetchRecommendedDrivers"
+            >智能推荐司机</el-button>
+            <span class="recommend-tip" v-if="recommendedDrivers.length > 0">已按推荐指数降序展示前5候选</span>
+          </div>
+
+          <div v-if="recommendedDrivers.length > 0" class="recommendation-list">
+            <el-card
+              v-for="item in recommendedDrivers"
+              :key="`${item.driver_id}-${item.vehicle_id}`"
+              shadow="never"
+              class="recommendation-item"
+              @click="applyRecommendedDriver(item)"
+            >
+              <div class="recommendation-title">
+                <strong>{{ item.driver_name }}</strong>
+                <span>车辆 {{ item.plate_number }}</span>
+              </div>
+              <div class="recommendation-rate">
+                <el-rate
+                  :model-value="Number(item.recommendation_index || 0)"
+                  disabled
+                  allow-half
+                  show-score
+                  score-template="{value} 分"
+                />
+                <el-tag size="small" type="success">推荐指数 {{ Number(item.recommendation_index || 0).toFixed(2) }}/5</el-tag>
+              </div>
+              <div class="recommendation-desc">{{ (item.reasons || []).join('；') }}</div>
+            </el-card>
+          </div>
+
+          <el-select v-model="form.driver_id" placeholder="请选择可用司机" style="width: 100%">
+            <el-option
+              v-for="item in recommendedDrivers"
+              :key="`rec-${item.driver_id}`"
+              :label="`[推荐 ${Number(item.recommendation_index || 0).toFixed(2)}/5] ${item.driver_name}（${item.plate_number || '未绑定车牌'}）`"
+              :value="item.driver_id"
+            />
+            <el-option
+              v-for="item in nonRecommendedDrivers"
+              :key="item.id"
+              :label="`${item.name}（${item.vehicle_plate_number || '未绑定车牌'}）`"
+              :value="item.id"
+            />
+          </el-select>
+        </div>
       </el-form-item>
       <el-form-item label="乘车人数" prop="passenger_count">
         <el-input-number v-model="form.passenger_count" :min="1" :max="10" placeholder="请输入乘车人数" />
@@ -57,7 +101,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, onMounted } from 'vue';
+import { ref, reactive, watch, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { DocumentAdd } from '@element-plus/icons-vue';
@@ -77,6 +121,7 @@ const form = reactive({
   passenger_count: 1
 });
 const availableDrivers = ref([]);
+const recommendedDrivers = ref([]);
 const departments = ref([]);
 const rules = reactive({
   department_id: [{ required: true, message: '用户部门缺失，请联系管理员', trigger: 'change' }],
@@ -90,10 +135,16 @@ const rules = reactive({
 const error = ref('');
 const success = ref('');
 const loading = ref(false);
+const recommendingDrivers = ref(false);
 const locating = ref(false);
 const normalizingStartPoint = ref(false);
 const normalizingDestination = ref(false);
 const applicationForm = ref(null);
+
+const nonRecommendedDrivers = computed(() => {
+  const recommendedIds = new Set(recommendedDrivers.value.map(item => Number(item.driver_id)));
+  return availableDrivers.value.filter(item => !recommendedIds.has(Number(item.id)));
+});
 
 // 设置错误消息（并清空成功消息）
 const setError = (message) => {
@@ -115,6 +166,33 @@ const setSuccess = (message) => {
 const fetchAvailableDrivers = async () => {
   const response = await axios.get('/api/vehicles/drivers/available');
   availableDrivers.value = response.data?.data || [];
+};
+
+// 拉取推荐司机（按评分/经验/座位/目的地历史综合排序）
+const fetchRecommendedDrivers = async () => {
+  try {
+    recommendingDrivers.value = true;
+    const params = {
+      passenger_count: Number(form.passenger_count) || 1,
+      destination: (form.destination || '').trim()
+    };
+    const response = await axios.get('/api/applications/recommend-drivers', { params });
+    const rows = response.data?.data || [];
+    recommendedDrivers.value = rows.slice(0, 5);
+    if (!recommendedDrivers.value.length) {
+      notifyWarning('暂无可推荐司机，请手动选择');
+    }
+  } catch (err) {
+    notifyWarning(err.response?.data?.message || '获取推荐司机失败，请手动选择');
+  } finally {
+    recommendingDrivers.value = false;
+  }
+};
+
+// 选择推荐司机后回填 driver_id
+const applyRecommendedDriver = (item) => {
+  if (!item?.driver_id) return;
+  form.driver_id = item.driver_id;
 };
 
 const fetchDepartments = async () => {
@@ -339,6 +417,9 @@ onMounted(async () => {
       return;
     }
     await fetchAvailableDrivers();
+    if (form.destination || form.passenger_count) {
+      await fetchRecommendedDrivers();
+    }
     if (!form.start_point) {
       await fillStartPointByLocation();
     }
@@ -355,6 +436,11 @@ watch(error, (message) => {
 watch(success, (message) => {
   if (!message) return;
   notifySuccess(message);
+});
+
+watch(() => [form.destination, form.passenger_count], async ([destination, passengerCount]) => {
+  if (!(destination || '').trim() || !passengerCount) return;
+  await fetchRecommendedDrivers();
 });
 </script>
 
@@ -516,6 +602,44 @@ watch(success, (message) => {
   border-radius: 8px !important;
   transition: all 0.3s ease !important;
   font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif !important;
+}
+
+.recommend-tip {
+  color: #6b8e23;
+  font-size: 12px;
+  line-height: 24px;
+}
+
+.recommendation-list {
+  display: grid;
+  gap: 8px;
+}
+
+.recommendation-item {
+  border: 1px solid #dfe6d2;
+  cursor: pointer;
+}
+
+.recommendation-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  color: #2d3436;
+}
+
+.recommendation-rate {
+  margin-top: 6px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.recommendation-desc {
+  margin-top: 6px;
+  color: #4d5b44;
+  font-size: 12px;
 }
 
 :deep(.el-button:not(.is-primary):hover) {

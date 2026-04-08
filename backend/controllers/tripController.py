@@ -12,6 +12,15 @@ def _enum_value(value):
     return value.value if hasattr(value, 'value') else value
 
 
+def _normalize_identity(identity):
+    if identity is None:
+        return None
+    try:
+        return int(identity)
+    except Exception:
+        return identity
+
+
 # 获取所有出车记录
 # 查询出车记录列表
 def get_trips():
@@ -74,6 +83,7 @@ def get_trip_management_list():
                 'distance_km': distance_km,
                 'fuel_used_l': fuel_used_l,
                 'total_cost': float(trip.total_cost) if trip.total_cost is not None else float(expense.total_cost) if expense and expense.total_cost is not None else 0.0,
+                'user_rating': float(trip.user_rating) if trip.user_rating is not None else None,
                 'passenger_picked_up': bool(trip.passenger_picked_up),
                 'actual_start_time': trip.actual_start_time.isoformat() if trip.actual_start_time else None,
                 'actual_end_time': trip.actual_end_time.isoformat() if trip.actual_end_time else None,
@@ -135,7 +145,7 @@ def pickup_passenger(id):
         if not dispatch:
             return jsonify({'success': False, 'message': '调度不存在'}), 404
 
-        current_user_id = get_jwt_identity()
+        current_user_id = _normalize_identity(get_jwt_identity())
         current_user = User.query.get(current_user_id)
         if not current_user:
             return jsonify({'success': False, 'message': '用户不存在'}), 404
@@ -161,8 +171,7 @@ def pickup_passenger(id):
         return jsonify({'success': False, 'message': str(e)})
 
 
-# 结束出车（用户或司机填写油耗和里程）
-# 结束行程并计算费用，同时回写车辆/司机/调度/申请状态
+# 结束行程（仅乘客可结束），并按司机填报里程/油耗计算费用
 def end_trip(id):
     try:
         trip = Trip.query.get(id)
@@ -178,17 +187,17 @@ def end_trip(id):
         if not dispatch:
             return jsonify({'success': False, 'message': '调度不存在'}), 404
 
-        current_user_id = get_jwt_identity()
+        current_user_id = _normalize_identity(get_jwt_identity())
         current_user = User.query.get(current_user_id)
         if not current_user:
             return jsonify({'success': False, 'message': '用户不存在'}), 404
 
-        current_role = _enum_value(current_user.role)
-        driver_profile = User.query.filter_by(id=current_user_id, role=RoleEnum.driver, is_deleted=False).first()
+        application = CarApplication.query.get(dispatch.application_id)
+        if not application:
+            return jsonify({'success': False, 'message': '申请记录不存在'}), 404
 
-        if current_role == 'driver':
-            if not driver_profile or driver_profile.id != dispatch.driver_id:
-                return jsonify({'success': False, 'message': '仅该行程司机可结束当前行程'}), 403
+        if int(application.applicant_id) != int(current_user_id):
+            return jsonify({'success': False, 'message': '仅乘客本人可结束行程'}), 403
 
         picked_up = bool(trip.passenger_picked_up) or (trip.actual_start_time is not None)
         if not picked_up:
@@ -196,11 +205,16 @@ def end_trip(id):
         if not trip.passenger_picked_up:
             trip.passenger_picked_up = True
         
-        # 更新出车记录（支持司机按“消耗路程/消耗油量”录入）
+        # 优先采用司机填报里程/油耗；用户也可在结束时补录
         distance_input = data.get('distance_km')
         fuel_used_input = data.get('fuel_used')
         if distance_input is None:
-            return jsonify({'success': False, 'message': '请填写消耗路程'}), 400
+            distance_input = trip.driver_report_distance_km
+        if fuel_used_input is None:
+            fuel_used_input = trip.driver_report_fuel_used_l
+
+        if distance_input is None:
+            return jsonify({'success': False, 'message': '司机尚未填写里程，请先让司机填报'}), 400
 
         mileage = float(distance_input)
         if mileage < 0:
@@ -299,6 +313,163 @@ def end_trip(id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)})
+
+
+# 司机填写里程与油耗（不结束行程）
+def submit_driver_trip_report(id):
+    try:
+        trip = Trip.query.get(id)
+        if not trip:
+            return jsonify({'success': False, 'message': '出车记录不存在'}), 404
+
+        if _enum_value(trip.status) == 'completed':
+            return jsonify({'success': False, 'message': '行程已结束，不能再填报'}), 400
+
+        dispatch = Dispatch.query.get(trip.dispatch_id)
+        if not dispatch:
+            return jsonify({'success': False, 'message': '调度不存在'}), 404
+
+        current_user_id = _normalize_identity(get_jwt_identity())
+        driver = User.query.filter_by(id=current_user_id, role=RoleEnum.driver, is_deleted=False).first()
+        if not driver or int(driver.id) != int(dispatch.driver_id):
+            return jsonify({'success': False, 'message': '仅该行程司机可填报里程和油耗'}), 403
+
+        data = request.json or {}
+        distance_km = data.get('distance_km')
+        fuel_used = data.get('fuel_used')
+        if distance_km is None or fuel_used is None:
+            return jsonify({'success': False, 'message': 'distance_km 和 fuel_used 必填'}), 400
+
+        distance_km = float(distance_km)
+        fuel_used = float(fuel_used)
+        if distance_km < 0 or fuel_used < 0:
+            return jsonify({'success': False, 'message': '里程和油耗不能为负数'}), 400
+
+        trip.driver_report_distance_km = distance_km
+        trip.driver_report_fuel_used_l = fuel_used
+        trip.driver_reported_at = datetime.utcnow()
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': '司机填报成功', 'data': trip.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# 用户对司机评分（满分5分）
+def rate_trip(id):
+    try:
+        trip = Trip.query.get(id)
+        if not trip:
+            return jsonify({'success': False, 'message': '行程不存在'}), 404
+
+        if _enum_value(trip.status) != 'completed':
+            return jsonify({'success': False, 'message': '仅已完成行程可评分'}), 400
+
+        dispatch = Dispatch.query.get(trip.dispatch_id)
+        if not dispatch:
+            return jsonify({'success': False, 'message': '调度不存在'}), 404
+        application = CarApplication.query.get(dispatch.application_id)
+        if not application:
+            return jsonify({'success': False, 'message': '申请不存在'}), 404
+
+        current_user_id = _normalize_identity(get_jwt_identity())
+        if int(application.applicant_id) != int(current_user_id):
+            return jsonify({'success': False, 'message': '仅乘客本人可评分'}), 403
+
+        if trip.user_rating is not None:
+            return jsonify({'success': False, 'message': '该行程已评分'}), 400
+
+        data = request.json or {}
+        rating = data.get('rating')
+        if rating is None:
+            return jsonify({'success': False, 'message': 'rating 为必填'}), 400
+
+        rating = round(float(rating), 2)
+        if rating < 0 or rating > 5:
+            return jsonify({'success': False, 'message': '评分范围必须在 0 到 5 之间'}), 400
+
+        trip.user_rating = rating
+        trip.user_rated_by = current_user_id
+        trip.user_rated_at = datetime.utcnow()
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': '评分成功', 'data': trip.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# 当前登录用户查看自己的行程
+def get_my_trips():
+    try:
+        current_user_id = _normalize_identity(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        if not current_user:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+
+        role_value = _enum_value(current_user.role)
+        if role_value not in ['user', 'admin']:
+            return jsonify({'success': False, 'message': '仅普通用户可查看我的行程'}), 403
+
+        applications = CarApplication.query.filter_by(applicant_id=current_user_id).all()
+        if not applications:
+            return jsonify({'success': True, 'data': []})
+
+        application_map = {item.id: item for item in applications}
+        application_ids = list(application_map.keys())
+        dispatches = Dispatch.query.filter(Dispatch.application_id.in_(application_ids)).all()
+        dispatch_map = {item.application_id: item for item in dispatches}
+        driver_ids = list({item.driver_id for item in dispatches if item.driver_id})
+        drivers = User.query.filter(User.id.in_(driver_ids)).all() if driver_ids else []
+        driver_map = {item.id: item for item in drivers}
+
+        dispatch_ids = [item.id for item in dispatches]
+        trips = Trip.query.filter(Trip.dispatch_id.in_(dispatch_ids)).all() if dispatch_ids else []
+        trip_map = {item.dispatch_id: item for item in trips}
+
+        rows = []
+        for application in applications:
+            dispatch = dispatch_map.get(application.id)
+            trip = trip_map.get(dispatch.id) if dispatch else None
+            driver = driver_map.get(dispatch.driver_id) if dispatch else None
+
+            trip_status = _enum_value(trip.status) if trip else None
+            can_end_by_user = bool(
+                trip
+                and trip_status != 'completed'
+                and (trip.passenger_picked_up or trip.actual_start_time is not None)
+            )
+            can_rate = bool(trip and trip_status == 'completed' and trip.user_rating is None)
+
+            rows.append({
+                'application_id': application.id,
+                'purpose': application.purpose,
+                'destination': application.destination,
+                'start_point': application.start_point,
+                'start_time': application.start_time.isoformat() if application.start_time else None,
+                'application_status': _enum_value(application.status),
+                'dispatch_id': dispatch.id if dispatch else None,
+                'dispatch_status': _enum_value(dispatch.status) if dispatch else None,
+                'trip_id': trip.id if trip else None,
+                'trip_status': trip_status,
+                'passenger_picked_up': bool(trip.passenger_picked_up) if trip else False,
+                'actual_start_time': trip.actual_start_time.isoformat() if trip and trip.actual_start_time else None,
+                'actual_end_time': trip.actual_end_time.isoformat() if trip and trip.actual_end_time else None,
+                'distance_km': float(trip.distance_km) if trip and trip.distance_km is not None else None,
+                'fuel_used_l': float(trip.fuel_used_l) if trip and trip.fuel_used_l is not None else None,
+                'total_cost': float(trip.total_cost) if trip and trip.total_cost is not None else None,
+                'driver_name': driver.name if driver else None,
+                'driver_id': driver.id if driver else None,
+                'user_rating': float(trip.user_rating) if trip and trip.user_rating is not None else None,
+                'can_end_by_user': can_end_by_user,
+                'can_rate': can_rate
+            })
+
+        rows.sort(key=lambda item: item.get('application_id') or 0, reverse=True)
+        return jsonify({'success': True, 'data': rows})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 # 获取费用详情

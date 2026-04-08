@@ -324,7 +324,7 @@ const breadcrumb = computed(() => {
 });
 
 const subtitle = computed(() => {
-  if (isDriver.value) return '司机工作台，查看接驾信息与结束行程';
+  if (isDriver.value) return '司机工作台，查看接驾任务并填报里程油耗';
   if (isApprover.value) return '审批员工作台，专注审批与记录';
   if (isAdmin.value) return '管理员工作台，管理车辆与调度';
   return '快速提交用车申请，查看审批状态';
@@ -361,7 +361,7 @@ const quickActions = computed(() => {
   ];
 
   const driverExtra = [
-    { label: '司机面板', desc: '查看接驾任务并结束行程', path: '/dashboard/driver' }
+    { label: '司机面板', desc: '查看接驾任务并填报里程油耗', path: '/dashboard/driver' }
   ];
 
   const adminExtra = [

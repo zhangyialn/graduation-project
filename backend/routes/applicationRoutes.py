@@ -2,7 +2,7 @@
 
 # 用车申请相关路由
 from flask import Blueprint
-from controllers.applicationController import get_applications, get_application, create_application, update_application, cancel_application, get_my_applications, get_pending_applications, normalize_address
+from controllers.applicationController import get_applications, get_application, create_application, update_application, cancel_application, get_my_applications, get_pending_applications, normalize_address, get_recommended_drivers
 from middleware.auth_middleware import jwt_required
 
 applicationBlueprint = Blueprint('application', __name__, url_prefix='/api/applications')
@@ -16,3 +16,4 @@ applicationBlueprint.route('/<int:id>/cancel', methods=['POST'])(jwt_required()(
 applicationBlueprint.route('/my/<int:user_id>', methods=['GET'])(jwt_required()(get_my_applications))
 applicationBlueprint.route('/pending/<int:department_id>', methods=['GET'])(jwt_required()(get_pending_applications))
 applicationBlueprint.route('/normalize-address', methods=['POST'])(jwt_required()(normalize_address))
+applicationBlueprint.route('/recommend-drivers', methods=['GET'])(jwt_required()(get_recommended_drivers))

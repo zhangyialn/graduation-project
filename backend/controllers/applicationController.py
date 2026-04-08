@@ -4,6 +4,7 @@
 from datetime import datetime
 from flask import request, jsonify
 from models.index import db, CarApplication, User, Vehicle, RoleEnum
+from controllers.recommendation_utils import build_driver_recommendations
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 import json
@@ -310,5 +311,16 @@ def normalize_address():
                 'source': 'local-fallback'
             }
         })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# 司机推荐：供用户申请页按人数/目的地获取排序候选
+def get_recommended_drivers():
+    try:
+        passenger_count = request.args.get('passenger_count', type=int) or 1
+        destination = request.args.get('destination', type=str) or ''
+        ranked = build_driver_recommendations(passenger_count=passenger_count, destination=destination)
+        return jsonify({'success': True, 'data': ranked})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500

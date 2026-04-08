@@ -47,6 +47,100 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <el-divider>我的行程</el-divider>
+
+    <div v-if="isMobile" class="mobile-list">
+      <el-card v-for="item in myTrips" :key="item.application_id" shadow="never" class="mobile-item">
+        <div class="mobile-top">
+          <p class="mobile-title">行程 #{{ item.trip_id || '-' }}</p>
+          <el-tag :type="statusType(item.trip_status || item.dispatch_status || item.application_status)">{{ item.trip_status || item.dispatch_status || item.application_status }}</el-tag>
+        </div>
+        <p class="mobile-line">事由：{{ item.purpose || '-' }}</p>
+        <p class="mobile-line">司机：{{ item.driver_name || '-' }}</p>
+        <p class="mobile-line">起点：{{ item.start_point || '-' }}</p>
+        <p class="mobile-line">目的地：{{ item.destination || '-' }}</p>
+        <p class="mobile-line">费用：{{ item.total_cost ?? '-' }}</p>
+        <p class="mobile-line">评分：{{ item.user_rating == null ? '未评分' : `${Number(item.user_rating).toFixed(2)}/5` }}</p>
+        <div class="mobile-actions">
+          <el-button
+            v-if="item.can_end_by_user"
+            type="success"
+            size="small"
+            :loading="tripSubmitting"
+            @click="endTrip(item.trip_id)"
+          >结束行程</el-button>
+          <el-button
+            v-if="item.can_rate"
+            type="warning"
+            size="small"
+            @click="openRateDialog(item)"
+          >评分</el-button>
+        </div>
+      </el-card>
+    </div>
+
+    <el-table v-else :data="myTrips" style="width: 100%" border>
+      <el-table-column prop="application_id" label="申请ID" width="90" />
+      <el-table-column prop="trip_id" label="行程ID" width="90" />
+      <el-table-column prop="purpose" label="事由" min-width="140" />
+      <el-table-column prop="driver_name" label="司机" width="120" />
+      <el-table-column prop="start_point" label="起点" min-width="120" />
+      <el-table-column prop="destination" label="目的地" min-width="120" />
+      <el-table-column prop="trip_status" label="行程状态" width="120">
+        <template #default="scope">
+          <el-tag :type="statusType(scope.row.trip_status || scope.row.dispatch_status || scope.row.application_status)">
+            {{ scope.row.trip_status || scope.row.dispatch_status || scope.row.application_status }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="actual_start_time" label="开始时间" width="180">
+        <template #default="scope">{{ formatDate(scope.row.actual_start_time) }}</template>
+      </el-table-column>
+      <el-table-column prop="actual_end_time" label="结束时间" width="180">
+        <template #default="scope">{{ formatDate(scope.row.actual_end_time) }}</template>
+      </el-table-column>
+      <el-table-column prop="total_cost" label="费用" width="100">
+        <template #default="scope">
+          {{ scope.row.total_cost == null ? '-' : Number(scope.row.total_cost).toFixed(2) }}
+        </template>
+      </el-table-column>
+      <el-table-column prop="user_rating" label="我的评分" width="120">
+        <template #default="scope">
+          <span v-if="scope.row.user_rating == null">未评分</span>
+          <span v-else>{{ Number(scope.row.user_rating).toFixed(2) }}/5</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="200" fixed="right">
+        <template #default="scope">
+          <el-button
+            v-if="scope.row.can_end_by_user"
+            type="success"
+            size="small"
+            :loading="tripSubmitting"
+            @click="endTrip(scope.row.trip_id)"
+          >结束行程</el-button>
+          <el-button
+            v-if="scope.row.can_rate"
+            type="warning"
+            size="small"
+            @click="openRateDialog(scope.row)"
+          >评分</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <el-dialog v-model="rateDialogVisible" title="行程评分" width="420px">
+      <el-form label-width="90px">
+        <el-form-item label="评分">
+          <el-rate v-model="ratingValue" allow-half show-score score-template="{value} 分" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="rateDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="tripSubmitting" @click="submitRateTrip">提交评分</el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
@@ -55,12 +149,17 @@ import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import axios from 'axios';
 import { Document, Close } from '@element-plus/icons-vue';
 import { useAuthStore } from '../../stores/auth';
-import { notifyError } from '../../utils/notify';
+import { notifyError, notifySuccess, notifyWarning } from '../../utils/notify';
 import { formatBeijingDateTime } from '../../utils/datetime';
 
 const authStore = useAuthStore();
 const applications = ref([]);
+const myTrips = ref([]);
 const error = ref('');
+const tripSubmitting = ref(false);
+const rateDialogVisible = ref(false);
+const currentTripId = ref(null);
+const ratingValue = ref(5);
 const screenWidth = ref(window.innerWidth);
 const isMobile = computed(() => screenWidth.value < 900);
 
@@ -70,7 +169,12 @@ const statusType = (status) => {
     pending: 'warning',
     approved: 'success',
     rejected: 'danger',
-    completed: 'info'
+    completed: 'info',
+    dispatched: 'primary',
+    started: 'info',
+    in_progress: 'info',
+    scheduled: 'warning',
+    cancelled: 'danger'
   };
   return typeMap[status] || 'info';
 };
@@ -97,6 +201,16 @@ const fetchApplications = async () => {
   }
 };
 
+// 拉取当前用户行程，用于“结束行程/评分”
+const fetchMyTrips = async () => {
+  try {
+    const response = await axios.get('/api/trips/my');
+    myTrips.value = response.data?.data || [];
+  } catch (err) {
+    error.value = err.response?.data?.message || '获取我的行程失败';
+  }
+};
+
 // 取消待审批申请后刷新列表
 const cancelApplication = async (id) => {
   try {
@@ -107,6 +221,50 @@ const cancelApplication = async (id) => {
   }
 };
 
+// 用户结束行程（仅乘客本人）
+const endTrip = async (tripId) => {
+  if (!tripId) return;
+  try {
+    tripSubmitting.value = true;
+    await axios.post(`/api/trips/${tripId}/end`, {});
+    notifySuccess('行程已结束');
+    await Promise.all([fetchApplications(), fetchMyTrips()]);
+  } catch (err) {
+    error.value = err.response?.data?.message || '结束行程失败';
+  } finally {
+    tripSubmitting.value = false;
+  }
+};
+
+// 打开评分弹窗
+const openRateDialog = (row) => {
+  if (!row?.trip_id) {
+    notifyWarning('行程记录不存在，无法评分');
+    return;
+  }
+  currentTripId.value = row.trip_id;
+  ratingValue.value = 5;
+  rateDialogVisible.value = true;
+};
+
+// 提交评分（0-5，支持小数）
+const submitRateTrip = async () => {
+  if (!currentTripId.value) return;
+  try {
+    tripSubmitting.value = true;
+    await axios.post(`/api/trips/${currentTripId.value}/rate`, {
+      rating: Number(ratingValue.value)
+    });
+    notifySuccess('评分提交成功');
+    rateDialogVisible.value = false;
+    await fetchMyTrips();
+  } catch (err) {
+    error.value = err.response?.data?.message || '评分失败';
+  } finally {
+    tripSubmitting.value = false;
+  }
+};
+
 // 更新屏幕宽度用于移动端布局判断
 const updateWidth = () => {
   screenWidth.value = window.innerWidth;
@@ -114,6 +272,7 @@ const updateWidth = () => {
 
 onMounted(() => {
   fetchApplications();
+  fetchMyTrips();
   window.addEventListener('resize', updateWidth);
 });
 

@@ -4,7 +4,7 @@
     <el-aside v-if="showSidebar" width="270px" class="sidebar">
       <div class="sidebar-header" @click="handleNav('/dashboard/home')">
         <el-avatar :size="64" class="logo-avatar">
-          <el-icon><Van /></el-icon>
+          <el-icon><SedanIcon /></el-icon>
         </el-avatar>
         <h3>公务用车系统</h3>
       </div>
@@ -21,7 +21,7 @@
           <span>申请服务中心</span>
         </el-menu-item>
         <el-menu-item index="/dashboard/driver" v-if="isDriver">
-          <template #icon><el-icon><Van /></el-icon></template>
+          <template #icon><el-icon><SedanIcon /></el-icon></template>
           <span>司机面板</span>
         </el-menu-item>
         <el-menu-item index="/dashboard/approvals" v-if="isApprover || isAdmin">
@@ -29,7 +29,7 @@
           <span>审批与出车中心</span>
         </el-menu-item>
         <el-menu-item index="/dashboard/personnel-vehicles" v-if="isAdmin">
-          <template #icon><el-icon><Van /></el-icon></template>
+          <template #icon><el-icon><SedanIcon /></el-icon></template>
           <span>人员和车辆管理</span>
         </el-menu-item>
         <el-menu-item index="/dashboard/reports" v-if="isApprover || isAdmin">
@@ -52,7 +52,7 @@
         <div class="header-left desktop-merged-nav" v-else-if="!isMobile">
           <div class="top-brand" @click="handleNav('/dashboard/home')">
             <el-avatar :size="52" class="logo-avatar top-logo-avatar">
-              <el-icon><Van /></el-icon>
+              <el-icon><SedanIcon /></el-icon>
             </el-avatar>
             <span class="top-brand-name">公务用车系统</span>
           </div>
@@ -60,7 +60,7 @@
 
         <div class="header-left mobile-left" v-else>
           <el-button text class="mobile-icon-btn" @click="handleNav('/dashboard/home')">
-            <el-icon><Van /></el-icon>
+            <el-icon><SedanIcon /></el-icon>
           </el-button>
         </div>
 
@@ -83,13 +83,17 @@
             </template>
           </el-dropdown>
           <el-dropdown v-if="isDev" trigger="click" @command="switchRole">
-            <el-button size="small" plain>切换角色(开发)</el-button>
+            <el-button size="small" plain :loading="switchingRole">切换账号(开发)</el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="user">普通用户</el-dropdown-item>
-                <el-dropdown-item command="driver">司机</el-dropdown-item>
-                <el-dropdown-item command="approver">审批员</el-dropdown-item>
-                <el-dropdown-item command="admin">管理员</el-dropdown-item>
+                <el-dropdown-item v-if="devUsers.length === 0" disabled>暂无可切换用户</el-dropdown-item>
+                <el-dropdown-item
+                  v-for="item in devUsers"
+                  :key="item.id"
+                  :command="String(item.id)"
+                >
+                  {{ item.roleLabel }} · {{ item.username }}（{{ item.name || `ID:${item.id}` }}）
+                </el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -248,7 +252,6 @@ import {
   DocumentAdd,
   Document,
   Check,
-  Van,
   DataAnalysis,
   Lock,
   SwitchButton,
@@ -257,6 +260,7 @@ import {
   User,
   Menu
 } from '@element-plus/icons-vue';
+import SedanIcon from '../components/Common/SedanIcon.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -271,6 +275,8 @@ const screenWidth = ref(window.innerWidth);
 const featureDrawer = ref(false);
 const roleLabelDialogVisible = ref(false);
 const savingAccount = ref(false);
+const switchingRole = ref(false);
+const devUsers = ref([]);
 const accountForm = ref({
   username: '',
   old_password: '',
@@ -411,7 +417,7 @@ const menuGroups = computed(() => {
     groups.push({
       title: '司机',
       items: [
-        { label: '司机面板', path: '/dashboard/driver', icon: Van }
+        { label: '司机面板', path: '/dashboard/driver', icon: SedanIcon }
       ]
     });
   }
@@ -435,6 +441,15 @@ const menuGroups = computed(() => {
 
   return groups;
 });
+
+const roleLabelMap = {
+  admin: '管理员',
+  approver: '审批员',
+  driver: '司机',
+  user: '普通用户'
+};
+
+const resolveRoleLabel = (roleKey) => roleLabelMap[roleKey] || roleKey || '未知角色';
 
 // 从本地会话恢复当前用户信息
 const loadUser = () => {
@@ -593,18 +608,50 @@ const saveRoleLabelAlias = async () => {
   }
 };
 
-// 开发环境下快速切换演示角色
-const switchRole = (roleKey) => {
-  const templates = {
-    user: { id: 1, username: 'user-demo', role: 'user' },
-    driver: { id: 4, username: 'driver-demo', role: 'driver' },
-    approver: { id: 2, username: 'approver-demo', role: 'approver' },
-    admin: { id: 3, username: 'admin-demo', role: 'admin' }
-  };
-  const payload = templates[roleKey];
-  if (!payload) return;
-  authStore.setSession(authStore.token || 'dev-token', payload);
-  loadUser();
+const fetchDevUsers = async () => {
+  if (!isDev || !authStore.token) return;
+  try {
+    const response = await axios.get('/api/auth/dev-users');
+    const list = response.data?.data || [];
+    devUsers.value = list.map((item) => ({
+      ...item,
+      roleLabel: resolveRoleLabel(item.role)
+    }));
+  } catch (_err) {
+    devUsers.value = [];
+  }
+};
+
+// 开发环境下切换为数据库中的任意用户（返回真实JWT）
+const switchRole = async (userIdText) => {
+  if (!isDev) return;
+  const targetUserId = Number(userIdText);
+  if (!Number.isFinite(targetUserId) || targetUserId <= 0) return;
+
+  try {
+    switchingRole.value = true;
+    const response = await axios.post('/api/auth/dev-switch-user', { user_id: targetUserId });
+    const payload = response.data?.data;
+    if (!payload?.access_token || !payload?.user) {
+      notifyError('角色切换失败：响应数据不完整');
+      return;
+    }
+
+    // 开发模式固定使用 session，保证不同标签页互不干扰
+    authStore.setSession(payload.access_token, payload.user, 'session');
+    loadUser();
+    await fetchDevUsers();
+    await fetchRolePendingCount();
+    loadLastLoginHint();
+
+    const targetPath = payload.user?.must_change_password ? '/dashboard/change-password' : '/dashboard/home';
+    handleNav(targetPath);
+    notifySuccess(`已切换为：${payload.user.username}（${resolveRoleLabel(payload.user.role)}）`);
+  } catch (err) {
+    notifyError(err.response?.data?.message || '切换角色失败');
+  } finally {
+    switchingRole.value = false;
+  }
 };
 
 // 更新屏幕宽度用于移动端判断
@@ -616,6 +663,7 @@ onMounted(() => {
   loadUser();
   loadLastLoginHint();
   fetchRolePendingCount();
+  fetchDevUsers();
   currentStep.value = (route.path === '/dashboard' || route.path === '/dashboard/home') ? 'home' : 'child';
   window.addEventListener('resize', updateWidth);
 });

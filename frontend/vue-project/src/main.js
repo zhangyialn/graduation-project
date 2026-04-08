@@ -1,7 +1,7 @@
 /**
  * 前端应用入口：初始化 Vue、Pinia、Router、Element Plus，并统一配置 Axios 拦截器。
  */
-import { createApp } from 'vue'
+import { createApp, watch } from 'vue'
 import App from './App.vue'
 import router from './router'
 import axios from 'axios'
@@ -18,6 +18,34 @@ axios.defaults.baseURL = 'http://localhost:5000'
 
 const authStore = useAuthStore(pinia)
 authStore.hydrate()
+const faviconHref = `/favicon.svg?v=sedan-line-1`
+
+const updatePageBrand = (username = '') => {
+  const suffix = username ? ` - ${username}` : ''
+  document.title = `公务用车管理系统${suffix}`
+
+  const ensureFavicon = (relValue) => {
+    let tag = document.querySelector(`link[rel='${relValue}']`)
+    if (!tag) {
+      tag = document.createElement('link')
+      tag.setAttribute('rel', relValue)
+      document.head.appendChild(tag)
+    }
+    tag.setAttribute('type', 'image/svg+xml')
+    tag.setAttribute('href', faviconHref)
+  }
+
+  ensureFavicon('icon')
+  ensureFavicon('shortcut icon')
+}
+
+watch(
+  () => authStore.user?.username,
+  (username) => {
+    updatePageBrand(username || '')
+  },
+  { immediate: true }
+)
 
 // 请求拦截：若本次请求未显式携带 Authorization，则自动注入当前登录 token
 axios.interceptors.request.use((config) => {

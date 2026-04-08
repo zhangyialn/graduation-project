@@ -4,7 +4,9 @@
     <el-card class="login-card" shadow="hover">
       <template #header>
         <div class="login-header">
-          <el-avatar :size="60" :src="carAvatar" />
+          <el-avatar :size="60" class="login-logo-avatar">
+            <el-icon><SedanIcon /></el-icon>
+          </el-avatar>
           <h2>公务用车管理系统</h2>
         </div>
       </template>
@@ -42,8 +44,8 @@
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
+import SedanIcon from '../Common/SedanIcon.vue';
 import { notifyError, notifyWarning } from '../../utils/notify';
-import carAvatar from '../../assets/car.png';
 import { useAuthStore } from '../../stores/auth';
 import { useFuelPriceStore } from '../../stores/fuelPrice';
 
@@ -107,6 +109,18 @@ const fetchBootstrapStatus = async () => {
   }
 };
 
+// 登录后后台初始化油价，不阻塞主流程
+const warmupFuelPriceInBackground = () => {
+  Promise.resolve()
+    .then(async () => {
+      await fuelStore.initializeDailyOilPrice();
+      await fuelStore.syncOilPriceToBackend();
+    })
+    .catch(() => {
+      // 油价同步失败不阻断登录
+    });
+};
+
 // 提交登录并写入会话；首次登录强制跳转改密页
 const handleLogin = async () => {
   try {
@@ -119,13 +133,7 @@ const handleLogin = async () => {
     const user = response.data.data.user;
     authStore.setSession(response.data.data.access_token, user, form.keep_login ? 'local' : 'session');
     updateLoginMeta(user?.username || form.username).catch(() => {});
-
-    try {
-      await fuelStore.initializeDailyOilPrice();
-      await fuelStore.syncOilPriceToBackend();
-    } catch (_syncErr) {
-      // 油价同步失败不阻断登录
-    }
+    warmupFuelPriceInBackground();
 
     localStorage.setItem(KEEP_LOGIN_KEY, form.keep_login ? '1' : '0');
     if (form.remember_password) {
@@ -266,6 +274,15 @@ onMounted(() => {
   font-size: 1.5rem;
   font-weight: 700;
   font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+}
+
+.login-logo-avatar {
+  background: #eef3df;
+  color: #556b2f;
+}
+
+.login-logo-avatar :deep(.el-icon) {
+  font-size: 28px;
 }
 
 :deep(.el-form-item) {

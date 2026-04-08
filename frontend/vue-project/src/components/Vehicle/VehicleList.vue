@@ -3,7 +3,7 @@
   <el-card class="vehicle-list-card" shadow="hover">
     <template #header>
       <div class="card-header">
-        <el-icon class="header-icon"><Van /></el-icon>
+        <el-icon class="header-icon"><SedanIcon /></el-icon>
         <h2>车辆管理</h2>
         <el-button type="primary" @click="openVehicleDialog">
           <el-icon><Plus /></el-icon>
@@ -183,7 +183,8 @@
 <script setup>
 import { ref, reactive, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import axios from 'axios';
-import { Van, Plus, Edit, Delete, UserFilled } from '@element-plus/icons-vue';
+import { Plus, Edit, Delete, UserFilled } from '@element-plus/icons-vue';
+import SedanIcon from '../Common/SedanIcon.vue';
 import { notifyError } from '../../utils/notify';
 import { getBeijingDateKey } from '../../utils/datetime';
 

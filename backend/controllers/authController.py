@@ -454,3 +454,71 @@ def get_bootstrap_status():
         }), 200
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# 判断是否处于开发模式（仅开发模式开放角色切换能力）
+def _is_development_mode():
+    env = str(current_app.config.get('ENV') or '').lower()
+    flask_env = str(current_app.config.get('FLASK_ENV') or '').lower()
+    return bool(current_app.debug) or env == 'development' or flask_env == 'development'
+
+
+# 开发模式：读取数据库中可切换的用户列表
+def get_dev_users():
+    try:
+        if not _is_development_mode():
+            return jsonify({'success': False, 'message': '仅开发模式可用'}), 403
+
+        users = User.query.filter_by(is_deleted=False, is_active=True).all()
+        result = []
+        for item in users:
+            payload = item.to_dict()
+            result.append({
+                'id': payload.get('id'),
+                'username': payload.get('username'),
+                'name': payload.get('name'),
+                'role': payload.get('role'),
+                'department_id': payload.get('department_id'),
+                'must_change_password': payload.get('must_change_password')
+            })
+
+        result.sort(key=lambda x: (str(x.get('role') or ''), int(x.get('id') or 0)))
+        return jsonify({'success': True, 'data': result}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# 开发模式：切换为数据库中的指定用户并签发新的JWT
+def dev_switch_user():
+    try:
+        if not _is_development_mode():
+            return jsonify({'success': False, 'message': '仅开发模式可用'}), 403
+
+        data = request.json or {}
+        user_id_raw = data.get('user_id')
+        if user_id_raw in [None, '']:
+            return jsonify({'success': False, 'message': 'user_id 为必填项'}), 400
+
+        try:
+            user_id = int(user_id_raw)
+        except Exception:
+            return jsonify({'success': False, 'message': 'user_id 必须为整数'}), 400
+
+        user = User.query.get(user_id)
+        if not user or user.is_deleted or not user.is_active:
+            return jsonify({'success': False, 'message': '目标用户不存在或不可用'}), 404
+
+        access_token = create_access_token(identity=str(user.id))
+        refresh_token = create_refresh_token(identity=str(user.id))
+
+        return jsonify({
+            'success': True,
+            'message': '角色切换成功',
+            'data': {
+                'access_token': access_token,
+                'refresh_token': refresh_token,
+                'user': user.to_dict()
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500

@@ -248,14 +248,12 @@ export const useFuelPriceStore = defineStore('fuelPrice', () => {
       })
       .filter(Boolean);
 
-    for (const item of entries) {
-      await axios.post('/api/trips/fuel-prices', {
-        fuel_type: item.fuelType,
-        price: item.price,
-        effective_date: effectiveDate,
-        source
-      });
-    }
+    await Promise.all(entries.map((item) => axios.post('/api/trips/fuel-prices', {
+      fuel_type: item.fuelType,
+      price: item.price,
+      effective_date: effectiveDate,
+      source
+    })));
   };
 
   hydrate();

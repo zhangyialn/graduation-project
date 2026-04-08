@@ -2,7 +2,7 @@
 
 # 认证相关路由
 from flask import Blueprint
-from controllers.authController import register, login, refresh, get_current_user, change_password, update_account_settings, verify_phone, reset_password, bootstrap_admin, generate_bootstrap_key, get_bootstrap_status
+from controllers.authController import register, login, refresh, get_current_user, change_password, update_account_settings, verify_phone, reset_password, bootstrap_admin, generate_bootstrap_key, get_bootstrap_status, get_dev_users, dev_switch_user
 from middleware.auth_middleware import jwt_required
 from middleware.validation_middleware import validate_request
 
@@ -45,3 +45,11 @@ authBlueprint.route('/reset-password', methods=['POST'])(
 authBlueprint.route('/bootstrap-status', methods=['GET'])(get_bootstrap_status)
 authBlueprint.route('/bootstrap-key', methods=['POST'])(generate_bootstrap_key)
 authBlueprint.route('/bootstrap-admin', methods=['POST'])(bootstrap_admin)
+
+# 开发模式角色切换
+authBlueprint.route('/dev-users', methods=['GET'])(jwt_required()(get_dev_users))
+authBlueprint.route('/dev-switch-user', methods=['POST'])(
+	jwt_required()(
+		validate_request(required_fields=['user_id'])(dev_switch_user)
+	)
+)

@@ -5,6 +5,35 @@ import { defineStore } from 'pinia';
 const TOKEN_KEY = 'token';
 const USER_KEY = 'user';
 const MODE_KEY = 'auth_storage_mode';
+const TAB_ID_KEY = 'dev_auth_tab_id';
+const IS_DEV = import.meta.env.DEV;
+
+const getTabId = () => {
+  if (typeof window === 'undefined') return 'server';
+  let tabId = sessionStorage.getItem(TAB_ID_KEY);
+  if (!tabId) {
+    tabId = `tab_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    sessionStorage.setItem(TAB_ID_KEY, tabId);
+  }
+  return tabId;
+};
+
+const getStorageKeys = () => {
+  if (!IS_DEV) {
+    return {
+      tokenKey: TOKEN_KEY,
+      userKey: USER_KEY,
+      modeKey: MODE_KEY
+    };
+  }
+
+  const tabId = getTabId();
+  return {
+    tokenKey: `${TOKEN_KEY}:${tabId}`,
+    userKey: `${USER_KEY}:${tabId}`,
+    modeKey: `${MODE_KEY}:${tabId}`
+  };
+};
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref('');
@@ -16,7 +45,8 @@ export const useAuthStore = defineStore('auth', () => {
   // 从本地存储恢复 token 与用户信息
   const hydrate = () => {
     if (typeof window === 'undefined') return;
-    const mode = localStorage.getItem(MODE_KEY) || 'local';
+    const keys = getStorageKeys();
+    const mode = localStorage.getItem(keys.modeKey) || (IS_DEV ? 'session' : 'local');
     persistenceMode.value = mode;
 
     const parseUser = (raw) => {
@@ -29,37 +59,39 @@ export const useAuthStore = defineStore('auth', () => {
     };
 
     if (mode === 'session') {
-      token.value = sessionStorage.getItem(TOKEN_KEY) || '';
-      const raw = sessionStorage.getItem(USER_KEY);
+      token.value = sessionStorage.getItem(keys.tokenKey) || '';
+      const raw = sessionStorage.getItem(keys.userKey);
       user.value = parseUser(raw);
       return;
     }
 
-    token.value = localStorage.getItem(TOKEN_KEY) || '';
-    const raw = localStorage.getItem(USER_KEY);
+    token.value = localStorage.getItem(keys.tokenKey) || '';
+    const raw = localStorage.getItem(keys.userKey);
     user.value = parseUser(raw);
   };
 
   // 将当前登录态写入本地存储
   const persist = () => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(MODE_KEY, persistenceMode.value);
+    const keys = getStorageKeys();
+
+    localStorage.setItem(keys.modeKey, persistenceMode.value);
     if (persistenceMode.value === 'session') {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(USER_KEY);
-      if (token.value) sessionStorage.setItem(TOKEN_KEY, token.value);
-      else sessionStorage.removeItem(TOKEN_KEY);
-      if (user.value) sessionStorage.setItem(USER_KEY, JSON.stringify(user.value));
-      else sessionStorage.removeItem(USER_KEY);
+      localStorage.removeItem(keys.tokenKey);
+      localStorage.removeItem(keys.userKey);
+      if (token.value) sessionStorage.setItem(keys.tokenKey, token.value);
+      else sessionStorage.removeItem(keys.tokenKey);
+      if (user.value) sessionStorage.setItem(keys.userKey, JSON.stringify(user.value));
+      else sessionStorage.removeItem(keys.userKey);
       return;
     }
 
-    sessionStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem(USER_KEY);
-    if (token.value) localStorage.setItem(TOKEN_KEY, token.value);
-    else localStorage.removeItem(TOKEN_KEY);
-    if (user.value) localStorage.setItem(USER_KEY, JSON.stringify(user.value));
-    else localStorage.removeItem(USER_KEY);
+    sessionStorage.removeItem(keys.tokenKey);
+    sessionStorage.removeItem(keys.userKey);
+    if (token.value) localStorage.setItem(keys.tokenKey, token.value);
+    else localStorage.removeItem(keys.tokenKey);
+    if (user.value) localStorage.setItem(keys.userKey, JSON.stringify(user.value));
+    else localStorage.removeItem(keys.userKey);
   };
 
   // 设置完整会话（登录后调用）
@@ -72,16 +104,17 @@ export const useAuthStore = defineStore('auth', () => {
 
   // 清空会话（退出登录时调用）
   const clearSession = () => {
+    const keys = getStorageKeys();
     token.value = '';
     user.value = null;
-    persistenceMode.value = 'local';
+    persistenceMode.value = IS_DEV ? 'session' : 'local';
 
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-    localStorage.removeItem(MODE_KEY);
+    localStorage.removeItem(keys.tokenKey);
+    localStorage.removeItem(keys.userKey);
+    localStorage.removeItem(keys.modeKey);
 
-    sessionStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem(USER_KEY);
+    sessionStorage.removeItem(keys.tokenKey);
+    sessionStorage.removeItem(keys.userKey);
   };
 
   // 兼容旧代码调用名

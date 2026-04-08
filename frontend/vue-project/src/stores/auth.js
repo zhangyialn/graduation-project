@@ -18,15 +18,26 @@ export const useAuthStore = defineStore('auth', () => {
     if (typeof window === 'undefined') return;
     const mode = localStorage.getItem(MODE_KEY) || 'local';
     persistenceMode.value = mode;
+
+    const parseUser = (raw) => {
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw);
+      } catch (_err) {
+        return null;
+      }
+    };
+
     if (mode === 'session') {
       token.value = sessionStorage.getItem(TOKEN_KEY) || '';
       const raw = sessionStorage.getItem(USER_KEY);
-      user.value = raw ? JSON.parse(raw) : null;
+      user.value = parseUser(raw);
       return;
     }
+
     token.value = localStorage.getItem(TOKEN_KEY) || '';
     const raw = localStorage.getItem(USER_KEY);
-    user.value = raw ? JSON.parse(raw) : null;
+    user.value = parseUser(raw);
   };
 
   // 将当前登录态写入本地存储
@@ -63,10 +74,19 @@ export const useAuthStore = defineStore('auth', () => {
   const clearSession = () => {
     token.value = '';
     user.value = null;
+    persistenceMode.value = 'local';
+
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
     localStorage.removeItem(MODE_KEY);
+
     sessionStorage.removeItem(TOKEN_KEY);
     sessionStorage.removeItem(USER_KEY);
-    persist();
+  };
+
+  // 兼容旧代码调用名
+  const clearToken = () => {
+    clearSession();
   };
 
   // 仅更新用户信息并持久化
@@ -83,6 +103,7 @@ export const useAuthStore = defineStore('auth', () => {
     hydrate,
     setSession,
     clearSession,
+    clearToken,
     setUser
   };
 });

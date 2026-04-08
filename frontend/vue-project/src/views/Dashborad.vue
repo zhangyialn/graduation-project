@@ -38,7 +38,7 @@
         </el-menu-item>
         <el-menu-item index="/dashboard/fuel-prices" v-if="isAdmin">
           <template #icon><el-icon><Money /></el-icon></template>
-          <span>油价管理</span>
+          <span>油价趋势分析</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -310,7 +310,7 @@ const breadcrumb = computed(() => {
     '/dashboard/users/import': '人员和车辆管理',
     '/dashboard/admins': '人员和车辆管理',
     '/dashboard/reports': '报表可视化',
-    '/dashboard/fuel-prices': '油价管理',
+    '/dashboard/fuel-prices': '油价趋势分析',
     '/dashboard/approver-records': '审批与出车中心',
     '/dashboard/trips': '审批与出车中心'
   };
@@ -362,7 +362,7 @@ const quickActions = computed(() => {
     { label: '人员和车辆管理', desc: '导入人员、管理员维护与车辆司机管理', path: '/dashboard/personnel-vehicles' },
     { label: '审批与出车中心', desc: '处理审批、调度、记录和行程', path: '/dashboard/approval-dispatch' },
     { label: '报表可视化', desc: '查看使用率与费用趋势', path: '/dashboard/reports' },
-    { label: '油价管理', desc: '维护油价并用于费用计算', path: '/dashboard/fuel-prices' }
+    { label: '油价趋势分析', desc: '查看油价曲线并用于费用计算', path: '/dashboard/fuel-prices' }
   ];
 
   if (isAdmin.value) return [...adminExtra, ...base];
@@ -428,7 +428,7 @@ const menuGroups = computed(() => {
       title: '调度与车辆',
       items: [
         { label: '审批与出车中心', path: '/dashboard/approval-dispatch', icon: DataAnalysis },
-        { label: '油价管理', path: '/dashboard/fuel-prices', icon: Money }
+        { label: '油价趋势分析', path: '/dashboard/fuel-prices', icon: Money }
       ]
     });
   }

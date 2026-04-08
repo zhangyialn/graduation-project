@@ -6,16 +6,16 @@
 
     <el-tabs v-model="activeTab">
       <el-tab-pane label="未审批管理" name="approval">
-        <ApprovalList />
+        <ApprovalList v-if="activeTab === 'approval'" />
       </el-tab-pane>
       <el-tab-pane label="调度管理" name="dispatch">
-        <DispatchList />
+        <DispatchList v-if="activeTab === 'dispatch'" />
       </el-tab-pane>
       <el-tab-pane label="审批记录" name="records">
-        <ApproverRecords />
+        <ApproverRecords v-if="activeTab === 'records'" />
       </el-tab-pane>
       <el-tab-pane label="行程管理" name="trips">
-        <TripManagement />
+        <TripManagement v-if="activeTab === 'trips'" />
       </el-tab-pane>
     </el-tabs>
   </el-card>

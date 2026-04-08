@@ -350,7 +350,7 @@ const handleAddDispatch = async () => {
       dispatcher_id: user.id
     });
     dialogVisible.value = false;
-    fetchDispatches();
+    await fetchDispatches();
   } catch (err) {
     error.value = err.response?.data?.message || '添加调度失败';
   } finally {
@@ -362,7 +362,7 @@ const handleAddDispatch = async () => {
 const startDispatch = async (id) => {
   try {
     await axios.post(`/api/dispatches/${id}/start`, {});
-    fetchDispatches();
+    await fetchDispatches();
   } catch (err) {
     error.value = err.response?.data?.message || '开始调度失败';
   }
@@ -372,7 +372,7 @@ const startDispatch = async (id) => {
 const cancelDispatch = async (id) => {
   try {
     await axios.post(`/api/dispatches/${id}/cancel`, {});
-    fetchDispatches();
+    await fetchDispatches();
   } catch (err) {
     error.value = err.response?.data?.message || '取消调度失败';
   }

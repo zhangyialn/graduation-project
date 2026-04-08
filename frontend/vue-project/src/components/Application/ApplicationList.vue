@@ -101,7 +101,7 @@ const fetchApplications = async () => {
 const cancelApplication = async (id) => {
   try {
     await axios.post(`/api/applications/${id}/cancel`, {});
-    fetchApplications();
+    await fetchApplications();
   } catch (err) {
     error.value = err.response?.data?.message || '取消申请失败';
   }

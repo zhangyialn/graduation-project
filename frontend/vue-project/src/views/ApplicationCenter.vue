@@ -6,10 +6,10 @@
 
     <el-tabs v-model="activeTab">
       <el-tab-pane label="发起申请" name="create">
-        <CreateApplication />
+        <CreateApplication v-if="activeTab === 'create'" />
       </el-tab-pane>
       <el-tab-pane label="我的申请" name="list">
-        <ApplicationList />
+        <ApplicationList v-if="activeTab === 'list'" />
       </el-tab-pane>
     </el-tabs>
   </el-card>

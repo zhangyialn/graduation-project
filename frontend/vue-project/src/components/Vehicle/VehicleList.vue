@@ -360,7 +360,7 @@ const saveVehicle = async () => {
       await axios.post('/api/vehicles', vehiclePayload);
     }
     vehicleDialogVisible.value = false;
-    fetchVehicles();
+    await fetchVehicles();
   } catch (err) {
     error.value = err.response?.data?.message || '保存失败';
   } finally {
@@ -388,7 +388,7 @@ const saveDriver = async () => {
       await axios.post('/api/vehicles/drivers', driverPayload);
     }
     driverDialogVisible.value = false;
-    fetchDrivers();
+    await Promise.all([fetchDrivers(), fetchVehicles()]);
   } catch (err) {
     error.value = err.response?.data?.message || '保存失败';
   } finally {
@@ -400,7 +400,7 @@ const saveDriver = async () => {
 const deleteVehicle = async (id) => {
   try {
     await axios.delete(`/api/vehicles/${id}`);
-    fetchVehicles();
+    await fetchVehicles();
   } catch (err) {
     error.value = err.response?.data?.message || '删除车辆失败';
   }
@@ -410,7 +410,7 @@ const deleteVehicle = async (id) => {
 const deleteDriver = async (id) => {
   try {
     await axios.delete(`/api/vehicles/drivers/${id}`);
-    fetchDrivers();
+    await Promise.all([fetchDrivers(), fetchVehicles()]);
   } catch (err) {
     error.value = err.response?.data?.message || '删除司机失败';
   }

@@ -1,7 +1,7 @@
 /**
  * 路由配置：定义登录/初始化/仪表盘子路由，并通过全局守卫做登录态与角色控制。
  */
-import { createRouter, createWebHashHistory, createWebHistory } from 'vue-router';
+import { createRouter, createWebHashHistory } from 'vue-router';
 import Login from '../components/Auth/Login.vue';
 import ForgotPassword from '../components/Auth/ForgotPassword.vue';
 import BootstrapAdmin from '../components/Auth/BootstrapAdmin.vue';
@@ -66,9 +66,7 @@ const routes = [
   }
 ];
 
-const history = typeof window !== 'undefined' && window.location.protocol === 'file:'
-  ? createWebHashHistory()
-  : createWebHistory();
+const history = createWebHashHistory();
 
 const router = createRouter({
   history,

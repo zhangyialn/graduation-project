@@ -43,8 +43,8 @@ axios.interceptors.response.use(
       authStore.clearSession()
       const message = normalizedMessage || '登录状态已失效，请重新登录'
       notifyWarning(message)
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login'
+      if (router.currentRoute.value.path !== '/login') {
+        router.replace('/login').catch(() => {})
       }
     }
     return Promise.reject(error)

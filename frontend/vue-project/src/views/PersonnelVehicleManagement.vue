@@ -9,13 +9,13 @@
 
       <el-tabs v-model="activeTab">
         <el-tab-pane label="人员导入" name="import">
-          <UserImport />
+          <UserImport v-if="activeTab === 'import'" />
         </el-tab-pane>
         <el-tab-pane label="管理员管理" name="admin">
-          <AdminManagement />
+          <AdminManagement v-if="activeTab === 'admin'" />
         </el-tab-pane>
         <el-tab-pane label="车辆与司机" name="vehicle-driver">
-          <VehicleList />
+          <VehicleList v-if="activeTab === 'vehicle-driver'" />
         </el-tab-pane>
       </el-tabs>
     </el-card>

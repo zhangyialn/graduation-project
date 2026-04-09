@@ -3,6 +3,3 @@
 
 # 把 __pycache__ 目录添加到 .gitignore 文件中
 __pycache__/
-
-# 把 腾讯云文本翻译（TMT）相关的配置文件添加到 .gitignore 文件中
-config

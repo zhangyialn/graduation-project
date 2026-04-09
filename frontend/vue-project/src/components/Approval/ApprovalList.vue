@@ -26,6 +26,16 @@
         </div>
       </el-card>
     </div>
+    <el-pagination
+      v-if="applicationTotal > applicationPageSize"
+      class="pager"
+      background
+      layout="prev, pager, next, total"
+      :current-page="applicationPage"
+      :page-size="applicationPageSize"
+      :total="applicationTotal"
+      @current-change="onApplicationPageChange"
+    />
 
     <el-table v-else :data="applications" border>
       <el-table-column prop="id" label="申请ID" width="90" />
@@ -59,6 +69,16 @@
         <p class="mobile-line">审批时间：{{ formatDate(item.approval_time) }}</p>
       </el-card>
     </div>
+    <el-pagination
+      v-if="statsTotal > statsPageSize"
+      class="pager"
+      background
+      layout="prev, pager, next, total"
+      :current-page="statsPage"
+      :page-size="statsPageSize"
+      :total="statsTotal"
+      @current-change="onStatsPageChange"
+    />
     <el-table v-else :data="approvalStats" border>
       <el-table-column prop="application_id" label="申请ID" width="90" />
       <el-table-column prop="applicant_name" label="申请人" width="120" />
@@ -92,6 +112,13 @@ const router = useRouter();
 const applications = ref([]);
 const approvalStats = ref([]);
 const departmentId = ref(1);
+// 待审批列表与审批统计分开分页，避免两块数据互相抢占页码。
+const applicationPage = ref(1);
+const applicationPageSize = ref(10);
+const applicationTotal = ref(0);
+const statsPage = ref(1);
+const statsPageSize = ref(10);
+const statsTotal = ref(0);
 const error = ref('');
 const loading = ref(false);
 const screenWidth = ref(window.innerWidth);
@@ -107,8 +134,15 @@ const fetchApplications = async () => {
   try {
     loading.value = true;
     error.value = '';
-    const response = await axios.get(`/api/applications/pending/${departmentId.value}`);
+    const response = await axios.get(`/api/applications/pending/${departmentId.value}`, {
+      params: {
+        page: applicationPage.value,
+        limit: applicationPageSize.value
+      }
+    });
     applications.value = response.data.data || [];
+    // 后端若未带分页元数据，则回退为当前页长度，保证 UI 不报错。
+    applicationTotal.value = response.data?.pagination?.total || applications.value.length;
   } catch (err) {
     error.value = err.response?.data?.message || '获取待审批申请失败';
   } finally {
@@ -120,16 +154,35 @@ const fetchApplications = async () => {
 const fetchApprovalStatistics = async () => {
   try {
     const response = await axios.get('/api/approvals/statistics', {
-      params: { department_id: departmentId.value }
+      params: {
+        department_id: departmentId.value,
+        page: statsPage.value,
+        limit: statsPageSize.value
+      }
     });
     approvalStats.value = response.data.data || [];
+    // 后端若未带分页元数据，则回退为当前页长度，保证 UI 不报错。
+    statsTotal.value = response.data?.pagination?.total || approvalStats.value.length;
   } catch (err) {
     error.value = err.response?.data?.message || '获取审批统计失败';
   }
 };
 
 const handleQuery = async () => {
+  // 切部门查询时重置到第一页，避免落在无数据页。
+  applicationPage.value = 1;
+  statsPage.value = 1;
   await fetchApplications();
+  await fetchApprovalStatistics();
+};
+
+const onApplicationPageChange = async (nextPage) => {
+  applicationPage.value = nextPage;
+  await fetchApplications();
+};
+
+const onStatsPageChange = async (nextPage) => {
+  statsPage.value = nextPage;
   await fetchApprovalStatistics();
 };
 
@@ -167,6 +220,7 @@ watch(error, (message) => {
 .mobile-title { margin: 0; font-weight: 700; }
 .mobile-line { margin: 8px 0 0; color: #4d5b44; font-size: 13px; }
 .mobile-actions { margin-top: 10px; text-align: right; }
+.pager { margin: 12px 0 8px; justify-content: flex-end; display: flex; }
 .mt { margin-top: 12px; }
 @media (max-width: 899px) { .toolbar { flex-direction: column; } .dept-input { width: 100%; } }
 </style>

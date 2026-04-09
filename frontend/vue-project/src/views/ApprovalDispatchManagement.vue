@@ -24,13 +24,14 @@
 <script setup>
 import { ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import ApprovalList from '../components/Approval/ApprovalLiat.vue';
+import ApprovalList from '../components/Approval/ApprovalList.vue';
 import DispatchList from '../components/Dispatch/DispatchList.vue';
 import ApproverRecords from './ApproverRecords.vue';
 import TripManagement from '../components/Trip/TripManagement.vue';
 
 const route = useRoute();
 const router = useRouter();
+// URL -> Tab 映射，保证刷新页面后仍停留在正确功能页签。
 const getTabByPath = (path) => {
   if (path.includes('/dispatches')) return 'dispatch';
   if (path.includes('/approver-records')) return 'records';
@@ -38,6 +39,7 @@ const getTabByPath = (path) => {
   return 'approval';
 };
 
+// Tab -> URL 映射，保证不同入口都能落在正确子页面。
 const getPathByTab = (tab) => {
   if (tab === 'dispatch') return '/dashboard/dispatches';
   if (tab === 'records') return '/dashboard/approver-records';
@@ -48,6 +50,7 @@ const getPathByTab = (tab) => {
 const activeTab = ref(getTabByPath(route.path));
 
 watch(activeTab, (tab) => {
+  // 点击页签时同步更新地址栏，方便复制链接与浏览器回退。
   const target = getPathByTab(tab);
   if (route.path !== target) {
     router.replace(target);

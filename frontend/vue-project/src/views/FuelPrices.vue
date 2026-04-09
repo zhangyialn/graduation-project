@@ -59,10 +59,16 @@
 <script setup>
 import { ref, onMounted, computed, watch, onBeforeUnmount, nextTick } from 'vue';
 import axios from 'axios';
-import * as echarts from 'echarts';
+import * as echarts from 'echarts/core';
+import { LineChart } from 'echarts/charts';
+import { TooltipComponent, LegendComponent, GridComponent } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
 import { useFuelPriceStore } from '../stores/fuelPrice';
 import { notifyError, notifySuccess } from '../utils/notify';
 import { formatBeijingDateTime, getBeijingDateKey } from '../utils/datetime';
+
+// 仅注册本页实际使用的图表与组件，降低 ECharts 打包体积。
+echarts.use([LineChart, TooltipComponent, LegendComponent, GridComponent, CanvasRenderer]);
 
 const prices = ref([]);
 const error = ref('');
@@ -73,8 +79,10 @@ let chartInstance = null;
 const MAX_POINTS = 15;
 // 生成当天日期（YYYY-MM-DD）
 const today = () => getBeijingDateKey();
+// 油价时间统一格式化为北京时间展示。
 const formatDate = (value) => formatBeijingDateTime(value);
 
+// 禁止选择未来日期，避免出现无效查询范围。
 const disabledFutureDate = (date) => {
   const endOfToday = new Date();
   endOfToday.setHours(23, 59, 59, 999);
@@ -188,6 +196,7 @@ const buildSeriesData = () => {
 
 const chartData = computed(() => buildSeriesData());
 
+// 渲染油价折线图实例（同一实例重复 setOption）。
 const renderChart = async () => {
   await nextTick();
   if (!chartRef.value || !prices.value.length) {
@@ -239,6 +248,7 @@ const renderChart = async () => {
   });
 };
 
+// 响应窗口变化重绘图表，保证移动端可读性。
 const handleResize = () => {
   if (chartInstance) {
     chartInstance.resize();

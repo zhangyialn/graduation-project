@@ -1,3 +1,4 @@
+/* 全局重置：统一盒模型与字体，避免浏览器默认样式造成页面偏差。 */
 * {
     margin: 0;
     padding: 0;
@@ -5,6 +6,7 @@
     font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
 }
 
+/* 主题变量：集中覆盖 Element Plus 主色、圆角、边框和文字色。 */
 :root {
     --el-color-primary: #6b8e23;
     --el-color-primary-light-3: #84a64a;
@@ -28,6 +30,7 @@
     --el-fill-color-blank: #ffffff;
 }
 
+/* 页面级基础底色与字体色，确保所有视图默认对比度一致。 */
 html,
 body {
     font-family: 'Noto Sans SC', 'Noto Sans', 'Microsoft YaHei', 'PingFang SC', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
@@ -39,6 +42,7 @@ body {
     min-height: 100vh;
 }
 
+/* 按钮体系：统一主按钮/次按钮视觉层级。 */
 .el-button {
     border-radius: 6px !important;
     font-weight: 600 !important;
@@ -75,6 +79,7 @@ body {
     color: #23310f !important;
 }
 
+/* 表单体系：输入框聚焦态采用项目主色，减少默认蓝色混入。 */
 .el-input__wrapper,
 .el-textarea__inner,
 .el-select__wrapper {
@@ -96,6 +101,7 @@ body {
     box-shadow: 0 0 0 2px rgba(107, 142, 35, 0.15) !important;
 }
 
+/* 表格与卡片边框色统一，维持后台页面视觉一致性。 */
 .el-table,
 .el-table__inner-wrapper,
 .el-card,
@@ -195,6 +201,7 @@ video {
     height: auto;
 }
 
+/* 大屏到平板的第一层响应式：收敛网格列数并降低图表高度。 */
 @media (max-width: 1024px) {
     .page {
         padding: 10px !important;
@@ -242,6 +249,7 @@ video {
     }
 }
 
+/* 手机端响应式：侧栏改为纵向流式布局，避免横向挤压。 */
 @media (max-width: 768px) {
     .dashboard-container {
         flex-direction: column !important;

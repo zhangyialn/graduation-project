@@ -1,3 +1,4 @@
+<!-- 人员和车辆管理总页：聚合导入、管理员维护、车辆司机管理三块后台能力 -->
 <template>
   <div class="page">
     <el-card shadow="hover" class="card">
@@ -28,6 +29,7 @@ import UserImport from './UserImport.vue';
 import AdminManagement from './AdminManagement.vue';
 import VehicleList from '../components/Vehicle/VehicleList.vue';
 
+// 管理后台默认先落在“人员导入”，贴合首次初始化系统的使用路径。
 const activeTab = ref('import');
 </script>
 

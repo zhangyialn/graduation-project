@@ -13,6 +13,34 @@ import json
 LOCKED_APPLICATION_STATUSES = ['pending', 'approved', 'dispatched']
 
 
+# 解析可选分页参数：有参数走分页，无参数保持历史全量返回。
+def _parse_optional_pagination(default_limit=20, max_limit=100):
+    # 未传分页参数时保持旧行为，避免影响既有前端调用。
+    has_pagination = ('page' in request.args) or ('limit' in request.args)
+    if not has_pagination:
+        return None, None, False
+
+    page = request.args.get('page', default=1, type=int) or 1
+    limit = request.args.get('limit', default=default_limit, type=int) or default_limit
+    page = max(page, 1)
+    limit = min(max(limit, 1), max_limit)
+    return page, limit, True
+
+
+# 组装统一分页响应结构，减少前端各页面解析差异。
+def _pagination_meta(total, page, limit):
+    # 返回统一分页元数据，供前端分页组件直接消费。
+    pages = (total + limit - 1) // limit if limit else 0
+    return {
+        'total': total,
+        'page': page,
+        'limit': limit,
+        'pages': pages,
+        'has_next': page < pages,
+        'has_prev': page > 1
+    }
+
+
 # 兼容 Enum/字符串两种状态值读取
 def _enum_value(value):
     return value.value if hasattr(value, 'value') else value
@@ -91,32 +119,48 @@ def _normalize_address_online(text):
     })
     url = f'https://nominatim.openstreetmap.org/search?{query}'
     req = Request(url, headers={'User-Agent': 'graduation-project/1.0'})
-    with urlopen(req, timeout=5) as response:
-        body = response.read().decode('utf-8')
-        data = json.loads(body)
-        if not data:
-            return None
-        top = data[0]
-        address_text = _build_address_text(top.get('address'))
-        return {
-            'normalized_text': address_text or top.get('display_name') or text,
-            'latitude': top.get('lat'),
-            'longitude': top.get('lon'),
-            'raw_display_name': top.get('display_name')
-        }
+    try:
+        with urlopen(req, timeout=5) as response:
+            body = response.read().decode('utf-8')
+            data = json.loads(body)
+            if not data:
+                return None
+            top = data[0]
+            address_text = _build_address_text(top.get('address'))
+            return {
+                'normalized_text': address_text or top.get('display_name') or text,
+                'latitude': top.get('lat'),
+                'longitude': top.get('lon'),
+                'raw_display_name': top.get('display_name')
+            }
+    except Exception:
+        return None
 
 
 # 获取所有申请
 # 查询申请列表（支持按状态筛选）
 def get_applications():
     try:
+        # 兼容老接口：未传 page/limit 时继续返回全量列表。
+        page, limit, should_paginate = _parse_optional_pagination()
         # 支持按状态筛选
         status = request.args.get('status')
+        query = CarApplication.query
         if status:
-            applications = CarApplication.query.filter(CarApplication.status == status).all()
-        else:
-            applications = CarApplication.query.all()
-        return jsonify({'success': True, 'data': [app.to_dict() for app in applications]})
+            query = query.filter(CarApplication.status == status)
+
+        if not should_paginate:
+            applications = query.all()
+            return jsonify({'success': True, 'data': [app.to_dict() for app in applications]})
+
+        # 新分页模式：按倒序返回，确保新申请优先显示。
+        total = query.count()
+        applications = query.order_by(CarApplication.id.desc()).offset((page - 1) * limit).limit(limit).all()
+        return jsonify({
+            'success': True,
+            'data': [app.to_dict() for app in applications],
+            'pagination': _pagination_meta(total, page, limit)
+        })
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -248,8 +292,24 @@ def cancel_application(id):
 # 查询当前用户发起的申请
 def get_my_applications(user_id):
     try:
-        applications = CarApplication.query.filter_by(applicant_id=user_id).all()
-        return jsonify({'success': True, 'data': [app.to_dict() for app in applications]})
+        page, limit, should_paginate = _parse_optional_pagination()
+        query = CarApplication.query.filter_by(applicant_id=user_id)
+        # 支持状态过滤，供首页统计卡片按 rejected 快速计数。
+        status = request.args.get('status')
+        if status:
+            query = query.filter(CarApplication.status == status)
+
+        if not should_paginate:
+            applications = query.all()
+            return jsonify({'success': True, 'data': [app.to_dict() for app in applications]})
+
+        total = query.count()
+        applications = query.order_by(CarApplication.id.desc()).offset((page - 1) * limit).limit(limit).all()
+        return jsonify({
+            'success': True,
+            'data': [app.to_dict() for app in applications],
+            'pagination': _pagination_meta(total, page, limit)
+        })
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -258,10 +318,20 @@ def get_my_applications(user_id):
 # 查询部门待审批申请
 def get_pending_applications(department_id):
     try:
-        applications = CarApplication.query.filter_by(
+        page, limit, should_paginate = _parse_optional_pagination()
+
+        query = CarApplication.query.filter_by(
             department_id=department_id,
             status='pending'
-        ).all()
+        )
+
+        if should_paginate:
+            # 审批页默认按最新申请展示，减少翻页后“看不到新单”的情况。
+            total = query.count()
+            applications = query.order_by(CarApplication.id.desc()).offset((page - 1) * limit).limit(limit).all()
+        else:
+            applications = query.all()
+
         applicant_ids = list({app.applicant_id for app in applications if app.applicant_id})
         users = User.query.filter(User.id.in_(applicant_ids)).all() if applicant_ids else []
         user_map = {user.id: user for user in users}
@@ -273,7 +343,10 @@ def get_pending_applications(department_id):
             item['applicant_name'] = applicant.name if applicant else None
             result.append(item)
 
-        return jsonify({'success': True, 'data': result})
+        payload = {'success': True, 'data': result}
+        if should_paginate:
+            payload['pagination'] = _pagination_meta(total, page, limit)
+        return jsonify(payload)
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 

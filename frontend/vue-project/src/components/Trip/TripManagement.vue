@@ -18,6 +18,16 @@
         <p class="mobile-line">接到乘客：{{ item.passenger_picked_up ? '是' : '否' }}</p>
       </el-card>
     </div>
+    <el-pagination
+      v-if="total > pageSize"
+      class="pager"
+      background
+      layout="prev, pager, next, total"
+      :current-page="page"
+      :page-size="pageSize"
+      :total="total"
+      @current-change="onPageChange"
+    />
 
     <el-table v-else :data="trips" border>
       <el-table-column prop="passenger_name" label="乘客姓名" min-width="120" />
@@ -47,25 +57,39 @@ import { notifyError } from '../../utils/notify';
 const loading = ref(false);
 const error = ref('');
 const trips = ref([]);
+// 行程管理页使用后端分页，避免一次性加载所有历史行程。
+const page = ref(1);
+const pageSize = ref(12);
+const total = ref(0);
 const screenWidth = ref(window.innerWidth);
 const isMobile = computed(() => screenWidth.value < 900);
 
+// 统一数值显示：保留两位小数，不可用数据返回占位符。
 const formatNumber = (value) => {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return '-';
   return Number(value).toFixed(2);
 };
 
+// 统一金额显示：保留两位小数，不可用数据返回占位符。
 const formatMoney = (value) => {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return '-';
   return Number(value).toFixed(2);
 };
 
+// 拉取行程管理列表（支持分页）。
 const fetchTrips = async () => {
   try {
     loading.value = true;
     error.value = '';
-    const response = await axios.get('/api/trips/management');
+    const response = await axios.get('/api/trips/management', {
+      params: {
+        page: page.value,
+        limit: pageSize.value
+      }
+    });
     trips.value = response.data?.data || [];
+    // 兼容后端未返回 pagination 的场景（老接口或兜底响应）。
+    total.value = response.data?.pagination?.total || trips.value.length;
   } catch (err) {
     error.value = err.response?.data?.message || '获取行程列表失败';
   } finally {
@@ -73,6 +97,14 @@ const fetchTrips = async () => {
   }
 };
 
+// 分页器触发后更新当前页并重新请求该页数据。
+const onPageChange = async (nextPage) => {
+  // 翻页后仅刷新行程列表，不影响当前筛选与布局状态。
+  page.value = nextPage;
+  await fetchTrips();
+};
+
+// 根据窗口宽度切换桌面/移动布局。
 const updateWidth = () => {
   screenWidth.value = window.innerWidth;
 };
@@ -98,4 +130,5 @@ watch(error, (message) => {
 .mobile-list { display: grid; gap: 10px; }
 .mobile-item { border-radius: 10px; }
 .mobile-line { margin: 6px 0 0; color: #4d5b44; font-size: 13px; }
+.pager { margin: 12px 0 8px; justify-content: flex-end; display: flex; }
 </style>

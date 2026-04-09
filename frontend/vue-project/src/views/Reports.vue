@@ -52,8 +52,14 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue';
 import axios from 'axios';
-import * as echarts from 'echarts';
+import * as echarts from 'echarts/core';
+import { BarChart, LineChart, ScatterChart } from 'echarts/charts';
+import { TooltipComponent, LegendComponent, GridComponent } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
 import { notifyError } from '../utils/notify';
+
+// 报表页仅注册柱状/折线/散点及必要组件，避免全量引入 ECharts。
+echarts.use([BarChart, LineChart, ScatterChart, TooltipComponent, LegendComponent, GridComponent, CanvasRenderer]);
 
 const loading = ref(false);
 const error = ref('');

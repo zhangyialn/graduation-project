@@ -1,3 +1,4 @@
+<!-- 申请服务中心：把“发起申请/我的申请”合并为页签，减少用户在子路由间来回跳转 -->
 <template>
   <el-card class="merged-card" shadow="hover">
     <template #header>
@@ -24,17 +25,20 @@ import ApplicationList from '../components/Application/ApplicationList.vue';
 const route = useRoute();
 const router = useRouter();
 
+// 地址栏路径映射到页签，保证刷新后仍停在对应功能。
 const getTabByPath = (path) => {
   if (path.includes('/applications/create')) return 'create';
   if (path.includes('/applications')) return 'list';
   return 'create';
 };
 
+// 页签映射到路由路径，用于地址栏同步。
 const getPathByTab = (tab) => (tab === 'list' ? '/dashboard/applications' : '/dashboard/applications/create');
 
 const activeTab = ref(getTabByPath(route.path));
 
 watch(activeTab, (tab) => {
+  // 切换页签时同步 URL，便于浏览器前进后退与链接分享。
   const target = getPathByTab(tab);
   if (route.path !== target) {
     router.replace(target);

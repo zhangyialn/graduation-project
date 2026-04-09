@@ -2,20 +2,22 @@
  * 路由配置：定义登录/初始化/仪表盘子路由，并通过全局守卫做登录态与角色控制。
  */
 import { createRouter, createWebHashHistory } from 'vue-router';
-import Login from '../components/Auth/Login.vue';
-import ForgotPassword from '../components/Auth/ForgotPassword.vue';
-import BootstrapAdmin from '../components/Auth/BootstrapAdmin.vue';
-import ChangePassword from '../components/Auth/ChangePassword.vue';
-import Dashboard from '../views/Dashborad.vue';
-import ApplicationCenter from '../views/ApplicationCenter.vue';
-import ApprovalDispatchManagement from '../views/ApprovalDispatchManagement.vue';
-import ApprovalDetail from '../components/Approval/ApprovalDetail.vue';
-import PersonnelVehicleManagement from '../views/PersonnelVehicleManagement.vue';
-import Reports from '../views/Reports.vue';
-import FuelPrices from '../views/FuelPrices.vue';
-import DriverDashboard from '../components/Driver/DriverDashboard.vue';
 import { useAuthStore } from '../stores/auth';
 import { pinia } from '../stores/pinia';
+
+// 统一改为懒加载，减少登录后首屏一次性下载体积。
+const Login = () => import('../components/Auth/Login.vue');
+const ForgotPassword = () => import('../components/Auth/ForgotPassword.vue');
+const BootstrapAdmin = () => import('../components/Auth/BootstrapAdmin.vue');
+const ChangePassword = () => import('../components/Auth/ChangePassword.vue');
+const Dashboard = () => import('../views/Dashboard.vue');
+const ApplicationCenter = () => import('../views/ApplicationCenter.vue');
+const ApprovalDispatchManagement = () => import('../views/ApprovalDispatchManagement.vue');
+const ApprovalDetail = () => import('../components/Approval/ApprovalDetail.vue');
+const PersonnelVehicleManagement = () => import('../views/PersonnelVehicleManagement.vue');
+const Reports = () => import('../views/Reports.vue');
+const FuelPrices = () => import('../views/FuelPrices.vue');
+const DriverDashboard = () => import('../components/Driver/DriverDashboard.vue');
 
 const routes = [
   {

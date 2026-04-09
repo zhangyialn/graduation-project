@@ -12,7 +12,9 @@ def _enum_value(value):
     return value.value if hasattr(value, 'value') else value
 
 
+# 将 JWT identity 统一转换为整数，避免字符串/整数比较导致权限判断误差。
 def _normalize_identity(identity):
+    # JWT 里的 identity 可能是字符串，这里统一归一为 int 便于后续比较。
     if identity is None:
         return None
     try:
@@ -21,12 +23,53 @@ def _normalize_identity(identity):
         return identity
 
 
+# 解析可选分页参数：有参数走分页，无参数保持历史全量返回。
+def _parse_optional_pagination(default_limit=20, max_limit=100):
+    # 与申请/审批接口保持一致：传参分页，不传参兼容旧全量接口。
+    has_pagination = ('page' in request.args) or ('limit' in request.args)
+    if not has_pagination:
+        return None, None, False
+
+    page = request.args.get('page', default=1, type=int) or 1
+    limit = request.args.get('limit', default=default_limit, type=int) or default_limit
+    page = max(page, 1)
+    limit = min(max(limit, 1), max_limit)
+    return page, limit, True
+
+
+# 组装统一分页响应结构，减少前端各页面解析差异。
+def _pagination_meta(total, page, limit):
+    # 输出统一分页元数据，前端列表组件可复用同一解析逻辑。
+    pages = (total + limit - 1) // limit if limit else 0
+    return {
+        'total': total,
+        'page': page,
+        'limit': limit,
+        'pages': pages,
+        'has_next': page < pages,
+        'has_prev': page > 1
+    }
+
+
 # 获取所有出车记录
 # 查询出车记录列表
 def get_trips():
     try:
-        trips = Trip.query.all()
-        return jsonify({'success': True, 'data': [trip.to_dict() for trip in trips]})
+        page, limit, should_paginate = _parse_optional_pagination()
+        query = Trip.query
+
+        if not should_paginate:
+            trips = query.all()
+            return jsonify({'success': True, 'data': [trip.to_dict() for trip in trips]})
+
+        # 行程总览按 trip.id 倒序，确保最近行程优先可见。
+        total = query.count()
+        trips = query.order_by(Trip.id.desc()).offset((page - 1) * limit).limit(limit).all()
+        return jsonify({
+            'success': True,
+            'data': [trip.to_dict() for trip in trips],
+            'pagination': _pagination_meta(total, page, limit)
+        })
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -34,9 +77,21 @@ def get_trips():
 # 行程管理列表（聚合乘客/司机/事由/费用）
 def get_trip_management_list():
     try:
-        trips = Trip.query.order_by(Trip.created_at.desc(), Trip.id.desc()).all()
+        page, limit, should_paginate = _parse_optional_pagination()
+        query = Trip.query.order_by(Trip.created_at.desc(), Trip.id.desc())
+
+        if should_paginate:
+            # 管理页优先显示最新创建的行程。
+            total = Trip.query.count()
+            trips = query.offset((page - 1) * limit).limit(limit).all()
+        else:
+            trips = query.all()
+
         if not trips:
-            return jsonify({'success': True, 'data': []})
+            payload = {'success': True, 'data': []}
+            if should_paginate:
+                payload['pagination'] = _pagination_meta(total, page, limit)
+            return jsonify(payload)
 
         trip_ids = [trip.id for trip in trips]
         dispatch_ids = [trip.dispatch_id for trip in trips if trip.dispatch_id]
@@ -90,7 +145,10 @@ def get_trip_management_list():
                 'created_at': trip.created_at.isoformat() if trip.created_at else None
             })
 
-        return jsonify({'success': True, 'data': result})
+        payload = {'success': True, 'data': result}
+        if should_paginate:
+            payload['pagination'] = _pagination_meta(total, page, limit)
+        return jsonify(payload)
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -152,9 +210,9 @@ def pickup_passenger(id):
 
         current_role = _enum_value(current_user.role)
         driver_profile = User.query.filter_by(id=current_user_id, role=RoleEnum.driver, is_deleted=False).first()
-        if current_role == 'driver':
-            if not driver_profile or driver_profile.id != dispatch.driver_id:
-                return jsonify({'success': False, 'message': '仅该行程司机可确认接到乘客'}), 403
+        # 必须同时满足“司机角色 + 当前调度绑定司机”才能确认接客，防止越权操作。
+        if current_role != 'driver' or not driver_profile or int(driver_profile.id) != int(dispatch.driver_id):
+            return jsonify({'success': False, 'message': '仅该行程司机可确认接到乘客'}), 403
 
         if trip.passenger_picked_up or trip.actual_start_time is not None:
             if not trip.passenger_picked_up:
@@ -403,6 +461,7 @@ def rate_trip(id):
 # 当前登录用户查看自己的行程
 def get_my_trips():
     try:
+        page, limit, should_paginate = _parse_optional_pagination()
         current_user_id = _normalize_identity(get_jwt_identity())
         current_user = User.query.get(current_user_id)
         if not current_user:
@@ -467,7 +526,19 @@ def get_my_trips():
             })
 
         rows.sort(key=lambda item: item.get('application_id') or 0, reverse=True)
-        return jsonify({'success': True, 'data': rows})
+
+        if not should_paginate:
+            return jsonify({'success': True, 'data': rows})
+
+        # 当前接口先聚合后分页，total 以聚合后的可见行程数为准。
+        total = len(rows)
+        start = (page - 1) * limit
+        end = start + limit
+        return jsonify({
+            'success': True,
+            'data': rows[start:end],
+            'pagination': _pagination_meta(total, page, limit)
+        })
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 

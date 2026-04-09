@@ -13,18 +13,58 @@ def _enum_value(value):
     return value.value if hasattr(value, 'value') else value
 
 
+# 解析可选分页参数：有参数走分页，无参数保持历史全量返回。
+def _parse_optional_pagination(default_limit=20, max_limit=100):
+    # 仅当前端显式传参时才启用分页，默认保持历史全量返回。
+    has_pagination = ('page' in request.args) or ('limit' in request.args)
+    if not has_pagination:
+        return None, None, False
+
+    page = request.args.get('page', default=1, type=int) or 1
+    limit = request.args.get('limit', default=default_limit, type=int) or default_limit
+    page = max(page, 1)
+    limit = min(max(limit, 1), max_limit)
+    return page, limit, True
+
+
+# 组装统一分页响应结构，减少前端各页面解析差异。
+def _pagination_meta(total, page, limit):
+    # 统一分页响应结构，避免各审批接口字段命名不一致。
+    pages = (total + limit - 1) // limit if limit else 0
+    return {
+        'total': total,
+        'page': page,
+        'limit': limit,
+        'pages': pages,
+        'has_next': page < pages,
+        'has_prev': page > 1
+    }
+
+
 # 获取所有审批记录
 
 # 查询审批记录列表（可按状态筛选）
 def get_approvals():
     try:
+        page, limit, should_paginate = _parse_optional_pagination()
         # 支持按状态筛选
         status = request.args.get('status')
+        query = Approval.query
         if status:
-            approvals = Approval.query.filter_by(status=status).all()
-        else:
-            approvals = Approval.query.all()
-        return jsonify({'success': True, 'data': [approval.to_dict() for approval in approvals]})
+            query = query.filter_by(status=status)
+
+        if not should_paginate:
+            approvals = query.all()
+            return jsonify({'success': True, 'data': [approval.to_dict() for approval in approvals]})
+
+        # 审批记录按最新ID倒序展示，符合“先处理新单”的业务习惯。
+        total = query.count()
+        approvals = query.order_by(Approval.id.desc()).offset((page - 1) * limit).limit(limit).all()
+        return jsonify({
+            'success': True,
+            'data': [approval.to_dict() for approval in approvals],
+            'pagination': _pagination_meta(total, page, limit)
+        })
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -45,8 +85,20 @@ def get_approval(id):
 # 查询某个申请对应的全部审批记录
 def get_application_approvals(application_id):
     try:
-        approvals = Approval.query.filter_by(application_id=application_id).all()
-        return jsonify({'success': True, 'data': [approval.to_dict() for approval in approvals]})
+        page, limit, should_paginate = _parse_optional_pagination()
+        query = Approval.query.filter_by(application_id=application_id)
+
+        if not should_paginate:
+            approvals = query.all()
+            return jsonify({'success': True, 'data': [approval.to_dict() for approval in approvals]})
+
+        total = query.count()
+        approvals = query.order_by(Approval.id.desc()).offset((page - 1) * limit).limit(limit).all()
+        return jsonify({
+            'success': True,
+            'data': [approval.to_dict() for approval in approvals],
+            'pagination': _pagination_meta(total, page, limit)
+        })
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -55,8 +107,20 @@ def get_application_approvals(application_id):
 # 查询某个审批人的审批记录
 def get_approver_approvals(approver_id):
     try:
-        approvals = Approval.query.filter_by(approver_id=approver_id).all()
-        return jsonify({'success': True, 'data': [approval.to_dict() for approval in approvals]})
+        page, limit, should_paginate = _parse_optional_pagination()
+        query = Approval.query.filter_by(approver_id=approver_id)
+
+        if not should_paginate:
+            approvals = query.all()
+            return jsonify({'success': True, 'data': [approval.to_dict() for approval in approvals]})
+
+        total = query.count()
+        approvals = query.order_by(Approval.id.desc()).offset((page - 1) * limit).limit(limit).all()
+        return jsonify({
+            'success': True,
+            'data': [approval.to_dict() for approval in approvals],
+            'pagination': _pagination_meta(total, page, limit)
+        })
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -65,6 +129,7 @@ def get_approver_approvals(approver_id):
 # 审批统计：按审批人汇总总数/通过数/驳回数
 def get_approval_statistics():
     try:
+        page, limit, should_paginate = _parse_optional_pagination()
         department_id = request.args.get('department_id', type=int)
         applicant_user = aliased(User)
         approver_user = aliased(User)
@@ -85,7 +150,13 @@ def get_approval_statistics():
         if department_id:
             query = query.filter(CarApplication.department_id == department_id)
 
-        rows = query.order_by(Approval.approved_at.desc(), Approval.id.desc()).all()
+        ordered_query = query.order_by(Approval.approved_at.desc(), Approval.id.desc())
+        if should_paginate:
+            # 统计列表分页时仍按审批时间倒序，保证列表语义稳定。
+            total = query.count()
+            rows = ordered_query.offset((page - 1) * limit).limit(limit).all()
+        else:
+            rows = ordered_query.all()
 
         result = []
         for approval, application, applicant_name, approver_name in rows:
@@ -104,7 +175,10 @@ def get_approval_statistics():
                 'approval_time': approval.approved_at.isoformat() if approval.approved_at else None
             })
 
-        return jsonify({'success': True, 'data': result})
+        payload = {'success': True, 'data': result}
+        if should_paginate:
+            payload['pagination'] = _pagination_meta(total, page, limit)
+        return jsonify(payload)
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 

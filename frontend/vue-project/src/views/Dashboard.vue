@@ -1,4 +1,4 @@
-<!-- Dashborad：按角色展示导航、首页卡片与功能入口 -->
+<!-- Dashboard：按角色展示导航、首页卡片与功能入口 -->
 <template>
   <el-container class="dashboard-container">
     <el-aside v-if="showSidebar" width="270px" class="sidebar">
@@ -501,20 +501,39 @@ const fetchRolePendingCount = async () => {
         pendingCount.value = 0;
         return;
       }
-      const response = await axios.get(`/api/applications/pending/${departmentId}`);
-      pendingCount.value = (response.data?.data || []).length;
+      // 用 page=1&limit=1 只拿 pagination.total，避免首页为了计数拉取整页数据。
+      const response = await axios.get(`/api/applications/pending/${departmentId}`, {
+        params: {
+          page: 1,
+          limit: 1
+        }
+      });
+      pendingCount.value = Number(response.data?.pagination?.total || 0);
       return;
     }
 
     if (isAdmin.value) {
-      const response = await axios.get('/api/applications', { params: { status: 'pending' } });
-      pendingCount.value = (response.data?.data || []).length;
+      // 管理员待办只关心总量，不需要完整列表。
+      const response = await axios.get('/api/applications', {
+        params: {
+          status: 'pending',
+          page: 1,
+          limit: 1
+        }
+      });
+      pendingCount.value = Number(response.data?.pagination?.total || 0);
       return;
     }
 
-    const response = await axios.get(`/api/applications/my/${user.value.id}`);
-    const list = response.data?.data || [];
-    rejectedCount.value = list.filter((item) => item.status === 'rejected').length;
+    // 普通用户首页展示“被驳回申请数”，同样使用总量查询模式。
+    const response = await axios.get(`/api/applications/my/${user.value.id}`, {
+      params: {
+        status: 'rejected',
+        page: 1,
+        limit: 1
+      }
+    });
+    rejectedCount.value = Number(response.data?.pagination?.total || 0);
   } catch (_err) {
     pendingCount.value = 0;
     rejectedCount.value = 0;

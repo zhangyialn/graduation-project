@@ -1,5 +1,7 @@
 /** notify：统一封装消息提示与接口错误解析 */
-import { ElMessage } from 'element-plus';
+// 改为组件级按需引入，避免把整个 Element Plus 消息体系打进首包。
+import { ElMessage } from 'element-plus/es/components/message/index';
+import 'element-plus/es/components/message/style/css';
 
 const baseOptions = {
   showClose: true,

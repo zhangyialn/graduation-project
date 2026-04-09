@@ -7,6 +7,20 @@
         <h2>我的申请</h2>
       </div>
     </template>
+    <el-alert
+      v-if="error"
+      :title="error"
+      type="error"
+      show-icon
+      :closable="false"
+      class="inline-error"
+    />
+
+    <div v-if="pageLoading" class="loading-block">
+      <el-skeleton :rows="6" animated />
+    </div>
+
+    <template v-else>
     <div v-if="isMobile" class="mobile-list">
       <el-card v-for="item in applications" :key="item.id" shadow="never" class="mobile-item">
         <div class="mobile-top">
@@ -22,9 +36,10 @@
           <el-button type="danger" size="small" @click="cancelApplication(item.id)">取消申请</el-button>
         </div>
       </el-card>
+      <el-empty v-if="applications.length === 0" description="暂无申请记录" />
     </div>
 
-    <el-table v-else :data="applications" style="width: 100%" border>
+    <el-table v-else :data="applications" style="width: 100%" border empty-text="暂无申请记录">
       <el-table-column prop="id" label="申请ID" width="80" />
       <el-table-column prop="purpose" label="用车事由" />
       <el-table-column prop="start_time" label="出发时间" width="180">
@@ -47,6 +62,16 @@
         </template>
       </el-table-column>
     </el-table>
+    <el-pagination
+      v-if="applicationsTotal > applicationsPageSize"
+      class="pager"
+      background
+      layout="prev, pager, next, total"
+      :current-page="applicationsPage"
+      :page-size="applicationsPageSize"
+      :total="applicationsTotal"
+      @current-change="onApplicationsPageChange"
+    />
 
     <el-divider>我的行程</el-divider>
 
@@ -78,9 +103,10 @@
           >评分</el-button>
         </div>
       </el-card>
+      <el-empty v-if="myTrips.length === 0" description="暂无行程记录" />
     </div>
 
-    <el-table v-else :data="myTrips" style="width: 100%" border>
+    <el-table v-else :data="myTrips" style="width: 100%" border empty-text="暂无行程记录">
       <el-table-column prop="application_id" label="申请ID" width="90" />
       <el-table-column prop="trip_id" label="行程ID" width="90" />
       <el-table-column prop="purpose" label="事由" min-width="140" />
@@ -129,6 +155,16 @@
         </template>
       </el-table-column>
     </el-table>
+    <el-pagination
+      v-if="tripsTotal > tripsPageSize"
+      class="pager"
+      background
+      layout="prev, pager, next, total"
+      :current-page="tripsPage"
+      :page-size="tripsPageSize"
+      :total="tripsTotal"
+      @current-change="onTripsPageChange"
+    />
 
     <el-dialog v-model="rateDialogVisible" title="行程评分" width="420px">
       <el-form label-width="90px">
@@ -141,6 +177,7 @@
         <el-button type="primary" :loading="tripSubmitting" @click="submitRateTrip">提交评分</el-button>
       </template>
     </el-dialog>
+    </template>
   </el-card>
 </template>
 
@@ -156,7 +193,16 @@ import { formatBeijingDateTime } from '../../utils/datetime';
 const authStore = useAuthStore();
 const applications = ref([]);
 const myTrips = ref([]);
+// 两个分页器独立维护，避免“申请列表翻页影响行程列表”的交互串扰。
+const applicationsPage = ref(1);
+const applicationsPageSize = ref(10);
+const applicationsTotal = ref(0);
+const tripsPage = ref(1);
+const tripsPageSize = ref(10);
+const tripsTotal = ref(0);
 const error = ref('');
+// 仅用于首屏并行加载骨架态，后续翻页不阻塞整页。
+const pageLoading = ref(false);
 const tripSubmitting = ref(false);
 const rateDialogVisible = ref(false);
 const currentTripId = ref(null);
@@ -188,6 +234,7 @@ const formatDate = (value) => {
 // 拉取当前登录用户的申请列表
 const fetchApplications = async () => {
   try {
+    error.value = '';
     const user = authStore.user;
     
     if (!user) {
@@ -195,8 +242,15 @@ const fetchApplications = async () => {
       return;
     }
     
-    const response = await axios.get(`/api/applications/my/${user.id}`);
-    applications.value = response.data.data;
+    const response = await axios.get(`/api/applications/my/${user.id}`, {
+      params: {
+        page: applicationsPage.value,
+        limit: applicationsPageSize.value
+      }
+    });
+    applications.value = response.data.data || [];
+    // 兼容后端未返回 pagination 的场景（老接口或异常回退）。
+    applicationsTotal.value = response.data?.pagination?.total || applications.value.length;
   } catch (err) {
     error.value = err.response?.data?.message || '获取申请失败';
   }
@@ -205,8 +259,16 @@ const fetchApplications = async () => {
 // 拉取当前用户行程，用于“结束行程/评分”
 const fetchMyTrips = async () => {
   try {
-    const response = await axios.get('/api/trips/my');
+    error.value = '';
+    const response = await axios.get('/api/trips/my', {
+      params: {
+        page: tripsPage.value,
+        limit: tripsPageSize.value
+      }
+    });
     myTrips.value = response.data?.data || [];
+    // 兼容后端未返回 pagination 的场景（老接口或异常回退）。
+    tripsTotal.value = response.data?.pagination?.total || myTrips.value.length;
   } catch (err) {
     error.value = err.response?.data?.message || '获取我的行程失败';
   }
@@ -215,11 +277,27 @@ const fetchMyTrips = async () => {
 // 取消待审批申请后刷新列表
 const cancelApplication = async (id) => {
   try {
+    error.value = '';
     await axios.post(`/api/applications/${id}/cancel`, {});
     await fetchApplications();
+    notifySuccess('申请已取消');
   } catch (err) {
     error.value = err.response?.data?.message || '取消申请失败';
   }
+};
+
+// 申请列表分页回调。
+const onApplicationsPageChange = async (nextPage) => {
+  // 申请列表翻页只刷新申请区块数据。
+  applicationsPage.value = nextPage;
+  await fetchApplications();
+};
+
+// 行程列表分页回调。
+const onTripsPageChange = async (nextPage) => {
+  // 行程列表翻页只刷新行程区块数据。
+  tripsPage.value = nextPage;
+  await fetchMyTrips();
 };
 
 // 用户结束行程（仅乘客本人）
@@ -272,8 +350,11 @@ const updateWidth = () => {
 };
 
 onMounted(() => {
-  fetchApplications();
-  fetchMyTrips();
+  // 首屏并行拉取两类数据，保证页面初始化速度。
+  pageLoading.value = true;
+  Promise.all([fetchApplications(), fetchMyTrips()]).finally(() => {
+    pageLoading.value = false;
+  });
   window.addEventListener('resize', updateWidth);
 });
 
@@ -313,6 +394,20 @@ watch(error, (message) => {
   border-radius: 10px;
   padding: 0.9rem 1.1rem;
   border-bottom: 1px solid #e5ddd2;
+}
+
+.inline-error {
+  margin-bottom: 14px;
+}
+
+.loading-block {
+  padding: 10px 4px 4px;
+}
+
+.pager {
+  margin: 12px 0 8px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .header-icon {

@@ -47,26 +47,103 @@ Node.js 版本要求：^20.19.0 || >=22.12.0
 
 ```text
 graduation-project/
-├─ backend/
-│  ├─ app.py
-│  ├─ config/config.py
-│  ├─ controllers/
+├─ backend/                                  # Flask 后端应用
+│  ├─ app.py                                 # 应用入口：注册蓝图、中间件、请求耗时日志
+│  ├─ requirements.txt                       # Python 依赖
+│  ├─ config/
+│  │  └─ config.py                           # DB/JWT/初始化管理员相关配置
+│  ├─ controllers/                           # 业务控制层（按域拆分）
+│  │  ├─ authController.py                   # 登录、改密、初始化管理员、开发切换账号
+│  │  ├─ userController.py                   # 用户/部门/导入/管理员创建
+│  │  ├─ vehicleController.py                # 车辆与司机（含可用资源查询）
+│  │  ├─ applicationController.py            # 申请创建、更新、取消、地址标准化、推荐司机
+│  │  ├─ approvalController.py               # 审批流转与审批统计
+│  │  ├─ dispatchController.py               # 调度创建、启动、取消、推荐调度
+│  │  ├─ tripController.py                   # 接客、司机填报、结束行程、费用、评分、油价
+│  │  ├─ driverController.py                 # 司机工作台与状态维护
+│  │  ├─ reportController.py                 # 报表聚合查询
+│  │  └─ recommendation_utils.py             # 司机推荐算法辅助逻辑
 │  ├─ middleware/
-│  ├─ models/index.py
-│  └─ routes/
-├─ frontend/vue-project/
-│  ├─ index.html
-│  ├─ vite.config.js
+│  │  ├─ auth_middleware.py                  # JWT 鉴权与角色校验
+│  │  ├─ validation_middleware.py            # 请求参数校验与标准化错误
+│  │  └─ error_middleware.py                 # 全局异常处理
+│  ├─ models/
+│  │  └─ index.py                            # SQLAlchemy 模型与枚举定义
+│  └─ routes/                                # 路由层（URL -> Controller 映射）
+│     ├─ authRoutes.py
+│     ├─ userRoutes.py
+│     ├─ vehicleRoutes.py
+│     ├─ applicationRoutes.py
+│     ├─ approvalRoutes.py
+│     ├─ dispatchRoutes.py
+│     ├─ tripRoutes.py
+│     ├─ driverRoutes.py
+│     └─ reportRoutes.py
+├─ frontend/vue-project/                     # Vue 前端应用
+│  ├─ index.html                             # 页面壳
+│  ├─ package.json                           # 前端依赖与脚本
+│  ├─ vite.config.js                         # 构建配置与分包策略
 │  └─ src/
-│     ├─ main.js
+│     ├─ main.js                             # 入口：路由、状态、axios 拦截器
+│     ├─ index.css                           # 全局主题与 Element Plus 覆盖样式
+│     ├─ App.vue                             # 根组件
+│     ├─ assets/
+│     │  └─ icons/                           # 项目图标资源（如车标）
 │     ├─ router/
+│     │  └─ index.js                         # 路由定义、懒加载、守卫
 │     ├─ stores/
-│     ├─ components/
-│     └─ views/
+│     │  ├─ auth.js                          # 登录态与用户信息
+│     │  ├─ fuelPrice.js                     # 油价缓存与地区油价状态
+│     │  └─ pinia.js                         # Pinia 实例
+│     ├─ utils/
+│     │  ├─ notify.js                        # 消息提示与错误文案归一
+│     │  └─ datetime.js                      # 北京时间格式化工具
+│     ├─ components/                         # 可复用业务组件（按域分组）
+│     │  ├─ Application/
+│     │  │  ├─ CreateApplication.vue         # 发起申请
+│     │  │  └─ ApplicationList.vue           # 我的申请 + 我的行程
+│     │  ├─ Approval/
+│     │  │  ├─ ApprovalList.vue              # 待审批列表与审批统计
+│     │  │  └─ ApprovalDetail.vue            # 单申请审批详情
+│     │  ├─ Dispatch/
+│     │  │  └─ DispatchList.vue              # 调度列表与调度操作
+│     │  ├─ Driver/
+│     │  │  └─ DriverDashboard.vue           # 司机工作台
+│     │  ├─ Trip/
+│     │  │  └─ TripManagement.vue            # 行程管理（管理员/审批员）
+│     │  ├─ Vehicle/
+│     │  │  └─ VehicleList.vue               # 车辆与司机维护
+│     │  ├─ Auth/
+│     │  │  ├─ Login.vue
+│     │  │  ├─ ForgotPassword.vue
+│     │  │  ├─ ChangePassword.vue
+│     │  │  └─ BootstrapAdmin.vue
+│     │  └─ Common/
+│     │     ├─ FractionStarInput.vue         # 小数评分输入
+│     │     ├─ FractionStarDisplay.vue       # 小数评分展示
+│     │     └─ SedanIcon.vue                 # 统一车标图标
+│     └─ views/                              # 页面级容器（组合多个组件）
+│        ├─ Dashboard.vue                    # 首页与主导航容器
+│        ├─ ApplicationCenter.vue            # 申请中心（创建+列表页签）
+│        ├─ ApprovalDispatchManagement.vue   # 审批/调度/记录/行程聚合页
+│        ├─ PersonnelVehicleManagement.vue   # 人员导入/管理员/车辆司机聚合页
+│        ├─ ApproverRecords.vue              # 审批记录页
+│        ├─ Reports.vue                      # 报表页
+│        ├─ FuelPrices.vue                   # 油价趋势页
+│        ├─ UserImport.vue                   # 批量导入页
+│        └─ AdminManagement.vue              # 管理员管理页
 └─ database/
-	 ├─ database.sql
-	 └─ migrations/
+   ├─ database.sql                           # 初始建表与基础数据
+   └─ migrations/                            # 增量 SQL 迁移脚本
 ```
+
+### 3.1 分层职责说明
+- routes 层：负责 URL 路径和中间件装配，不写业务细节。
+- controllers 层：负责业务编排、权限判断、数据读写。
+- models 层：负责表结构、字段与序列化。
+- views 层：负责页面容器与页签组合。
+- components 层：负责可复用交互单元，按业务域拆分。
+- utils/stores 层：提供跨模块通用能力（状态、通知、时间处理）。
 
 ## 4. 核心业务流程
 

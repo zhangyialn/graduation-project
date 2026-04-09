@@ -449,6 +449,38 @@ const roleLabelMap = {
   user: '普通用户'
 };
 
+const hasChineseText = (text) => /[\u4e00-\u9fa5]/.test(String(text || ''));
+
+const translateToChinese = async (text) => {
+  const raw = String(text || '').trim();
+  if (!raw || hasChineseText(raw)) return raw;
+
+  const cacheKey = `location-zh-cache:${raw}`;
+  const cached = localStorage.getItem(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const response = await axios.post('/api/tools/translate', {
+      source_text: raw,
+      source: 'en',
+      target: 'zh'
+    });
+    const translated = String(response.data?.data?.target_text || '').trim();
+    const value = translated || raw;
+    localStorage.setItem(cacheKey, value);
+    return value;
+  } catch (_err) {
+    return raw;
+  }
+};
+
+const normalizeLocationText = async (locationText) => {
+  const raw = String(locationText || '').trim();
+  if (!raw) return '未知地点';
+  if (hasChineseText(raw)) return raw;
+  return await translateToChinese(raw);
+};
+
 const resolveRoleLabel = (roleKey) => roleLabelMap[roleKey] || roleKey || '未知角色';
 
 // 从本地会话恢复当前用户信息
@@ -457,7 +489,7 @@ const loadUser = () => {
   user.value = authStore.user || null;
 };
 
-const loadLastLoginHint = () => {
+const loadLastLoginHint = async () => {
   try {
     const username = user.value?.username;
     if (!username) {
@@ -473,7 +505,7 @@ const loadLastLoginHint = () => {
     }
     const parsed = JSON.parse(raw);
     const timeText = formatBeijingDateTime(parsed?.time);
-    const locationText = parsed?.location || '未知地点';
+    const locationText = await normalizeLocationText(parsed?.location);
     lastLoginHint.value = `${timeText} · ${locationText}`;
   } catch (_err) {
     lastLoginHint.value = '最近登录信息暂未记录';

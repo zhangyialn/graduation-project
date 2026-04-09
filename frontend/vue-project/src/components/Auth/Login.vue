@@ -72,13 +72,36 @@ const REMEMBER_USERNAME_KEY = 'login-remember-username';
 const REMEMBER_PASSWORD_KEY = 'login-remember-password-value';
 const KEEP_LOGIN_KEY = 'login-keep-login';
 
+const hasChineseText = (text) => /[\u4e00-\u9fa5]/.test(String(text || ''));
+
+const translateToChinese = async (text) => {
+  const raw = String(text || '').trim();
+  if (!raw || hasChineseText(raw)) return raw;
+
+  try {
+    const response = await axios.post('/api/tools/translate', {
+      source_text: raw,
+      source: 'en',
+      target: 'zh'
+    });
+    const translated = String(response.data?.data?.target_text || '').trim();
+    return translated || raw;
+  } catch (_err) {
+    return raw;
+  }
+};
+
 const detectLoginLocation = async () => {
   try {
-    const response = await axios.get('https://ipapi.co/json/');
-    const city = response.data?.city || '';
-    const region = response.data?.region || '';
-    const country = response.data?.country_name || '';
-    return [country, region, city].filter(Boolean).join(' ') || '未知地点';
+    const response = await axios.get('https://ipapi.co/json/?lang=zh-CN');
+    const city = String(response.data?.city || '').trim();
+    const region = String(response.data?.region || '').trim();
+    const country = String(response.data?.country_name || '').trim();
+    const locationText = [country, region, city].filter(Boolean).join(' ').trim();
+
+    if (!locationText) return '未知地点';
+    if (hasChineseText(locationText)) return locationText;
+    return await translateToChinese(locationText);
   } catch (_err) {
     return '未知地点';
   }

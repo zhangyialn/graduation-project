@@ -10,5 +10,6 @@ from .tripRoutes import tripBlueprint
 from .driverRoutes import driverBlueprint
 from .reportRoutes import reportBlueprint
 from .authRoutes import authBlueprint
+from .translateRoutes import translateBlueprint
 
-__all__ = ['userBlueprint', 'vehicleBlueprint', 'applicationBlueprint', 'approvalBlueprint', 'dispatchBlueprint', 'tripBlueprint', 'driverBlueprint', 'reportBlueprint', 'authBlueprint']
+__all__ = ['userBlueprint', 'vehicleBlueprint', 'applicationBlueprint', 'approvalBlueprint', 'dispatchBlueprint', 'tripBlueprint', 'driverBlueprint', 'reportBlueprint', 'authBlueprint', 'translateBlueprint']

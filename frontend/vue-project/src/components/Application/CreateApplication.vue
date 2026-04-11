@@ -135,6 +135,12 @@ const loading = ref(false);
 const recommendingDrivers = ref(false);
 const locating = ref(false);
 const applicationForm = ref(null);
+const LOCATION_CACHE_KEY = 'application-start-point-location-cache';
+const LOCATION_CACHE_TTL_MS = 10 * 60 * 1000;
+const LOCATION_CACHE_DISTANCE_THRESHOLD_METERS = 150;
+const QUICK_LOCATION_TIMEOUT_MS = 2500;
+const PRECISE_LOCATION_TIMEOUT_MS = 9000;
+const REVERSE_GEOCODE_TIMEOUT_MS = 4500;
 
 const nonRecommendedDrivers = computed(() => {
   const recommendedIds = new Set(recommendedDrivers.value.map(item => Number(item.driver_id)));
@@ -243,6 +249,63 @@ const formatCoordinate = (value) => {
   return number.toFixed(6);
 };
 
+const toRadians = (degree) => (Number(degree) * Math.PI) / 180;
+
+// 计算两点距离（米），用于判断定位缓存是否可复用。
+const calculateDistanceMeters = (lat1, lng1, lat2, lng2) => {
+  const earthRadius = 6371000;
+  const deltaLat = toRadians(lat2 - lat1);
+  const deltaLng = toRadians(lng2 - lng1);
+  const a = Math.sin(deltaLat / 2) ** 2
+    + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(deltaLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadius * c;
+};
+
+const readLocationCache = () => {
+  try {
+    const raw = localStorage.getItem(LOCATION_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed;
+  } catch (_err) {
+    return null;
+  }
+};
+
+const writeLocationCache = ({ lat, lng, address }) => {
+  try {
+    localStorage.setItem(LOCATION_CACHE_KEY, JSON.stringify({
+      lat: Number(lat),
+      lng: Number(lng),
+      address: String(address || '').trim(),
+      timestamp: Date.now()
+    }));
+  } catch (_err) {
+    // 忽略缓存写入失败，避免影响主流程。
+  }
+};
+
+const pickNearbyCachedAddress = (lat, lng) => {
+  const cache = readLocationCache();
+  if (!cache) return '';
+
+  const cacheLat = Number(cache.lat);
+  const cacheLng = Number(cache.lng);
+  const cacheAddress = String(cache.address || '').trim();
+  const cacheTimestamp = Number(cache.timestamp);
+
+  if (!Number.isFinite(cacheLat) || !Number.isFinite(cacheLng) || !cacheAddress) return '';
+  if (!Number.isFinite(cacheTimestamp) || Date.now() - cacheTimestamp > LOCATION_CACHE_TTL_MS) return '';
+
+  const distance = calculateDistanceMeters(Number(lat), Number(lng), cacheLat, cacheLng);
+  if (distance <= LOCATION_CACHE_DISTANCE_THRESHOLD_METERS) {
+    return cacheAddress;
+  }
+  return '';
+};
+
 // 将逆地理结果拼装为更符合中文阅读习惯的地址文本
 const buildAddressText = (address = {}) => {
   const province = address.state || address.province || '';
@@ -255,8 +318,46 @@ const buildAddressText = (address = {}) => {
   return parts.join('');
 };
 
-// 调用地理服务把经纬度转换为地址
-const reverseGeocode = async (lat, lng) => {
+const fetchWithTimeout = async (url, timeoutMs = REVERSE_GEOCODE_TIMEOUT_MS) => {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    return response;
+  } finally {
+    window.clearTimeout(timer);
+  }
+};
+
+const buildAddressTextFromBigDataCloud = (data = {}) => {
+  const countryName = data.countryName || '';
+  const principalSubdivision = data.principalSubdivision || '';
+  const city = data.city || data.locality || '';
+  const locality = data.locality || '';
+  const road = data.localityInfo?.informative?.find(item => item?.description === 'road')?.name || '';
+
+  const parts = [countryName, principalSubdivision, city, locality, road].filter(Boolean);
+  return Array.from(new Set(parts)).join('');
+};
+
+// 优先调用后端统一逆地理接口，利用后端缓存和双源兜底提升稳定性。
+const reverseGeocodeByBackend = async (lat, lng) => {
+  const response = await axios.get('/api/tools/reverse-geocode', {
+    params: {
+      lat: String(lat),
+      lng: String(lng)
+    },
+    timeout: REVERSE_GEOCODE_TIMEOUT_MS + 500
+  });
+  const addressText = String(response.data?.data?.address || '').trim();
+  if (!addressText) {
+    throw new Error('后端逆地理返回空地址');
+  }
+  return addressText;
+};
+
+// 使用 Nominatim 逆地理解析地址。
+const reverseGeocodeByNominatim = async (lat, lng) => {
   const query = new URLSearchParams({
     format: 'jsonv2',
     lat: String(lat),
@@ -265,18 +366,51 @@ const reverseGeocode = async (lat, lng) => {
     addressdetails: '1'
   });
 
-  const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${query.toString()}`);
+  const response = await fetchWithTimeout(`https://nominatim.openstreetmap.org/reverse?${query.toString()}`);
   if (!response.ok) {
-    throw new Error('地址解析失败');
+    throw new Error('Nominatim 地址解析失败');
   }
   const result = await response.json();
   const addressText = buildAddressText(result.address || {});
-  if (addressText) return addressText;
-  return result.display_name || '';
+  const fallback = String(result.display_name || '').trim();
+  const normalized = String(addressText || fallback).trim();
+  if (!normalized) {
+    throw new Error('Nominatim 返回空地址');
+  }
+  return normalized;
 };
 
-// 获取浏览器定位结果
-const getCurrentPosition = () => new Promise((resolve, reject) => {
+// 使用 BigDataCloud 免费逆地理作为兜底来源，提高可用性。
+const reverseGeocodeByBigDataCloud = async (lat, lng) => {
+  const query = new URLSearchParams({
+    latitude: String(lat),
+    longitude: String(lng),
+    localityLanguage: 'zh'
+  });
+  const response = await fetchWithTimeout(`https://api-bdc.net/data/reverse-geocode-client?${query.toString()}`);
+  if (!response.ok) {
+    throw new Error('BigDataCloud 地址解析失败');
+  }
+  const result = await response.json();
+  const addressText = buildAddressTextFromBigDataCloud(result);
+  if (!addressText) {
+    throw new Error('BigDataCloud 返回空地址');
+  }
+  return addressText;
+};
+
+// 调用免费逆地理服务：并行请求并返回最先成功的结果。
+const reverseGeocode = async (lat, lng) => {
+  const addressText = await Promise.any([
+    reverseGeocodeByBackend(lat, lng),
+    reverseGeocodeByNominatim(lat, lng),
+    reverseGeocodeByBigDataCloud(lat, lng)
+  ]);
+  return String(addressText || '').trim();
+};
+
+// 读取浏览器定位结果（可按场景传入精度和超时策略）。
+const getCurrentPosition = (options = {}) => new Promise((resolve, reject) => {
   if (!navigator.geolocation) {
     reject(new Error('当前浏览器不支持定位'));
     return;
@@ -284,36 +418,82 @@ const getCurrentPosition = () => new Promise((resolve, reject) => {
   navigator.geolocation.getCurrentPosition(
     (position) => resolve(position),
     (geoError) => reject(geoError),
-    {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0
-    }
+    options
   );
 });
+
+const pickMoreAccuratePosition = (first, second) => {
+  if (!first) return second;
+  if (!second) return first;
+  const firstAccuracy = Number(first.coords?.accuracy);
+  const secondAccuracy = Number(second.coords?.accuracy);
+  if (!Number.isFinite(firstAccuracy)) return second;
+  if (!Number.isFinite(secondAccuracy)) return first;
+  return secondAccuracy + 10 < firstAccuracy ? second : first;
+};
+
+// 两阶段定位：先快速拿缓存/粗定位，再尽量用高精定位覆盖，兼顾速度与精度。
+const getBestCurrentPosition = async () => {
+  const quickTask = getCurrentPosition({
+    enableHighAccuracy: false,
+    timeout: QUICK_LOCATION_TIMEOUT_MS,
+    maximumAge: 2 * 60 * 1000
+  }).catch(() => null);
+
+  const preciseTask = getCurrentPosition({
+    enableHighAccuracy: true,
+    timeout: PRECISE_LOCATION_TIMEOUT_MS,
+    maximumAge: 0
+  }).catch(() => null);
+
+  const quickPosition = await quickTask;
+  if (quickPosition) {
+    const quickAccuracy = Number(quickPosition.coords?.accuracy);
+    if (Number.isFinite(quickAccuracy) && quickAccuracy <= 80) {
+      return quickPosition;
+    }
+  }
+
+  const precisePosition = await preciseTask;
+  const best = pickMoreAccuratePosition(quickPosition, precisePosition);
+  if (!best) {
+    throw new Error('定位失败');
+  }
+  return best;
+};
 
 // 用定位结果自动回填起点；解析地址失败时降级为坐标描述
 const fillStartPointByLocation = async () => {
   try {
     locating.value = true;
-    const position = await getCurrentPosition();
-    const lat = formatCoordinate(position.coords.latitude);
-    const lng = formatCoordinate(position.coords.longitude);
+    const position = await getBestCurrentPosition();
+    const latNumber = Number(position.coords.latitude);
+    const lngNumber = Number(position.coords.longitude);
+    const lat = formatCoordinate(latNumber);
+    const lng = formatCoordinate(lngNumber);
     if (!lat || !lng) {
       notifyWarning('定位结果异常，请手动填写起点');
       return;
     }
+
+    const cachedAddress = pickNearbyCachedAddress(latNumber, lngNumber);
+    if (cachedAddress) {
+      form.start_point = cachedAddress;
+      return;
+    }
+
     try {
       const addressText = await reverseGeocode(lat, lng);
       if (addressText) {
         form.start_point = addressText;
+        writeLocationCache({ lat: latNumber, lng: lngNumber, address: addressText });
         return;
       }
     } catch (_reverseErr) {
       // 地址服务不可用时，降级为坐标
     }
 
-    form.start_point = `重庆市渝中区附近（纬度:${lat}，经度:${lng}）`;
+    form.start_point = `当前位置附近（纬度:${lat}，经度:${lng}）`;
     notifyWarning('未能解析精确地址，已回填定位坐标，可手动修改');
   } catch (_err) {
     notifyWarning('定位失败，请检查浏览器定位权限后重试，或手动填写起点');

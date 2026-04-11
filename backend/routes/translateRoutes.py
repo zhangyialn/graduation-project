@@ -2,7 +2,7 @@
 
 from flask import Blueprint
 
-from controllers.translateController import translate_text
+from controllers.translateController import translate_text, reverse_geocode_free, detect_login_location_free
 from middleware.validation_middleware import validate_request
 
 
@@ -14,3 +14,6 @@ translateBlueprint.route('/translate', methods=['POST'])(
         optional_fields=['source', 'target', 'project_id']
     )(translate_text)
 )
+
+translateBlueprint.route('/reverse-geocode', methods=['GET'])(reverse_geocode_free)
+translateBlueprint.route('/login-location', methods=['GET'])(detect_login_location_free)

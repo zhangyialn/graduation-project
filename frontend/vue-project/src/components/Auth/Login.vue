@@ -93,11 +93,8 @@ const translateToChinese = async (text) => {
 
 const detectLoginLocation = async () => {
   try {
-    const response = await axios.get('https://ipapi.co/json/?lang=zh-CN');
-    const city = String(response.data?.city || '').trim();
-    const region = String(response.data?.region || '').trim();
-    const country = String(response.data?.country_name || '').trim();
-    const locationText = [country, region, city].filter(Boolean).join(' ').trim();
+    const response = await axios.get('/api/tools/login-location');
+    const locationText = String(response.data?.data?.location || '').trim();
 
     if (!locationText) return '未知地点';
     if (hasChineseText(locationText)) return locationText;

@@ -13,6 +13,15 @@ def _enum_value(value):
     return value.value if hasattr(value, 'value') else value
 
 
+def _normalize_identity(identity):
+    if identity is None:
+        return None
+    try:
+        return int(identity)
+    except Exception:
+        return identity
+
+
 # 解析可选分页参数：有参数走分页，无参数保持历史全量返回。
 def _parse_optional_pagination(default_limit=20, max_limit=100):
     # 仅当前端显式传参时才启用分页，默认保持历史全量返回。
@@ -202,7 +211,10 @@ def submit_approval(application_id):
         if _enum_value(application.status) != 'pending':
             return jsonify({'success': False, 'message': '仅待审批申请可提交审批结果'}), 400
 
-        current_user_id = get_jwt_identity()
+        current_user_id = _normalize_identity(get_jwt_identity())
+        applicant_id = _normalize_identity(application.applicant_id)
+        if applicant_id is not None and current_user_id == applicant_id:
+            return jsonify({'success': False, 'message': '不能审批自己提交的申请'}), 403
         approval_time = datetime.utcnow()
 
         approval = Approval(

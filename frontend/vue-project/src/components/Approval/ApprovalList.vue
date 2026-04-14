@@ -5,11 +5,6 @@
       <div class="card-header"><el-icon><Check /></el-icon><span>审批管理</span></div>
     </template>
 
-    <div class="toolbar">
-      <el-input v-model.number="departmentId" placeholder="部门ID" class="dept-input" />
-      <el-button type="primary" :loading="loading" @click="handleQuery">查询</el-button>
-    </div>
-
     <div v-if="isMobile" class="mobile-list">
       <el-card v-for="item in applications" :key="item.id" shadow="never" class="mobile-item">
         <div class="mobile-top">
@@ -111,7 +106,6 @@ import { formatBeijingDateTime } from '../../utils/datetime';
 const router = useRouter();
 const applications = ref([]);
 const approvalStats = ref([]);
-const departmentId = ref(1);
 // 待审批列表与审批统计分开分页，避免两块数据互相抢占页码。
 const applicationPage = ref(1);
 const applicationPageSize = ref(10);
@@ -129,12 +123,12 @@ const statusType = (status) => ({ pending: 'warning', approved: 'success', rejec
 // 时间格式化显示
 const formatDate = (value) => formatBeijingDateTime(value);
 
-// 按部门拉取待审批申请
+// 拉取待审批申请（不按部门过滤）
 const fetchApplications = async () => {
   try {
     loading.value = true;
     error.value = '';
-    const response = await axios.get(`/api/applications/pending/${departmentId.value}`, {
+    const response = await axios.get('/api/applications/pending', {
       params: {
         page: applicationPage.value,
         limit: applicationPageSize.value
@@ -155,7 +149,6 @@ const fetchApprovalStatistics = async () => {
   try {
     const response = await axios.get('/api/approvals/statistics', {
       params: {
-        department_id: departmentId.value,
         page: statsPage.value,
         limit: statsPageSize.value
       }
@@ -169,7 +162,7 @@ const fetchApprovalStatistics = async () => {
 };
 
 const handleQuery = async () => {
-  // 切部门查询时重置到第一页，避免落在无数据页。
+  // 首次加载/刷新时重置到第一页，避免落在无数据页。
   applicationPage.value = 1;
   statsPage.value = 1;
   await fetchApplications();
@@ -212,8 +205,6 @@ watch(error, (message) => {
 <style scoped>
 .approval-card { max-width: 1200px; margin: 0 auto; }
 .card-header { display: flex; gap: 8px; align-items: center; font-weight: 700; }
-.toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
-.dept-input { width: 180px; }
 .mobile-list { display: grid; gap: 10px; }
 .mobile-item { border-radius: 10px; }
 .mobile-top { display: flex; justify-content: space-between; align-items: center; }
@@ -222,5 +213,4 @@ watch(error, (message) => {
 .mobile-actions { margin-top: 10px; text-align: right; }
 .pager { margin: 12px 0 8px; justify-content: flex-end; display: flex; }
 .mt { margin-top: 12px; }
-@media (max-width: 899px) { .toolbar { flex-direction: column; } .dept-input { width: 100%; } }
 </style>

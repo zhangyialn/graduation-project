@@ -4,6 +4,7 @@
 from datetime import datetime
 from flask import request, jsonify
 from models.index import db, CarApplication, User, Vehicle, RoleEnum
+from flask_jwt_extended import get_jwt_identity
 from controllers.recommendation_utils import build_driver_recommendations
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -44,6 +45,15 @@ def _pagination_meta(total, page, limit):
 # 兼容 Enum/字符串两种状态值读取
 def _enum_value(value):
     return value.value if hasattr(value, 'value') else value
+
+
+def _normalize_identity(identity):
+    if identity is None:
+        return None
+    try:
+        return int(identity)
+    except Exception:
+        return identity
 
 
 # 解析 ISO 时间字符串，兼容带 Z 后缀的 UTC 文本
@@ -314,16 +324,16 @@ def get_my_applications(user_id):
         return jsonify({'success': False, 'message': str(e)})
 
 
-# 获取待审批列表（部门领导使用）
-# 查询部门待审批申请
-def get_pending_applications(department_id):
+# 获取待审批列表（不按部门过滤）
+def get_pending_applications(department_id=None):
     try:
         page, limit, should_paginate = _parse_optional_pagination()
+        current_user_id = _normalize_identity(get_jwt_identity())
 
-        query = CarApplication.query.filter_by(
-            department_id=department_id,
-            status='pending'
-        )
+        query = CarApplication.query.filter(CarApplication.status == 'pending')
+        if current_user_id is not None:
+            # 自己提交的申请不出现在待审批列表中，避免“自己审批自己”。
+            query = query.filter(CarApplication.applicant_id != current_user_id)
 
         if should_paginate:
             # 审批页默认按最新申请展示，减少翻页后“看不到新单”的情况。

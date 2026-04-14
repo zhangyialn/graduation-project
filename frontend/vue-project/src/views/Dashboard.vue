@@ -528,13 +528,8 @@ const fetchRolePendingCount = async () => {
     }
 
     if (isApprover.value) {
-      const departmentId = user.value?.department_id;
-      if (!departmentId) {
-        pendingCount.value = 0;
-        return;
-      }
       // 用 page=1&limit=1 只拿 pagination.total，避免首页为了计数拉取整页数据。
-      const response = await axios.get(`/api/applications/pending/${departmentId}`, {
+      const response = await axios.get('/api/applications/pending', {
         params: {
           page: 1,
           limit: 1

@@ -14,6 +14,12 @@ applicationBlueprint.route('', methods=['POST'])(jwt_required()(create_applicati
 applicationBlueprint.route('/<int:id>', methods=['PUT'])(jwt_required()(update_application))
 applicationBlueprint.route('/<int:id>/cancel', methods=['POST'])(jwt_required()(cancel_application))
 applicationBlueprint.route('/my/<int:user_id>', methods=['GET'])(jwt_required()(get_my_applications))
-applicationBlueprint.route('/pending/<int:department_id>', methods=['GET'])(jwt_required()(get_pending_applications))
+applicationBlueprint.route('/pending', methods=['GET'])(jwt_required()(get_pending_applications))
+applicationBlueprint.add_url_rule(
+	'/pending/<int:department_id>',
+	endpoint='get_pending_applications_legacy_by_department',
+	view_func=jwt_required()(get_pending_applications),
+	methods=['GET']
+)
 applicationBlueprint.route('/normalize-address', methods=['POST'])(jwt_required()(normalize_address))
 applicationBlueprint.route('/recommend-drivers', methods=['GET'])(jwt_required()(get_recommended_drivers))

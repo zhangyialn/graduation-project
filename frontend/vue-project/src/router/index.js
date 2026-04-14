@@ -15,6 +15,7 @@ const ApplicationCenter = () => import('../views/ApplicationCenter.vue');
 const ApprovalDispatchManagement = () => import('../views/ApprovalDispatchManagement.vue');
 const ApprovalDetail = () => import('../components/Approval/ApprovalDetail.vue');
 const PersonnelVehicleManagement = () => import('../views/PersonnelVehicleManagement.vue');
+const EmployeeManagement = () => import('../views/EmployeeManagement.vue');
 const Reports = () => import('../views/Reports.vue');
 const FuelPrices = () => import('../views/FuelPrices.vue');
 const DriverDashboard = () => import('../components/Driver/DriverDashboard.vue');
@@ -56,6 +57,7 @@ const routes = [
       { path: 'vehicles', name: 'VehicleList', component: PersonnelVehicleManagement, meta: { requiresAuth: true, roles: ['admin'] } },
       { path: 'dispatches', name: 'DispatchList', component: ApprovalDispatchManagement, meta: { requiresAuth: true, roles: ['approver', 'admin'] } },
       { path: 'personnel-vehicles', name: 'PersonnelVehicleManagement', component: PersonnelVehicleManagement, meta: { requiresAuth: true, roles: ['admin'] } },
+      { path: 'employees', name: 'EmployeeManagement', component: EmployeeManagement, meta: { requiresAuth: true, roles: ['admin'] } },
       { path: 'users/import', name: 'UserImport', component: PersonnelVehicleManagement, meta: { requiresAuth: true, roles: ['admin'] } },
       { path: 'admins', name: 'AdminManagement', component: PersonnelVehicleManagement, meta: { requiresAuth: true, roles: ['admin'] } },
       { path: 'reports', name: 'Reports', component: Reports, meta: { requiresAuth: true } },

@@ -67,42 +67,6 @@
         <div class="department-list">当前部门：{{ departmentSummary }}</div>
       </el-card>
 
-      <el-card shadow="never" class="department-card">
-        <div class="department-title">员工维护</div>
-        <div class="batch-actions">
-          <el-button type="primary" plain :loading="loadingUsers" @click="fetchUsers">刷新员工列表</el-button>
-        </div>
-        <el-table :data="employeeUsers" border size="small" v-loading="loadingUsers">
-          <el-table-column prop="id" label="员工ID" width="90" />
-          <el-table-column prop="name" label="姓名" width="120" />
-          <el-table-column prop="phone" label="手机号" width="140" />
-          <el-table-column prop="role" label="角色" width="100">
-            <template #default="scope">{{ roleLabel(scope.row.role) }}</template>
-          </el-table-column>
-          <el-table-column label="当前部门" min-width="180">
-            <template #default="scope">{{ departmentNameById(scope.row.department_id) }}</template>
-          </el-table-column>
-          <el-table-column label="调整部门" min-width="220">
-            <template #default="scope">
-              <el-select v-model="scope.row.next_department_id" placeholder="选择新部门" style="width: 200px" class="employee-dept-select" popper-class="employee-dept-dropdown">
-                <el-option
-                  v-for="item in departments"
-                  :key="item.id"
-                  :label="`${item.id} - ${item.name}`"
-                  :value="item.id"
-                />
-              </el-select>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="220" fixed="right">
-            <template #default="scope">
-              <el-button link class="change-dept-btn" :loading="updatingUserId === scope.row.id" @click="updateUserDepartment(scope.row)">更改部门</el-button>
-              <el-button type="danger" link :loading="deletingUserId === scope.row.id" @click="deleteEmployee(scope.row)">删除员工</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-card>
-
       <el-tabs v-model="activeTab">
         <el-tab-pane label="单个导入" name="single">
           <el-form :model="singleForm" :rules="singleRules" ref="singleFormRef" label-width="110px" class="single-form">
@@ -199,7 +163,6 @@
 import { reactive, ref, watch, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
-import { ElMessageBox } from 'element-plus';
 import { UploadFilled } from '@element-plus/icons-vue';
 import { useAuthStore } from '../stores/auth';
 import { notifyError, notifySuccess } from '../utils/notify';
@@ -211,9 +174,6 @@ const fileList = ref([]);
 const fileRef = ref(null);
 const loadingSingle = ref(false);
 const loadingBatch = ref(false);
-const loadingUsers = ref(false);
-const updatingUserId = ref(null);
-const deletingUserId = ref(null);
 const creatingDepartment = ref(false);
 const savingDepartmentName = ref(false);
 const replacingLeader = ref(false);
@@ -227,7 +187,6 @@ const leaderReplaceFormRef = ref(null);
 const vehicles = ref([]);
 const departments = ref([]);
 const adminOptions = ref([]);
-const employeeUsers = ref([]);
 
 const singleForm = reactive({
   name: '',
@@ -317,36 +276,6 @@ const fetchAdminOptions = async () => {
   }
 };
 
-const fetchUsers = async () => {
-  try {
-    loadingUsers.value = true;
-    const response = await axios.get('/api/users');
-    const users = response.data?.data || [];
-    employeeUsers.value = users
-      .filter(item => item.role !== 'admin')
-      .map(item => ({
-        ...item,
-        next_department_id: item.department_id
-      }));
-  } catch (err) {
-    error.value = err.response?.data?.message || '获取员工列表失败';
-  } finally {
-    loadingUsers.value = false;
-  }
-};
-
-const roleLabel = (role) => ({
-  user: '普通用户',
-  approver: '审批员',
-  driver: '司机',
-  admin: '管理员'
-}[role] || role || '-');
-
-const departmentNameById = (departmentId) => {
-  const department = departments.value.find(item => item.id === departmentId);
-  return department ? `${department.id} - ${department.name}` : '-';
-};
-
 const submitDepartment = async () => {
   if (!String(departmentForm.name || '').trim()) {
     notifyError('部门名称不能为空');
@@ -413,58 +342,6 @@ const submitReplaceLeader = async () => {
     error.value = err.response?.data?.message || '更换负责人失败';
   } finally {
     replacingLeader.value = false;
-  }
-};
-
-const updateUserDepartment = async (userRow) => {
-  if (!userRow?.id) return;
-  if (!userRow.next_department_id) {
-    notifyError('请选择新的部门');
-    return;
-  }
-  if (userRow.next_department_id === userRow.department_id) {
-    notifySuccess('部门未变化，无需更新');
-    return;
-  }
-  try {
-    updatingUserId.value = userRow.id;
-    await axios.put(`/api/users/${userRow.id}`, {
-      department_id: userRow.next_department_id
-    });
-    success.value = `已更新 ${userRow.name} 的所属部门`;
-    await fetchUsers();
-  } catch (err) {
-    error.value = err.response?.data?.message || '更改员工部门失败';
-  } finally {
-    updatingUserId.value = null;
-  }
-};
-
-const deleteEmployee = async (userRow) => {
-  if (!userRow?.id) return;
-  try {
-    await ElMessageBox.confirm(
-      `确认删除员工“${userRow.name}（${userRow.id}）”吗？此操作将执行软删除。`,
-      '删除确认',
-      {
-        confirmButtonText: '确认删除',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    );
-  } catch (_cancel) {
-    return;
-  }
-
-  try {
-    deletingUserId.value = userRow.id;
-    await axios.delete(`/api/users/${userRow.id}`);
-    success.value = `已删除员工 ${userRow.name}`;
-    await fetchUsers();
-  } catch (err) {
-    error.value = err.response?.data?.message || '删除员工失败';
-  } finally {
-    deletingUserId.value = null;
   }
 };
 
@@ -554,7 +431,6 @@ onMounted(() => {
   fetchDepartments();
   fetchAdminOptions();
   fetchVehicles();
-  fetchUsers();
 });
 
 watch(error, (message) => {
@@ -596,63 +472,8 @@ watch(() => leaderReplaceForm.department_id, (departmentId) => {
   --el-color-primary-light-8: #d6e3be;
   --el-color-primary-light-9: #eaf1df;
   --el-color-primary-dark-2: #4f6c1f;
-}
-
-.card {
-  border-radius: 12px;
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  background: #f8faf5;
-  border: 1px solid #e3ead6;
-  border-radius: 10px;
-  padding: 0.9rem 1.1rem;
-}
-
-.title {
-  font-weight: 700;
-  font-size: 1.2rem;
-  color: #2d3436;
-}
-
-.hint {
-  color: #667459;
-  font-size: 0.95rem;
-}
-
-.department-card {
-  margin-bottom: 12px;
-}
-
-.department-title {
-  font-weight: 700;
-  margin-bottom: 8px;
-  color: #2d3436;
-}
-
-.department-form-row {
-  margin-bottom: 8px;
-}
-
-.department-form-item {
-  margin-right: 16px;
-}
-
-.department-list {
-  color: #667459;
-  font-size: 13px;
-}
-
-.upload {
   width: 100%;
-}
-
-.single-form {
-  max-width: 680px;
+  max-width: none;
 }
 
 .batch-actions {
@@ -671,61 +492,6 @@ watch(() => leaderReplaceForm.department_id, (departmentId) => {
   color: #2d3436;
 }
 
-:deep(.employee-dept-select) {
-  --el-color-primary: #5f7f24;
-  --el-select-input-focus-border-color: #7c9940;
-}
-
-:deep(.employee-dept-dropdown) {
-  --el-color-primary: #5f7f24;
-}
-
-:global(.employee-dept-dropdown) {
-  --el-color-primary: #5f7f24;
-}
-
-:deep(.change-dept-btn.el-button) {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  color: #5f7f24 !important;
-  padding-left: 0;
-  padding-right: 0;
-}
-
-:deep(.change-dept-btn.el-button:hover),
-:deep(.change-dept-btn.el-button:focus-visible) {
-  color: #4f6c1f !important;
-}
-
-:deep(.change-dept-btn.el-button.is-link) {
-  color: #5f7f24 !important;
-}
-
-:deep(.employee-dept-select .el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px #7c9940 inset !important;
-}
-
-:deep(.employee-dept-dropdown .el-select-dropdown__item.is-selected) {
-  color: #5f7f24 !important;
-  font-weight: 700;
-}
-
-:deep(.employee-dept-dropdown .el-select-dropdown__item.selected) {
-  color: #5f7f24 !important;
-  font-weight: 700;
-}
-
-:global(.employee-dept-dropdown .el-select-dropdown__item.is-selected),
-:global(.employee-dept-dropdown .el-select-dropdown__item.selected) {
-  color: #5f7f24 !important;
-  font-weight: 700;
-}
-
-:global(.employee-dept-dropdown .el-select-dropdown__item.hover),
-:global(.employee-dept-dropdown .el-select-dropdown__item:hover) {
-  background-color: rgba(95, 127, 36, 0.12) !important;
-}
 
 :deep(.employee-dept-dropdown .el-select-dropdown__item.hover),
 :deep(.employee-dept-dropdown .el-select-dropdown__item:hover) {

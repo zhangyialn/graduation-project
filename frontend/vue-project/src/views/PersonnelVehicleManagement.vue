@@ -9,10 +9,13 @@
       </template>
 
       <el-tabs v-model="activeTab">
-        <el-tab-pane label="人员导入" name="import">
+        <el-tab-pane label="用户与部门" name="import">
           <UserImport v-if="activeTab === 'import'" />
         </el-tab-pane>
-        <el-tab-pane label="管理员管理" name="admin">
+        <el-tab-pane label="员工维护" name="employees">
+          <EmployeeManagement v-if="activeTab === 'employees'" />
+        </el-tab-pane>
+        <el-tab-pane label="管理员" name="admin">
           <AdminManagement v-if="activeTab === 'admin'" />
         </el-tab-pane>
         <el-tab-pane label="车辆与司机" name="vehicle-driver">
@@ -27,6 +30,7 @@
 import { ref } from 'vue';
 import UserImport from './UserImport.vue';
 import AdminManagement from './AdminManagement.vue';
+import EmployeeManagement from './EmployeeManagement.vue';
 import VehicleList from '../components/Vehicle/VehicleList.vue';
 
 // 管理后台默认先落在“人员导入”，贴合首次初始化系统的使用路径。

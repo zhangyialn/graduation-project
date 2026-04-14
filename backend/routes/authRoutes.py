@@ -27,18 +27,18 @@ authBlueprint.route('/change-password', methods=['POST'])(
 )
 authBlueprint.route('/account-settings', methods=['POST'])(
 	jwt_required()(
-		validate_request(required_fields=['old_password'], optional_fields=['username', 'new_password'])(update_account_settings)
+		validate_request(optional_fields=['old_password', 'username', 'new_password'])(update_account_settings)
 	)
 )
 
 # 手机找回密码：验证手机与用户名匹配
 authBlueprint.route('/verify-phone', methods=['POST'])(
-	validate_request(required_fields=['username', 'phone'])(verify_phone)
+	validate_request(required_fields=['username', 'phone'], validate_phone_format=False)(verify_phone)
 )
 
 # 手机找回密码：重置密码
 authBlueprint.route('/reset-password', methods=['POST'])(
-	validate_request(required_fields=['username', 'phone', 'new_password'])(reset_password)
+	validate_request(required_fields=['username', 'phone', 'new_password'], validate_phone_format=False)(reset_password)
 )
 
 # 首个管理员初始化（仅系统无管理员时生效）

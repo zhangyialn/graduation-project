@@ -262,21 +262,22 @@ def update_account_settings():
         old_password = str(data.get('old_password') or '')
         username = str(data.get('username') or '').strip()
         new_password = str(data.get('new_password') or '').strip()
+        username_changed = bool(username and username != user.username)
+        wants_change_password = bool(new_password)
 
-        verified, _need_upgrade = _verify_password(user, old_password)
-        if not verified:
-            return jsonify({'success': False, 'message': '当前密码错误'}), 400
-
-        if not username and not new_password:
+        if not username_changed and not wants_change_password:
             return jsonify({'success': False, 'message': '请至少修改一项（用户名或密码）'}), 400
 
-        if username and username != user.username:
+        if username_changed:
             exists_user = User.query.filter(User.username == username, User.id != user.id).first()
             if exists_user:
                 return jsonify({'success': False, 'message': '用户名已存在'}), 400
             user.username = username
 
-        if new_password:
+        if wants_change_password:
+            verified, _need_upgrade = _verify_password(user, old_password)
+            if not verified:
+                return jsonify({'success': False, 'message': '当前密码错误'}), 400
             if len(new_password) < 6:
                 return jsonify({'success': False, 'message': '新密码至少6位'}), 400
             user.password = generate_password_hash(new_password).decode('utf-8')

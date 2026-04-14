@@ -225,7 +225,7 @@
         <el-input v-model="accountForm.username" placeholder="请输入用户名" maxlength="30" show-word-limit />
       </el-form-item>
       <el-form-item label="当前密码">
-        <el-input v-model="accountForm.old_password" type="password" show-password placeholder="请输入当前密码" />
+        <el-input v-model="accountForm.old_password" type="password" show-password placeholder="仅修改密码时必填" />
       </el-form-item>
       <el-form-item label="新密码">
         <el-input v-model="accountForm.new_password" type="password" show-password placeholder="可选，留空则不修改" />
@@ -617,23 +617,30 @@ const openAccountSettings = () => {
 
 const saveRoleLabelAlias = async () => {
   const username = (accountForm.value.username || '').trim();
+  const currentUsername = (user.value?.username || '').trim();
   const oldPassword = (accountForm.value.old_password || '').trim();
   const newPassword = (accountForm.value.new_password || '').trim();
   const confirmPassword = (accountForm.value.confirm_password || '').trim();
+  const usernameChanged = Boolean(username && username !== currentUsername);
+  const wantsChangePassword = Boolean(newPassword);
 
   if (!username) {
     notifyError('用户名不能为空');
     return;
   }
-  if (!oldPassword) {
-    notifyError('请输入当前密码');
+  if (!usernameChanged && !wantsChangePassword) {
+    notifyError('请至少修改一项（用户名或密码）');
     return;
   }
-  if (newPassword && newPassword.length < 6) {
+  if (wantsChangePassword && !oldPassword) {
+    notifyError('修改密码时请输入当前密码');
+    return;
+  }
+  if (wantsChangePassword && newPassword.length < 6) {
     notifyError('新密码至少6位');
     return;
   }
-  if (newPassword && newPassword !== confirmPassword) {
+  if (wantsChangePassword && newPassword !== confirmPassword) {
     notifyError('两次输入的新密码不一致');
     return;
   }
@@ -642,8 +649,8 @@ const saveRoleLabelAlias = async () => {
     savingAccount.value = true;
     const res = await axios.post('/api/auth/account-settings', {
       username,
-      old_password: oldPassword,
-      new_password: newPassword || undefined
+      old_password: wantsChangePassword ? oldPassword : undefined,
+      new_password: wantsChangePassword ? newPassword : undefined
     });
     const latestUser = res.data?.data;
     if (latestUser) {

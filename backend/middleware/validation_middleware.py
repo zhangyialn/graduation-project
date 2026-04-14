@@ -10,13 +10,14 @@ import re
 
 
 # 生成请求体验证装饰器：按接口声明规则做通用参数校验
-def validate_request(required_fields=None, optional_fields=None, username_min_length=3):
+def validate_request(required_fields=None, optional_fields=None, username_min_length=1, validate_phone_format=True):
     """参数验证装饰器
     
     Args:
         required_fields: 必填字段列表，如 ['username', 'password']
         optional_fields: 可选字段列表，如 ['email', 'phone']
         username_min_length: 用户名最小长度；传入 None/0 表示不限制长度
+        validate_phone_format: 是否启用手机号格式校验（11位中国大陆手机号）
     """
     # 返回真正作用于路由处理函数的装饰器
     def decorator(f):
@@ -85,7 +86,7 @@ def validate_request(required_fields=None, optional_fields=None, username_min_le
                         validation_errors.append({'field': 'email', 'message': '邮箱格式不正确'})
             
             # 验证手机号格式（中国手机号）
-            if 'phone' in data:
+            if validate_phone_format and 'phone' in data:
                 phone_pattern = r'^1[3-9]\d{9}$'
                 phone_value = data.get('phone')
                 if phone_value not in [None, '']:

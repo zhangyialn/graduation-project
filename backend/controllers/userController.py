@@ -437,6 +437,64 @@ def create_department():
         return jsonify({'success': False, 'message': str(e)})
 
 
+def update_department(department_id):
+    try:
+        department = Department.query.get(department_id)
+        if not department:
+            return jsonify({'success': False, 'message': '部门不存在'}), 404
+
+        data = request.json or {}
+        raw_name = data.get('name')
+        leader_id = data.get('leader_id')
+
+        if raw_name is None and leader_id is None:
+            return jsonify({'success': False, 'message': '请至少提供一个更新项（name 或 leader_id）'}), 400
+
+        if raw_name is not None:
+            name = str(raw_name or '').strip()
+            if not name:
+                return jsonify({'success': False, 'message': '部门名称不能为空'}), 400
+
+            duplicated = Department.query.filter(
+                Department.name == name,
+                Department.id != department.id
+            ).first()
+            if duplicated:
+                return jsonify({'success': False, 'message': '部门名称已存在'}), 400
+            department.name = name
+
+        leader = None
+        if leader_id is not None:
+            if leader_id in ['', 0, '0']:
+                department.leader_id = None
+            else:
+                leader = User.query.filter_by(id=int(leader_id), role=RoleEnum.admin, is_deleted=False).first()
+                if not leader:
+                    return jsonify({'success': False, 'message': '负责人必须是有效管理员'}), 400
+
+                old_leader_id = department.leader_id
+                department.leader_id = leader.id
+                leader.department_id = department.id
+
+                if old_leader_id and int(old_leader_id) != int(leader.id):
+                    old_leader = User.query.get(old_leader_id)
+                    if old_leader and old_leader.department_id == department.id:
+                        old_leader.department_id = None
+
+        db.session.commit()
+
+        if department.leader_id and leader is None:
+            leader = User.query.get(department.leader_id)
+
+        payload = department.to_dict()
+        payload['leader_name'] = leader.name if leader else None
+        payload['leader_label'] = f'{leader.name}({leader.id})' if leader else None
+        return jsonify({'success': True, 'data': payload, 'message': '部门信息更新成功'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)})
+
+
 def get_admin_options():
     try:
         admins = User.query.filter_by(role=RoleEnum.admin, is_deleted=False).all()

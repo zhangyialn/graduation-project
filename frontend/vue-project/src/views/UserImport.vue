@@ -6,14 +6,14 @@
         <div class="card-header">
           <div>
             <div class="title">用户导入功能</div>
-            <div class="hint">支持单个导入与Excel批量导入，支持普通用户/审批员/司机；部门为必填，支持先创建部门后单独设置负责人</div>
+            <div class="hint">支持单个导入与Excel批量导入，支持普通用户/审批员/司机；部门为必填，支持创建部门、修改部门名称及替换负责人</div>
           </div>
         </div>
       </template>
 
       <el-card shadow="never" class="department-card">
         <div class="department-title">部门管理</div>
-        <el-form :model="departmentForm" :rules="departmentRules" ref="departmentFormRef" inline class="department-form-row">
+        <el-form :model="departmentForm" :rules="departmentRules" ref="departmentFormRef" inline class="department-form-row" :show-message="false">
           <el-form-item label="部门名称" prop="name" class="department-form-item">
             <el-input v-model="departmentForm.name" placeholder="请输入部门名称" style="width: 220px" />
           </el-form-item>
@@ -21,9 +21,27 @@
             <el-button type="primary" plain :loading="creatingDepartment" @click="submitDepartment">创建部门</el-button>
           </el-form-item>
         </el-form>
-        <el-form :model="leaderForm" :rules="leaderRules" ref="leaderFormRef" inline class="department-form-row">
+        <el-form :model="departmentRenameForm" :rules="departmentRenameRules" ref="departmentRenameFormRef" inline class="department-form-row" :show-message="false">
           <el-form-item label="选择部门" prop="department_id" class="department-form-item">
-            <el-select v-model="leaderForm.department_id" placeholder="请选择部门" style="width: 220px">
+            <el-select v-model="departmentRenameForm.department_id" placeholder="请选择部门" style="width: 220px">
+              <el-option
+                v-for="item in departments"
+                :key="item.id"
+                :label="`${item.id} - ${item.name}`"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="部门名称" prop="name" class="department-form-item">
+            <el-input v-model="departmentRenameForm.name" placeholder="请输入新的部门名称" style="width: 220px" />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="success" plain :loading="savingDepartmentName" @click="submitDepartmentRename">保存部门名称</el-button>
+          </el-form-item>
+        </el-form>
+        <el-form :model="leaderReplaceForm" :rules="leaderReplaceRules" ref="leaderReplaceFormRef" inline class="department-form-row" :show-message="false">
+          <el-form-item label="选择部门" prop="department_id" class="department-form-item">
+            <el-select v-model="leaderReplaceForm.department_id" placeholder="请选择部门" style="width: 220px">
               <el-option
                 v-for="item in departments"
                 :key="item.id"
@@ -33,7 +51,7 @@
             </el-select>
           </el-form-item>
           <el-form-item label="负责人（管理员）" prop="leader_id" class="department-form-item">
-            <el-select v-model="leaderForm.leader_id" placeholder="请选择管理员" style="width: 220px">
+            <el-select v-model="leaderReplaceForm.leader_id" placeholder="请选择新的负责人" style="width: 300px">
               <el-option
                 v-for="item in adminOptions"
                 :key="item.id"
@@ -43,10 +61,46 @@
             </el-select>
           </el-form-item>
           <el-form-item>
-            <el-button type="success" plain :loading="assigningLeader" @click="submitAssignLeader">确定负责人</el-button>
+            <el-button type="warning" plain :loading="replacingLeader" @click="submitReplaceLeader">更换负责人</el-button>
           </el-form-item>
         </el-form>
         <div class="department-list">当前部门：{{ departmentSummary }}</div>
+      </el-card>
+
+      <el-card shadow="never" class="department-card">
+        <div class="department-title">员工维护</div>
+        <div class="batch-actions">
+          <el-button type="primary" plain :loading="loadingUsers" @click="fetchUsers">刷新员工列表</el-button>
+        </div>
+        <el-table :data="employeeUsers" border size="small" v-loading="loadingUsers">
+          <el-table-column prop="id" label="员工ID" width="90" />
+          <el-table-column prop="name" label="姓名" width="120" />
+          <el-table-column prop="phone" label="手机号" width="140" />
+          <el-table-column prop="role" label="角色" width="100">
+            <template #default="scope">{{ roleLabel(scope.row.role) }}</template>
+          </el-table-column>
+          <el-table-column label="当前部门" min-width="180">
+            <template #default="scope">{{ departmentNameById(scope.row.department_id) }}</template>
+          </el-table-column>
+          <el-table-column label="调整部门" min-width="220">
+            <template #default="scope">
+              <el-select v-model="scope.row.next_department_id" placeholder="选择新部门" style="width: 200px" class="employee-dept-select" popper-class="employee-dept-dropdown">
+                <el-option
+                  v-for="item in departments"
+                  :key="item.id"
+                  :label="`${item.id} - ${item.name}`"
+                  :value="item.id"
+                />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="220" fixed="right">
+            <template #default="scope">
+              <el-button link class="change-dept-btn" :loading="updatingUserId === scope.row.id" @click="updateUserDepartment(scope.row)">更改部门</el-button>
+              <el-button type="danger" link :loading="deletingUserId === scope.row.id" @click="deleteEmployee(scope.row)">删除员工</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
       </el-card>
 
       <el-tabs v-model="activeTab">
@@ -145,6 +199,7 @@
 import { reactive, ref, watch, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
+import { ElMessageBox } from 'element-plus';
 import { UploadFilled } from '@element-plus/icons-vue';
 import { useAuthStore } from '../stores/auth';
 import { notifyError, notifySuccess } from '../utils/notify';
@@ -156,17 +211,23 @@ const fileList = ref([]);
 const fileRef = ref(null);
 const loadingSingle = ref(false);
 const loadingBatch = ref(false);
+const loadingUsers = ref(false);
+const updatingUserId = ref(null);
+const deletingUserId = ref(null);
 const creatingDepartment = ref(false);
-const assigningLeader = ref(false);
+const savingDepartmentName = ref(false);
+const replacingLeader = ref(false);
 const result = ref(null);
 const error = ref('');
 const success = ref('');
 const singleFormRef = ref(null);
 const departmentFormRef = ref(null);
-const leaderFormRef = ref(null);
+const departmentRenameFormRef = ref(null);
+const leaderReplaceFormRef = ref(null);
 const vehicles = ref([]);
 const departments = ref([]);
 const adminOptions = ref([]);
+const employeeUsers = ref([]);
 
 const singleForm = reactive({
   name: '',
@@ -204,12 +265,22 @@ const departmentRules = reactive({
   name: [{ required: true, message: '请输入部门名称', trigger: 'blur' }]
 });
 
-const leaderForm = reactive({
+const departmentRenameForm = reactive({
+  department_id: null,
+  name: ''
+});
+
+const departmentRenameRules = reactive({
+  department_id: [{ required: true, message: '请选择部门', trigger: 'change' }],
+  name: [{ required: true, message: '请输入部门名称', trigger: 'blur' }]
+});
+
+const leaderReplaceForm = reactive({
   department_id: null,
   leader_id: null
 });
 
-const leaderRules = reactive({
+const leaderReplaceRules = reactive({
   department_id: [{ required: true, message: '请选择部门', trigger: 'change' }],
   leader_id: [{ required: true, message: '请选择管理员负责人', trigger: 'change' }]
 });
@@ -246,7 +317,41 @@ const fetchAdminOptions = async () => {
   }
 };
 
+const fetchUsers = async () => {
+  try {
+    loadingUsers.value = true;
+    const response = await axios.get('/api/users');
+    const users = response.data?.data || [];
+    employeeUsers.value = users
+      .filter(item => item.role !== 'admin')
+      .map(item => ({
+        ...item,
+        next_department_id: item.department_id
+      }));
+  } catch (err) {
+    error.value = err.response?.data?.message || '获取员工列表失败';
+  } finally {
+    loadingUsers.value = false;
+  }
+};
+
+const roleLabel = (role) => ({
+  user: '普通用户',
+  approver: '审批员',
+  driver: '司机',
+  admin: '管理员'
+}[role] || role || '-');
+
+const departmentNameById = (departmentId) => {
+  const department = departments.value.find(item => item.id === departmentId);
+  return department ? `${department.id} - ${department.name}` : '-';
+};
+
 const submitDepartment = async () => {
+  if (!String(departmentForm.name || '').trim()) {
+    notifyError('部门名称不能为空');
+    return;
+  }
   try {
     await departmentFormRef.value.validate();
     creatingDepartment.value = true;
@@ -263,19 +368,103 @@ const submitDepartment = async () => {
   }
 };
 
-const submitAssignLeader = async () => {
+const submitDepartmentRename = async () => {
+  if (!departmentRenameForm.department_id) {
+    notifyError('请选择需要改名的部门');
+    return;
+  }
+  if (!String(departmentRenameForm.name || '').trim()) {
+    notifyError('部门名称不能为空');
+    return;
+  }
   try {
-    await leaderFormRef.value.validate();
-    assigningLeader.value = true;
-    await axios.put(`/api/users/departments/${leaderForm.department_id}/leader`, {
-      leader_id: leaderForm.leader_id
+    await departmentRenameFormRef.value.validate();
+    savingDepartmentName.value = true;
+    await axios.put(`/api/users/departments/${departmentRenameForm.department_id}`, {
+      name: departmentRenameForm.name
     });
-    success.value = '部门负责人设置成功';
+    success.value = '部门名称更新成功';
     await fetchDepartments();
   } catch (err) {
-    error.value = err.response?.data?.message || '设置负责人失败';
+    error.value = err.response?.data?.message || '更新部门名称失败';
   } finally {
-    assigningLeader.value = false;
+    savingDepartmentName.value = false;
+  }
+};
+
+const submitReplaceLeader = async () => {
+  if (!leaderReplaceForm.department_id) {
+    notifyError('请选择要更换负责人的部门');
+    return;
+  }
+  if (!leaderReplaceForm.leader_id) {
+    notifyError('请选择新的负责人（管理员）');
+    return;
+  }
+  try {
+    await leaderReplaceFormRef.value.validate();
+    replacingLeader.value = true;
+    await axios.put(`/api/users/departments/${leaderReplaceForm.department_id}/leader`, {
+      leader_id: leaderReplaceForm.leader_id
+    });
+    success.value = '部门负责人更换成功';
+    await fetchDepartments();
+  } catch (err) {
+    error.value = err.response?.data?.message || '更换负责人失败';
+  } finally {
+    replacingLeader.value = false;
+  }
+};
+
+const updateUserDepartment = async (userRow) => {
+  if (!userRow?.id) return;
+  if (!userRow.next_department_id) {
+    notifyError('请选择新的部门');
+    return;
+  }
+  if (userRow.next_department_id === userRow.department_id) {
+    notifySuccess('部门未变化，无需更新');
+    return;
+  }
+  try {
+    updatingUserId.value = userRow.id;
+    await axios.put(`/api/users/${userRow.id}`, {
+      department_id: userRow.next_department_id
+    });
+    success.value = `已更新 ${userRow.name} 的所属部门`;
+    await fetchUsers();
+  } catch (err) {
+    error.value = err.response?.data?.message || '更改员工部门失败';
+  } finally {
+    updatingUserId.value = null;
+  }
+};
+
+const deleteEmployee = async (userRow) => {
+  if (!userRow?.id) return;
+  try {
+    await ElMessageBox.confirm(
+      `确认删除员工“${userRow.name}（${userRow.id}）”吗？此操作将执行软删除。`,
+      '删除确认',
+      {
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
+  } catch (_cancel) {
+    return;
+  }
+
+  try {
+    deletingUserId.value = userRow.id;
+    await axios.delete(`/api/users/${userRow.id}`);
+    success.value = `已删除员工 ${userRow.name}`;
+    await fetchUsers();
+  } catch (err) {
+    error.value = err.response?.data?.message || '删除员工失败';
+  } finally {
+    deletingUserId.value = null;
   }
 };
 
@@ -365,6 +554,7 @@ onMounted(() => {
   fetchDepartments();
   fetchAdminOptions();
   fetchVehicles();
+  fetchUsers();
 });
 
 watch(error, (message) => {
@@ -376,11 +566,36 @@ watch(success, (message) => {
   if (!message) return;
   notifySuccess(message);
 });
+
+watch(() => departmentRenameForm.department_id, (departmentId) => {
+  const selected = departments.value.find(item => item.id === departmentId);
+  if (!selected) {
+    departmentRenameForm.name = '';
+    return;
+  }
+  departmentRenameForm.name = selected.name || '';
+});
+
+watch(() => leaderReplaceForm.department_id, (departmentId) => {
+  const selected = departments.value.find(item => item.id === departmentId);
+  if (!selected) {
+    leaderReplaceForm.leader_id = null;
+    return;
+  }
+  leaderReplaceForm.leader_id = selected.leader_id || null;
+});
 </script>
 
 <style scoped>
 .page {
   padding: 12px;
+  --el-color-primary: #5f7f24;
+  --el-color-primary-light-3: #88a74d;
+  --el-color-primary-light-5: #a7be78;
+  --el-color-primary-light-7: #c7d8a7;
+  --el-color-primary-light-8: #d6e3be;
+  --el-color-primary-light-9: #eaf1df;
+  --el-color-primary-dark-2: #4f6c1f;
 }
 
 .card {
@@ -454,5 +669,66 @@ watch(success, (message) => {
   flex-wrap: wrap;
   margin-bottom: 10px;
   color: #2d3436;
+}
+
+:deep(.employee-dept-select) {
+  --el-color-primary: #5f7f24;
+  --el-select-input-focus-border-color: #7c9940;
+}
+
+:deep(.employee-dept-dropdown) {
+  --el-color-primary: #5f7f24;
+}
+
+:global(.employee-dept-dropdown) {
+  --el-color-primary: #5f7f24;
+}
+
+:deep(.change-dept-btn.el-button) {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #5f7f24 !important;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+:deep(.change-dept-btn.el-button:hover),
+:deep(.change-dept-btn.el-button:focus-visible) {
+  color: #4f6c1f !important;
+}
+
+:deep(.change-dept-btn.el-button.is-link) {
+  color: #5f7f24 !important;
+}
+
+:deep(.employee-dept-select .el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #7c9940 inset !important;
+}
+
+:deep(.employee-dept-dropdown .el-select-dropdown__item.is-selected) {
+  color: #5f7f24 !important;
+  font-weight: 700;
+}
+
+:deep(.employee-dept-dropdown .el-select-dropdown__item.selected) {
+  color: #5f7f24 !important;
+  font-weight: 700;
+}
+
+:global(.employee-dept-dropdown .el-select-dropdown__item.is-selected),
+:global(.employee-dept-dropdown .el-select-dropdown__item.selected) {
+  color: #5f7f24 !important;
+  font-weight: 700;
+}
+
+:global(.employee-dept-dropdown .el-select-dropdown__item.hover),
+:global(.employee-dept-dropdown .el-select-dropdown__item:hover) {
+  background-color: rgba(95, 127, 36, 0.12) !important;
+}
+
+:deep(.employee-dept-dropdown .el-select-dropdown__item.hover),
+:deep(.employee-dept-dropdown .el-select-dropdown__item:hover) {
+  background-color: rgba(95, 127, 36, 0.12) !important;
 }
 </style>

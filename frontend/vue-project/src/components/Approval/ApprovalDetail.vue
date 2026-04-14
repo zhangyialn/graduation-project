@@ -118,7 +118,11 @@ const submit = async (status) => {
       start_point: form.start_point
     });
     notifySuccess(status === 'approved' ? '审批已同意' : '审批已驳回');
-    await fetchData();
+    if (status === 'approved') {
+      router.push('/dashboard/dispatches');
+      return;
+    }
+    router.push('/dashboard/approvals');
   } catch (err) {
     error.value = err.response?.data?.message || '提交审批失败';
   } finally {

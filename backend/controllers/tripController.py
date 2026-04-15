@@ -690,46 +690,6 @@ def get_fuel_prices():
         return jsonify({'success': False, 'message': str(e)})
 
 
-# 添加燃油价格
-# 新增油价配置
-def create_fuel_price():
-    try:
-        data = request.json or {}
-        region_name = str(data.get('region_name') or '').strip() or '未知省份'
-        fuel_type = data.get('fuel_type')
-        price_value = data.get('price')
-        effective_date = data.get('effective_date')
-        source = data.get('source')
-
-        if not fuel_type or price_value is None or not effective_date:
-            return jsonify({'success': False, 'message': 'fuel_type、price、effective_date 必填'}), 400
-
-        price = FuelPrice.query.filter_by(
-            region_name=region_name,
-            fuel_type=fuel_type,
-            effective_date=effective_date
-        ).first()
-        if not price:
-            price = FuelPrice(
-                region_name=region_name,
-                fuel_type=fuel_type,
-                price=price_value,
-                effective_date=effective_date,
-                source=source
-            )
-            db.session.add(price)
-        else:
-            price.price = price_value
-            if source:
-                price.source = source
-
-        db.session.commit()
-        return jsonify({'success': True, 'data': price.to_dict()})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)})
-
-
 # 批量新增/更新油价（按 region_name + fuel_type + effective_date 去重）。
 def create_fuel_prices_batch():
     try:

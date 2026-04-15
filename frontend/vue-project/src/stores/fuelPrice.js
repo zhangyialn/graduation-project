@@ -106,43 +106,15 @@ const isValidEffectiveDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value 
 // 获取当天日期字符串
 const getToday = () => getBeijingDateKey();
 
-// 从逆地理编码结果中提取油价查询 keyword（城市优先）
-const getKeywordFromReverseGeo = (payload) => {
-  const candidates = [
-    payload?.city,
-    payload?.locality,
-    payload?.localityInfo?.administrative?.[2]?.name,
-    payload?.principalSubdivision,
-    payload?.localityInfo?.administrative?.[1]?.name,
-    payload?.localityInfo?.administrative?.[0]?.name
-  ];
-  return normalizeLocationKeyword(candidates.find(Boolean) || '');
-};
-
-// 从逆地理编码结果中提取展示地区名称（省份优先）
-const getRegionFromReverseGeo = (payload) => {
-  const candidates = [
-    payload?.principalSubdivision,
-    payload?.localityInfo?.administrative?.[1]?.name,
-    payload?.localityInfo?.administrative?.[0]?.name,
-    payload?.city,
-    payload?.locality
-  ];
-  return normalizeRegionName(candidates.find(Boolean) || '');
-};
-
 export const useFuelPriceStore = defineStore('fuelPrice', () => {
   const regionName = ref('青海省');
   const locationKeyword = ref('');
   const selectedFuelType = ref('92号汽油');
   const oilPayload = ref(null);
   const lastOilFetchDate = ref('');
-  const lastOilFetchAt = ref('');
   const lastBackendSyncDate = ref('');
   const locationSource = ref('manual');
-  const coords = ref(null);
   const loadingOil = ref(false);
-  const loadingLocation = ref(false);
   const lastError = ref('');
 
   const currentFuelField = computed(() => fuelFieldMap[selectedFuelType.value] || 'n92');
@@ -163,10 +135,8 @@ export const useFuelPriceStore = defineStore('fuelPrice', () => {
       selectedFuelType: selectedFuelType.value,
       oilPayload: oilPayload.value,
       lastOilFetchDate: lastOilFetchDate.value,
-      lastOilFetchAt: lastOilFetchAt.value,
       lastBackendSyncDate: lastBackendSyncDate.value,
-      locationSource: locationSource.value,
-      coords: coords.value
+      locationSource: locationSource.value
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
   };
@@ -183,10 +153,8 @@ export const useFuelPriceStore = defineStore('fuelPrice', () => {
       selectedFuelType.value = data.selectedFuelType || selectedFuelType.value;
       oilPayload.value = data.oilPayload || null;
       lastOilFetchDate.value = data.lastOilFetchDate || '';
-      lastOilFetchAt.value = data.lastOilFetchAt || '';
       lastBackendSyncDate.value = data.lastBackendSyncDate || '';
       locationSource.value = data.locationSource || 'manual';
-      coords.value = data.coords || null;
     } catch (_e) {
       localStorage.removeItem(STORAGE_KEY);
     }
@@ -229,71 +197,6 @@ export const useFuelPriceStore = defineStore('fuelPrice', () => {
     return !!matched;
   };
 
-  // 优先使用浏览器定位识别地区
-  const detectRegionByGeolocation = async () => {
-    if (!navigator.geolocation) throw new Error('当前浏览器不支持定位');
-    const position = await new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(resolve, reject, {
-        enableHighAccuracy: false,
-        timeout: 8000,
-        maximumAge: 300000
-      });
-    });
-
-    const latitude = position.coords.latitude;
-    const longitude = position.coords.longitude;
-    coords.value = { latitude, longitude };
-
-    const reverse = await axios.get('https://api.bigdatacloud.net/data/reverse-geocode-client', {
-      params: {
-        latitude,
-        longitude,
-        localityLanguage: 'zh'
-      }
-    });
-
-    const detectedRegion = getRegionFromReverseGeo(reverse.data);
-    const detectedKeyword = getKeywordFromReverseGeo(reverse.data) || detectedRegion;
-    if (!detectedRegion && !detectedKeyword) throw new Error('定位成功但未解析到地区');
-
-    regionName.value = detectedRegion || detectedKeyword || regionName.value;
-    locationKeyword.value = detectedKeyword || detectedRegion || locationKeyword.value;
-    locationSource.value = 'geolocation';
-    persist();
-    return regionName.value;
-  };
-
-  // 浏览器定位失败时回退为IP定位
-  const detectRegionByIP = async () => {
-    const res = await axios.get('https://ipapi.co/json/');
-    const detectedKeyword = normalizeLocationKeyword(res.data?.city || res.data?.region || res.data?.region_name || '');
-    const detectedRegion = normalizeRegionName(res.data?.region || res.data?.region_name || detectedKeyword);
-    if (!detectedRegion && !detectedKeyword) throw new Error('未识别到地区');
-    regionName.value = detectedRegion || detectedKeyword || regionName.value;
-    locationKeyword.value = detectedKeyword || detectedRegion || locationKeyword.value;
-    locationSource.value = 'ip';
-    persist();
-    return regionName.value;
-  };
-
-  // 自动识别地区（GPS优先，IP兜底）
-  const detectRegion = async () => {
-    loadingLocation.value = true;
-    lastError.value = '';
-    try {
-      return await detectRegionByGeolocation();
-    } catch (_geoErr) {
-      try {
-        return await detectRegionByIP();
-      } catch (ipErr) {
-        lastError.value = ipErr?.message || '自动定位失败';
-        return regionName.value;
-      }
-    } finally {
-      loadingLocation.value = false;
-    }
-  };
-
   // 拉取并缓存指定地区当日油价
   const fetchOilPrice = async ({ force = false, customRegionName = '' } = {}) => {
     const customKeyword = normalizeLocationKeyword(customRegionName);
@@ -316,9 +219,7 @@ export const useFuelPriceStore = defineStore('fuelPrice', () => {
     loadingOil.value = true;
     lastError.value = '';
     try {
-      const res = await axios.get('/api/trips/external-oil-prices', {
-        params: { keyword: targetKeyword }
-      });
+      const res = await axios.get('/api/trips/external-oil-prices');
 
       const payload = pickOilPayload(res.data?.data || {}, targetKeyword);
       if (!payload) {
@@ -329,7 +230,6 @@ export const useFuelPriceStore = defineStore('fuelPrice', () => {
       locationKeyword.value = normalizeLocationKeyword(payload.keyword || targetKeyword) || targetKeyword;
       regionName.value = normalizeRegionName(payload.regionName || payload.keyword || targetKeyword) || regionName.value;
       lastOilFetchDate.value = getToday();
-      lastOilFetchAt.value = new Date().toISOString();
       persist();
       return payload;
     } catch (err) {
@@ -343,9 +243,7 @@ export const useFuelPriceStore = defineStore('fuelPrice', () => {
   // 页面启动时初始化地区与当日油价
   const initializeDailyOilPrice = async () => {
     hydrate();
-    if (!locationKeyword.value && !regionName.value) {
-      await detectRegion();
-    } else if (!locationKeyword.value && regionName.value) {
+    if (!locationKeyword.value && regionName.value) {
       locationKeyword.value = regionName.value;
       persist();
     }
@@ -412,22 +310,14 @@ export const useFuelPriceStore = defineStore('fuelPrice', () => {
 
   return {
     regionName,
-    locationKeyword,
     selectedFuelType,
     oilPayload,
     lastOilFetchDate,
-    lastOilFetchAt,
-    lastBackendSyncDate,
     locationSource,
-    coords,
-    loadingOil,
-    loadingLocation,
     lastError,
     currentFuelPrice,
-    needFetchToday,
     setRegionName,
     setFuelType,
-    detectRegion,
     fetchOilPrice,
     initializeDailyOilPrice,
     syncOilPriceToBackend

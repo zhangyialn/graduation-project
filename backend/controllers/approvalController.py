@@ -2,11 +2,11 @@
 
 # 审批记录控制器
 from flask import request, jsonify
-from models.index import db, Approval, User, CarApplication, Dispatch, Vehicle, RoleEnum
+from models.index import db, Approval, User, CarApplication
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from datetime import datetime
 from sqlalchemy.orm import aliased
 from controllers.common_helpers import enum_value as _enum_value, normalize_identity as _normalize_identity, parse_optional_pagination as _parse_optional_pagination, pagination_meta as _pagination_meta
+from services.approval_workflow_service import submit_approval_workflow, ApprovalWorkflowError
 
 
 # 获取所有审批记录
@@ -156,76 +156,13 @@ def get_approval_statistics():
 def submit_approval(application_id):
     try:
         data = request.json or {}
-        status = data.get('status')
-        comment = data.get('comment')
-        start_point = data.get('start_point')
-
-        if status not in ['approved', 'rejected']:
-            return jsonify({'success': False, 'message': '审批状态必须为 approved 或 rejected'}), 400
-
-        application = CarApplication.query.get(application_id)
-        if not application:
-            return jsonify({'success': False, 'message': '申请不存在'}), 404
-
-        if _enum_value(application.status) != 'pending':
-            return jsonify({'success': False, 'message': '仅待审批申请可提交审批结果'}), 400
-
         current_user_id = _normalize_identity(get_jwt_identity())
-        applicant_id = _normalize_identity(application.applicant_id)
-        if applicant_id is not None and current_user_id == applicant_id:
-            return jsonify({'success': False, 'message': '不能审批自己提交的申请'}), 403
-        approval_time = datetime.utcnow()
+        workflow_result = submit_approval_workflow(application_id, current_user_id, data)
+        application = workflow_result['application']
+        approval = workflow_result['approval']
+        auto_dispatch = workflow_result['auto_dispatch']
 
-        approval = Approval(
-            application_id=application_id,
-            approver_id=current_user_id,
-            status=status,
-            comment=comment,
-            approved_at=approval_time
-        )
         db.session.add(approval)
-
-        application.status = status
-        application.approval_comment = comment
-        if start_point is not None:
-            application.start_point = start_point
-        application.approved_by = current_user_id
-        application.approved_at = approval_time
-
-        auto_dispatch = None
-        if status == 'approved':
-            driver = User.query.filter_by(id=application.driver_id, role=RoleEnum.driver, is_deleted=False).first()
-            vehicle = Vehicle.query.get(driver.vehicle_id) if driver and driver.vehicle_id else None
-
-            can_auto_dispatch = (
-                driver
-                and vehicle
-                and not vehicle.is_deleted
-                and _enum_value(driver.driver_status) == 'available'
-                and _enum_value(vehicle.status) == 'available'
-            )
-
-            if can_auto_dispatch:
-                existing_dispatch = Dispatch.query.filter(
-                    Dispatch.application_id == application.id,
-                    Dispatch.status.in_(['scheduled', 'in_progress'])
-                ).first()
-
-                if existing_dispatch:
-                    auto_dispatch = existing_dispatch
-                else:
-                    auto_dispatch = Dispatch(
-                        application_id=application.id,
-                        vehicle_id=vehicle.id,
-                        driver_id=driver.id,
-                        dispatcher_id=current_user_id,
-                        status='scheduled'
-                    )
-                    db.session.add(auto_dispatch)
-
-                application.status = 'dispatched'
-                driver.driver_status = 'busy'
-                vehicle.status = 'in_use'
 
         db.session.commit()
 
@@ -238,6 +175,9 @@ def submit_approval(application_id):
                 'auto_dispatch': auto_dispatch.to_dict() if auto_dispatch else None
             }
         })
+    except ApprovalWorkflowError as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': e.message}), e.status_code
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500

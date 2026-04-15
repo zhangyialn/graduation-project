@@ -184,7 +184,7 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import axios from 'axios';
-import { Document, Close } from '@element-plus/icons-vue';
+import { Close } from '@element-plus/icons-vue';
 import { useAuthStore } from '../../stores/auth';
 import FractionStarInput from '../Common/FractionStarInput.vue';
 import { notifyError, notifySuccess, notifyWarning } from '../../utils/notify';

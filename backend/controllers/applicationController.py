@@ -1,58 +1,12 @@
 """用车申请控制器。"""
 
 # 用车申请控制器
-from datetime import datetime
 from flask import request, jsonify
-from models.index import db, CarApplication, User, Vehicle, RoleEnum
+from models.index import db, CarApplication, User
 from flask_jwt_extended import get_jwt_identity
 from controllers.recommendation_utils import build_driver_recommendations
 from controllers.common_helpers import enum_value as _enum_value, normalize_identity as _normalize_identity, parse_optional_pagination as _parse_optional_pagination, pagination_meta as _pagination_meta
-
-
-LOCKED_APPLICATION_STATUSES = ['pending', 'approved', 'dispatched']
-
-
-# 解析 ISO 时间字符串，兼容带 Z 后缀的 UTC 文本
-def _parse_datetime(value):
-    if not value:
-        return None
-    if isinstance(value, datetime):
-        return value
-    text = str(value).replace('Z', '+00:00')
-    return datetime.fromisoformat(text)
-
-
-# 判断司机是否已绑定到进行中的申请，避免重复占用
-def _is_driver_locked(driver_id, exclude_application_id=None):
-    query = CarApplication.query.filter(
-        CarApplication.driver_id == driver_id,
-        CarApplication.status.in_(LOCKED_APPLICATION_STATUSES)
-    )
-    if exclude_application_id:
-        query = query.filter(CarApplication.id != exclude_application_id)
-    return query.first() is not None
-
-
-# 校验司机+车辆是否都可用，并且司机没有冲突申请
-def _validate_driver_available(driver_id, exclude_application_id=None):
-    driver = User.query.filter_by(id=driver_id, role=RoleEnum.driver, is_deleted=False).first()
-    if not driver:
-        return False, '司机不存在', None
-
-    if _enum_value(driver.driver_status) != 'available':
-        return False, '司机当前不可用', None
-
-    vehicle = Vehicle.query.get(driver.vehicle_id)
-    if not vehicle or vehicle.is_deleted:
-        return False, '司机绑定车辆不存在', None
-
-    if _enum_value(vehicle.status) != 'available':
-        return False, '司机绑定车辆当前不可用', None
-
-    if _is_driver_locked(driver_id, exclude_application_id=exclude_application_id):
-        return False, '该司机已有进行中的申请，暂不可重复申请', None
-
-    return True, '', driver
+from services.application_service import parse_datetime as _parse_datetime, validate_driver_available as _validate_driver_available
 
 
 # 获取所有申请

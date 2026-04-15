@@ -6,9 +6,6 @@ from flask import request, jsonify
 from models.index import db, CarApplication, User, Vehicle, RoleEnum
 from flask_jwt_extended import get_jwt_identity
 from controllers.recommendation_utils import build_driver_recommendations
-from urllib.parse import urlencode
-from urllib.request import Request, urlopen
-import json
 
 
 LOCKED_APPLICATION_STATUSES = ['pending', 'approved', 'dispatched']
@@ -97,54 +94,6 @@ def _validate_driver_available(driver_id, exclude_application_id=None):
         return False, '该司机已有进行中的申请，暂不可重复申请', None
 
     return True, '', driver
-
-
-# 本地轻量地址清洗：去空白、去中英文标点
-def _simple_normalize_text(text):
-    value = str(text or '').strip()
-    value = ' '.join(value.split())
-    value = value.replace('，', '').replace(',', '').replace('。', '')
-    return value
-
-
-# 将在线地理服务返回的结构化地址拼接为中文文本
-def _build_address_text(address=None):
-    payload = address or {}
-    province = payload.get('state') or payload.get('province') or ''
-    city = payload.get('city') or payload.get('town') or payload.get('county') or payload.get('state_district') or ''
-    district = payload.get('city_district') or payload.get('suburb') or payload.get('borough') or payload.get('quarter') or ''
-    road = payload.get('road') or payload.get('pedestrian') or payload.get('residential') or payload.get('neighbourhood') or ''
-    number = payload.get('house_number') or ''
-    return ''.join([part for part in [province, city, district, road, number] if part])
-
-
-# 调用在线地理服务做地址标准化
-def _normalize_address_online(text):
-    query = urlencode({
-        'q': text,
-        'format': 'jsonv2',
-        'addressdetails': 1,
-        'limit': 1,
-        'accept-language': 'zh-CN'
-    })
-    url = f'https://nominatim.openstreetmap.org/search?{query}'
-    req = Request(url, headers={'User-Agent': 'graduation-project/1.0'})
-    try:
-        with urlopen(req, timeout=5) as response:
-            body = response.read().decode('utf-8')
-            data = json.loads(body)
-            if not data:
-                return None
-            top = data[0]
-            address_text = _build_address_text(top.get('address'))
-            return {
-                'normalized_text': address_text or top.get('display_name') or text,
-                'latitude': top.get('lat'),
-                'longitude': top.get('lon'),
-                'raw_display_name': top.get('display_name')
-            }
-    except Exception:
-        return None
 
 
 # 获取所有申请
@@ -359,43 +308,6 @@ def get_pending_applications(department_id=None):
         return jsonify(payload)
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
-
-
-# 地址标准化接口：优先在线标准化，失败则回退本地清洗
-def normalize_address():
-    try:
-        data = request.json or {}
-        text = _simple_normalize_text(data.get('text'))
-        if not text:
-            return jsonify({'success': False, 'message': '请输入地址文本'}), 400
-
-        try:
-            online = _normalize_address_online(text)
-        except Exception:
-            online = None
-
-        if online:
-            return jsonify({
-                'success': True,
-                'data': {
-                    'original_text': text,
-                    'normalized_text': online['normalized_text'],
-                    'latitude': online.get('latitude'),
-                    'longitude': online.get('longitude'),
-                    'source': 'nominatim'
-                }
-            })
-
-        return jsonify({
-            'success': True,
-            'data': {
-                'original_text': text,
-                'normalized_text': text,
-                'source': 'local-fallback'
-            }
-        })
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 # 司机推荐：供用户申请页按人数/目的地获取排序候选

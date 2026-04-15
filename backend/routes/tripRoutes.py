@@ -2,7 +2,7 @@
 
 # 出车记录相关路由
 from flask import Blueprint
-from controllers.tripController import get_trips, get_trip, create_trip, end_trip, get_trip_expense, update_trip_expense, get_fuel_prices, create_fuel_price, get_trip_management_list, pickup_passenger, submit_driver_trip_report, rate_trip, get_my_trips
+from controllers.tripController import get_trips, get_trip, create_trip, end_trip, get_trip_expense, update_trip_expense, get_fuel_prices, create_fuel_price, create_fuel_prices_batch, get_trip_management_list, pickup_passenger, submit_driver_trip_report, rate_trip, get_my_trips, get_external_oil_prices
 from middleware.auth_middleware import jwt_required
 
 tripBlueprint = Blueprint('trip', __name__, url_prefix='/api/trips')
@@ -21,3 +21,5 @@ tripBlueprint.route('/<int:id>/expense', methods=['GET'])(jwt_required()(get_tri
 tripBlueprint.route('/<int:id>/expense', methods=['PUT'])(jwt_required()(update_trip_expense))
 tripBlueprint.route('/fuel-prices', methods=['GET'])(jwt_required()(get_fuel_prices))
 tripBlueprint.route('/fuel-prices', methods=['POST'])(jwt_required()(create_fuel_price))
+tripBlueprint.route('/fuel-prices/batch', methods=['POST'])(jwt_required()(create_fuel_prices_batch))
+tripBlueprint.route('/external-oil-prices', methods=['GET'])(jwt_required()(get_external_oil_prices))

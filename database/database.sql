@@ -284,13 +284,15 @@ COMMIT;
 DROP TABLE IF EXISTS `fuel_prices`;
 CREATE TABLE `fuel_prices`  (
   `id` int NOT NULL AUTO_INCREMENT,
+  `region_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '未知省份',
   `fuel_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `price` decimal(10, 2) NOT NULL,
   `effective_date` date NOT NULL,
   `source` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `uk_fuel_prices_type_date`(`fuel_type` ASC, `effective_date` ASC) USING BTREE,
+  UNIQUE INDEX `uk_fuel_prices_region_type_date`(`region_name` ASC, `fuel_type` ASC, `effective_date` ASC) USING BTREE,
+  KEY `idx_fuel_prices_region_name` (`region_name`) USING BTREE,
   KEY `idx_fuel_prices_effective_date` (`effective_date`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci;
 

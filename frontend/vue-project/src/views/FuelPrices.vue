@@ -8,14 +8,13 @@
         <div class="hint" v-if="cacheHint">{{ cacheHint }}</div>
         <div class="hint" v-if="locationHint">{{ locationHint }}</div>
       </div>
-      <div class="actions">
-        <el-button plain size="small" :loading="loadingRemotePrice" @click="refreshByLocation">重新定位并更新油价</el-button>
-      </div>
     </div>
 
     <el-form :model="form" label-width="120px" class="form">
       <el-form-item label="地区">
-        <el-input v-model="form.region_name" placeholder="例如：青海省" clearable />
+        <el-select v-model="form.region_name" filterable placeholder="请选择地区" @change="onRegionChange">
+          <el-option v-for="item in provinceOptions" :key="item" :label="item" :value="item" />
+        </el-select>
       </el-form-item>
       <el-form-item label="油品型号">
         <el-select v-model="form.fuel_type" placeholder="选择油品">
@@ -77,6 +76,9 @@ const fuelStore = useFuelPriceStore();
 const chartRef = ref(null);
 let chartInstance = null;
 const MAX_POINTS = 15;
+const provinceSuffixRegexp = /(省|市|自治区|特别行政区|壮族自治区|回族自治区|维吾尔自治区)$/;
+
+const normalizeProvinceName = (value) => String(value || '').trim().replace(provinceSuffixRegexp, '');
 // 生成当天日期（YYYY-MM-DD）
 const today = () => getBeijingDateKey();
 // 油价时间统一格式化为北京时间展示。
@@ -105,7 +107,26 @@ const setSuccess = (message) => {
   }
 };
 
-const loadingRemotePrice = computed(() => fuelStore.loadingOil || fuelStore.loadingLocation);
+const DEFAULT_PROVINCES = [
+  '北京', '天津', '上海', '重庆',
+  '河北', '山西', '辽宁', '吉林', '黑龙江',
+  '江苏', '浙江', '安徽', '福建', '江西', '山东',
+  '河南', '湖北', '湖南', '广东', '海南',
+  '四川', '贵州', '云南', '陕西', '甘肃', '青海',
+  '内蒙古', '广西', '西藏', '宁夏', '新疆'
+];
+
+const provinceOptions = computed(() => {
+  const dynamic = Array.isArray(fuelStore.oilPayload?.provinces)
+    ? fuelStore.oilPayload.provinces
+      .map((item) => String(item?.region_name || '').trim())
+      .filter(Boolean)
+    : [];
+
+  const set = new Set([...DEFAULT_PROVINCES, ...dynamic]);
+  return Array.from(set);
+});
+
 const cacheHint = computed(() => {
   if (!fuelStore.lastOilFetchDate) return '';
   return `油价缓存日期：${fuelStore.lastOilFetchDate}（每日自动更新一次）`;
@@ -129,11 +150,16 @@ const form = ref({
   selected_date: today()
 });
 
+const selectedRegionKey = computed(() => normalizeProvinceName(form.value.region_name));
+
 const filteredPrices = computed(() => {
   const endDate = form.value.selected_date || today();
+  const selectedRegion = selectedRegionKey.value;
   return prices.value.filter((item) => {
     const effectiveDate = item?.effective_date;
     if (!effectiveDate) return false;
+    const rowRegion = normalizeProvinceName(item?.region_name || '');
+    if (selectedRegion && rowRegion && rowRegion !== selectedRegion) return false;
     return effectiveDate <= endDate;
   });
 });
@@ -258,7 +284,12 @@ const handleResize = () => {
 // 获取后端已保存的油价记录
 const fetchPrices = async () => {
   try {
-    const res = await axios.get('/api/trips/fuel-prices');
+    const res = await axios.get('/api/trips/fuel-prices', {
+      params: {
+        region_name: form.value.region_name,
+        limit: 500
+      }
+    });
     prices.value = res.data.data || [];
   } catch (err) {
     setError(err.response?.data?.message || '获取油价失败');
@@ -289,22 +320,29 @@ const fetchDailyOilPrice = async ({ force = false } = {}) => {
     form.value.region_name = fuelStore.regionName;
     syncPriceFromStore();
     setSuccess(`已更新${form.value.region_name}${form.value.fuel_type}油价：${form.value.price} 元/升`);
+
+    // 价格先展示，入库与历史刷新放到后台异步执行，提升交互速度。
+    Promise.resolve()
+      .then(async () => {
+        await fuelStore.syncOilPriceToBackend();
+        await fetchPrices();
+      })
+      .catch((syncErr) => {
+        const message = syncErr?.response?.data?.message || syncErr?.message || '油价已更新，但同步数据库失败';
+        setError(message);
+      });
   } catch (err) {
     setError(fuelStore.lastError || err.response?.data?.message || '获取地区油价失败');
   }
 };
 
-// 重新定位地区后强制刷新油价
-const refreshByLocation = async () => {
-  try {
-    setError('');
-    setSuccess('');
-    await fuelStore.detectRegion();
-    form.value.region_name = fuelStore.regionName;
-    await fetchDailyOilPrice({ force: true });
-  } catch (err) {
-    setError(fuelStore.lastError || err.response?.data?.message || '定位并更新油价失败');
-  }
+// 下拉选择地区后立即刷新油价，避免仅依赖 watch 导致触发时机不稳定。
+const onRegionChange = async (value) => {
+  const nextRegion = String(value || '').trim();
+  if (!nextRegion) return;
+  form.value.region_name = nextRegion;
+  fuelStore.setRegionName(nextRegion);
+  await fetchDailyOilPrice();
 };
 
 watch(() => form.value.fuel_type, async (value) => {
@@ -316,9 +354,12 @@ watch(() => form.value.fuel_type, async (value) => {
   await fetchDailyOilPrice();
 });
 
-watch(() => form.value.region_name, (value) => {
+watch(() => form.value.region_name, (value, oldValue) => {
   if (!value) return;
   fuelStore.setRegionName(value);
+  const nextRegion = String(value || '').trim();
+  const prevRegion = String(oldValue || '').trim();
+  if (!nextRegion || nextRegion === prevRegion) return;
 });
 
 watch(() => form.value.selected_date, async () => {
@@ -331,6 +372,8 @@ onMounted(async () => {
   form.value.region_name = fuelStore.regionName;
   try {
     await fuelStore.initializeDailyOilPrice();
+    // 初始化优先命中 Pinia 缓存，非当日缓存才请求后端代理接口。
+    await fetchDailyOilPrice();
     setSuccess(`已加载${fuelStore.regionName}${fuelStore.selectedFuelType}当日油价`);
   } catch (err) {
     setError(fuelStore.lastError || err.response?.data?.message || '初始化油价失败');
@@ -395,11 +438,6 @@ watch(success, (message) => {
   color: #667459;
 }
 
-.actions {
-  display: flex;
-  gap: 8px;
-}
-
 .mb {
   margin-bottom: 12px;
 }
@@ -407,6 +445,10 @@ watch(success, (message) => {
 .form {
   margin-bottom: 12px;
   max-width: 480px;
+}
+
+.form :deep(.el-select) {
+  width: 100%;
 }
 
 .range-hint {

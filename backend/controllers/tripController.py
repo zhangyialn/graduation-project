@@ -5,6 +5,23 @@ from flask import request, jsonify
 from flask_jwt_extended import get_jwt_identity
 from models.index import db, Trip, Expense, Dispatch, Vehicle, FuelPrice, CarApplication, User, RoleEnum
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
+import requests
+
+
+GUI_GUI_YA_OIL_API_URL = 'http://api.guiguiya.com/api/youjia'
+GUI_GUI_YA_REGION_MAP = {
+    'n92': '92',
+    'n95': '95',
+    'n98': '98',
+    'n0': 'chaiyou'
+}
+EXTERNAL_OIL_CACHE_TTL_SECONDS = 600
+_external_oil_cache = {
+    'data': None,
+    'expires_at': 0,
+    'fetched_at': None
+}
 
 
 # 兼容 Enum/字符串状态读取
@@ -586,11 +603,88 @@ def update_trip_expense(id):
 
 # ==================== 燃油价格管理 ====================
 
+
+def _fetch_single_external_oil_payload(fuel_field, region_code):
+    response = requests.get(
+        GUI_GUI_YA_OIL_API_URL,
+        params={'region': region_code},
+        timeout=8
+    )
+    response.raise_for_status()
+    payload = response.json() if response.content else {}
+    if int(payload.get('code', 0)) != 200:
+        raise ValueError(f'油价接口返回异常: {fuel_field}')
+    return fuel_field, payload
+
+# 代理第三方油价接口，避免前端浏览器直连触发 CORS 预检失败。
+def get_external_oil_prices():
+    try:
+        now_ts = int(datetime.utcnow().timestamp())
+        force_refresh = str(request.args.get('force') or '').strip() in ['1', 'true', 'True']
+
+        # 命中短缓存直接返回，减少第三方接口整体耗时与失败概率。
+        if (not force_refresh) and _external_oil_cache['data'] and _external_oil_cache['expires_at'] > now_ts:
+            return jsonify({
+                'success': True,
+                'data': _external_oil_cache['data'],
+                'cached': True,
+                'cached_at': _external_oil_cache['fetched_at']
+            })
+
+        raw_by_fuel = {}
+        with ThreadPoolExecutor(max_workers=len(GUI_GUI_YA_REGION_MAP)) as executor:
+            futures = [
+                executor.submit(_fetch_single_external_oil_payload, fuel_field, region_code)
+                for fuel_field, region_code in GUI_GUI_YA_REGION_MAP.items()
+            ]
+
+            for future in futures:
+                fuel_field, payload = future.result()
+                raw_by_fuel[fuel_field] = payload
+
+        _external_oil_cache['data'] = raw_by_fuel
+        _external_oil_cache['expires_at'] = now_ts + EXTERNAL_OIL_CACHE_TTL_SECONDS
+        _external_oil_cache['fetched_at'] = datetime.utcnow().isoformat()
+
+        return jsonify({
+            'success': True,
+            'data': raw_by_fuel,
+            'cached': False,
+            'cached_at': _external_oil_cache['fetched_at']
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({'success': False, 'message': f'请求油价服务失败: {str(e)}'}), 502
+    except ValueError:
+        return jsonify({'success': False, 'message': '油价服务返回了无效JSON'}), 502
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 # 获取燃油价格列表
 # 查询油价配置列表
 def get_fuel_prices():
     try:
-        prices = FuelPrice.query.all()
+        region_name = str(request.args.get('region_name') or '').strip()
+        limit = request.args.get('limit', type=int)
+        query = FuelPrice.query
+        if region_name:
+            query = query.filter(FuelPrice.region_name == region_name)
+            query = query.order_by(
+                FuelPrice.effective_date.desc(),
+                FuelPrice.id.desc()
+            )
+        else:
+            query = query.order_by(
+                FuelPrice.effective_date.desc(),
+                FuelPrice.region_name.asc(),
+                FuelPrice.fuel_type.asc(),
+                FuelPrice.id.desc()
+            )
+
+        if limit is not None:
+            safe_limit = min(max(int(limit), 1), 2000)
+            query = query.limit(safe_limit)
+
+        prices = query.all()
         return jsonify({'success': True, 'data': [price.to_dict() for price in prices]})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
@@ -601,6 +695,7 @@ def get_fuel_prices():
 def create_fuel_price():
     try:
         data = request.json or {}
+        region_name = str(data.get('region_name') or '').strip() or '未知省份'
         fuel_type = data.get('fuel_type')
         price_value = data.get('price')
         effective_date = data.get('effective_date')
@@ -609,9 +704,14 @@ def create_fuel_price():
         if not fuel_type or price_value is None or not effective_date:
             return jsonify({'success': False, 'message': 'fuel_type、price、effective_date 必填'}), 400
 
-        price = FuelPrice.query.filter_by(fuel_type=fuel_type, effective_date=effective_date).first()
+        price = FuelPrice.query.filter_by(
+            region_name=region_name,
+            fuel_type=fuel_type,
+            effective_date=effective_date
+        ).first()
         if not price:
             price = FuelPrice(
+                region_name=region_name,
                 fuel_type=fuel_type,
                 price=price_value,
                 effective_date=effective_date,
@@ -628,3 +728,89 @@ def create_fuel_price():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)})
+
+
+# 批量新增/更新油价（按 region_name + fuel_type + effective_date 去重）。
+def create_fuel_prices_batch():
+    try:
+        data = request.json or {}
+        default_effective_date = data.get('effective_date')
+        default_source = data.get('source')
+        raw_items = data.get('items')
+
+        if not isinstance(raw_items, list) or not raw_items:
+            return jsonify({'success': False, 'message': 'items 必须是非空数组'}), 400
+        if len(raw_items) > 1000:
+            return jsonify({'success': False, 'message': '单次最多提交1000条油价记录'}), 400
+
+        items = []
+        for raw in raw_items:
+            region_name = str(raw.get('region_name') or '').strip() or '未知省份'
+            fuel_type = raw.get('fuel_type')
+            price_value = raw.get('price')
+            effective_date = raw.get('effective_date') or default_effective_date
+            source = raw.get('source') or default_source
+
+            if not fuel_type or price_value is None or not effective_date:
+                return jsonify({'success': False, 'message': 'fuel_type、price、effective_date 必填'}), 400
+
+            items.append({
+                'region_name': region_name,
+                'fuel_type': fuel_type,
+                'price': price_value,
+                'effective_date': effective_date,
+                'source': source
+            })
+
+        region_set = {item['region_name'] for item in items}
+        fuel_set = {item['fuel_type'] for item in items}
+        date_set = {item['effective_date'] for item in items}
+
+        existing_rows = FuelPrice.query.filter(
+            FuelPrice.region_name.in_(list(region_set)),
+            FuelPrice.fuel_type.in_(list(fuel_set)),
+            FuelPrice.effective_date.in_(list(date_set))
+        ).all()
+        existing_map = {
+            (row.region_name, row.fuel_type, row.effective_date.isoformat() if row.effective_date else None): row
+            for row in existing_rows
+        }
+
+        created_count = 0
+        updated_count = 0
+        affected = []
+
+        for item in items:
+            key = (item['region_name'], item['fuel_type'], str(item['effective_date']))
+            current = existing_map.get(key)
+            if current:
+                current.price = item['price']
+                if item['source']:
+                    current.source = item['source']
+                updated_count += 1
+                affected.append(current)
+            else:
+                row = FuelPrice(
+                    region_name=item['region_name'],
+                    fuel_type=item['fuel_type'],
+                    price=item['price'],
+                    effective_date=item['effective_date'],
+                    source=item['source']
+                )
+                db.session.add(row)
+                created_count += 1
+                affected.append(row)
+
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'data': {
+                'created': created_count,
+                'updated': updated_count,
+                'total': created_count + updated_count,
+                'sample': [row.to_dict() for row in affected[:5]]
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500

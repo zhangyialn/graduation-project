@@ -400,6 +400,7 @@ class Expense(db.Model):
 class FuelPrice(db.Model):
     __tablename__ = 'fuel_prices'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    region_name = db.Column(db.String(50), nullable=False, default='未知省份')
     fuel_type = db.Column(db.String(20), nullable=False)
     price = db.Column(db.DECIMAL(10, 2), nullable=False)
     effective_date = db.Column(db.Date, nullable=False)
@@ -410,6 +411,7 @@ class FuelPrice(db.Model):
     def to_dict(self):
         return {
             'id': self.id,
+            'region_name': self.region_name,
             'fuel_type': self.fuel_type,
             'price': float(self.price) if self.price else None,
             'effective_date': self.effective_date.isoformat() if self.effective_date else None,

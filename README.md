@@ -51,22 +51,33 @@ graduation-project/
 │  ├─ app.py                                 # 应用入口：注册蓝图、中间件、请求耗时日志
 │  ├─ requirements.txt                       # Python 依赖
 │  ├─ config/
-│  │  └─ config.py                           # DB/JWT/初始化管理员相关配置
+│  │  └─ appConfig.py                        # DB/JWT/初始化管理员相关配置
 │  ├─ controllers/                           # 业务控制层（按域拆分）
 │  │  ├─ authController.py                   # 登录、改密、初始化管理员、开发切换账号
 │  │  ├─ userController.py                   # 用户/部门/导入/管理员创建
-│  │  ├─ vehicleController.py                # 车辆与司机（含可用资源查询）
-│  │  ├─ applicationController.py            # 申请创建、更新、取消、地址标准化、推荐司机
+│  │  ├─ vehicleController.py                # 车辆与司机资源管理
+│  │  ├─ applicationController.py            # 申请创建、更新、取消、推荐司机
 │  │  ├─ approvalController.py               # 审批流转与审批统计
-│  │  ├─ dispatchController.py               # 调度创建、启动、取消、推荐调度
+│  │  ├─ dispatchController.py               # 调度创建、启动、取消
 │  │  ├─ tripController.py                   # 接客、司机填报、结束行程、费用、评分、油价
 │  │  ├─ driverController.py                 # 司机工作台与状态维护
 │  │  ├─ reportController.py                 # 报表聚合查询
-│  │  └─ recommendation_utils.py             # 司机推荐算法辅助逻辑
+│  │  ├─ recommendationUtils.py              # 司机推荐算法辅助逻辑
+│  │  ├─ commonHelpers.py                    # 控制器通用帮助函数
+│  │  └─ controllerUtils.py                  # transactional_endpoint 等控制器工具
+│  ├─ services/                              # 领域服务层（复杂业务下沉）
+│  │  ├─ applicationService.py
+│  │  ├─ approvalWorkflowService.py
+│  │  ├─ dispatchService.py
+│  │  ├─ driverDashboardService.py
+│  │  ├─ driverSelfService.py
+│  │  ├─ tripCompletionService.py
+│  │  ├─ tripFuelService.py
+│  │  └─ userImportService.py
 │  ├─ middleware/
-│  │  ├─ auth_middleware.py                  # JWT 鉴权与角色校验
-│  │  ├─ validation_middleware.py            # 请求参数校验与标准化错误
-│  │  └─ error_middleware.py                 # 全局异常处理
+│  │  ├─ authMiddleware.py                   # JWT 鉴权与角色校验
+│  │  ├─ validationMiddleware.py             # 请求参数校验与标准化错误
+│  │  └─ errorMiddleware.py                  # 全局异常处理
 │  ├─ models/
 │  │  └─ index.py                            # SQLAlchemy 模型与枚举定义
 │  └─ routes/                                # 路由层（URL -> Controller 映射）
@@ -78,7 +89,8 @@ graduation-project/
 │     ├─ dispatchRoutes.py
 │     ├─ tripRoutes.py
 │     ├─ driverRoutes.py
-│     └─ reportRoutes.py
+│     ├─ reportRoutes.py
+│     └─ translateRoutes.py
 ├─ frontend/vue-project/                     # Vue 前端应用
 │  ├─ index.html                             # 页面壳
 │  ├─ package.json                           # 前端依赖与脚本
@@ -139,7 +151,9 @@ graduation-project/
 
 ### 3.1 分层职责说明
 - routes 层：负责 URL 路径和中间件装配，不写业务细节。
-- controllers 层：负责业务编排、权限判断、数据读写。
+- controllers 层：负责业务编排、权限判断和响应结构，不承载复杂事务细节。
+- services 层：承载跨模型业务规则与流程编排（审批流、调度、行程结束、油价、导入等）。
+- controllerUtils：通过 transactional_endpoint 统一写接口 commit/rollback 与业务异常映射。
 - models 层：负责表结构、字段与序列化。
 - views 层：负责页面容器与页签组合。
 - components 层：负责可复用交互单元，按业务域拆分。
@@ -217,11 +231,9 @@ pagination 字段示例：
 
 ### 6.3 车辆与司机（/api/vehicles）
 - GET /
-- GET /:id
 - POST /
 - PUT /:id
 - DELETE /:id
-- GET /available
 - GET /drivers
 - POST /drivers
 - PUT /drivers/:id
@@ -235,8 +247,8 @@ pagination 字段示例：
 - PUT /:id
 - POST /:id/cancel
 - GET /my/:user_id
+- GET /pending
 - GET /pending/:department_id
-- POST /normalize-address
 - GET /recommend-drivers
 
 ### 6.5 审批（/api/approvals）
@@ -249,27 +261,21 @@ pagination 字段示例：
 
 ### 6.6 调度（/api/dispatches）
 - GET /
-- GET /:id
 - POST /
 - POST /:id/start
 - POST /:id/cancel
-- GET /pending
-- GET /recommend/:application_id
 
 ### 6.7 行程（/api/trips）
 - GET /
 - GET /management
 - GET /my
-- GET /:id
-- POST /
 - POST /:id/pickup
 - POST /:id/driver-report
 - POST /:id/end
 - POST /:id/rate
-- GET /:id/expense
-- PUT /:id/expense
 - GET /fuel-prices
-- POST /fuel-prices
+- POST /fuel-prices/batch
+- GET /external-oil-prices
 
 ### 6.8 司机工作台（/api/drivers）
 - GET /me/dashboard
@@ -284,6 +290,11 @@ pagination 字段示例：
 - GET /monthly-stats
 - GET /driver-workload
 - GET /user-application-stats
+
+### 6.10 工具（/api/tools）
+- POST /translate
+- GET /reverse-geocode
+- GET /login-location
 
 ## 7. 本地运行
 
@@ -342,7 +353,7 @@ BOOTSTRAP_LOCAL_ONLY=true
 
 ### 9.3 导入失败
 - Excel 需包含 name、phone 等必需列。
-- role 仅允许 user 或 approver。
+- role 仅允许 user、approver 或 driver。
 
 ## 10. 后续优化建议
 

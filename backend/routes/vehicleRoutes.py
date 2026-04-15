@@ -3,7 +3,7 @@
 # 车辆相关路由
 from flask import Blueprint
 from controllers.vehicleController import get_vehicles, create_vehicle, update_vehicle, delete_vehicle, get_drivers, create_driver, update_driver, delete_driver, get_available_drivers
-from middleware.auth_middleware import jwt_required, role_required
+from middleware.authMiddleware import jwt_required, role_required
 
 vehicleBlueprint = Blueprint('vehicle', __name__, url_prefix='/api/vehicles')
 

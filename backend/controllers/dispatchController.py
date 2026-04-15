@@ -3,8 +3,8 @@
 # 调度管理控制器
 from flask import request, jsonify
 from models.index import Dispatch
-from services.dispatch_service import create_dispatch as create_dispatch_service, start_dispatch as start_dispatch_service, cancel_dispatch as cancel_dispatch_service, DispatchServiceError
-from controllers.controller_utils import transactional_endpoint
+from services.dispatchService import create_dispatch as create_dispatch_service, start_dispatch as start_dispatch_service, cancel_dispatch as cancel_dispatch_service, DispatchServiceError
+from controllers.controllerUtils import transactional_endpoint
 
 
 # 获取所有调度

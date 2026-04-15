@@ -6,10 +6,10 @@ from flask import Flask, jsonify, g, request
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_bcrypt import Bcrypt
-from config.config import Config
+from config.appConfig import Config
 from models.index import db
 from routes import userBlueprint, vehicleBlueprint, applicationBlueprint, approvalBlueprint, dispatchBlueprint, tripBlueprint, driverBlueprint, reportBlueprint, authBlueprint, translateBlueprint
-from middleware.error_middleware import register_error_handlers
+from middleware.errorMiddleware import register_error_handlers
 
 
 app = Flask(__name__)

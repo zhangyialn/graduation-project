@@ -1,7 +1,7 @@
 """司机工作台聚合服务。"""
 
 from models.index import db, Dispatch, Trip, Vehicle, CarApplication, User
-from controllers.common_helpers import enum_value
+from controllers.commonHelpers import enum_value
 
 
 def _build_active_task_row(dispatch, application, applicant, trip):

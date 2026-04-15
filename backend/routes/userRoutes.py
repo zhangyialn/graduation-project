@@ -3,7 +3,7 @@
 # 用户相关路由
 from flask import Blueprint
 from controllers.userController import get_users, get_user, create_user, update_user, delete_user, get_departments, create_department, update_department, import_users_excel, create_admin_user, get_admin_options, assign_department_leader
-from middleware.auth_middleware import jwt_required, role_required
+from middleware.authMiddleware import jwt_required, role_required
 
 userBlueprint = Blueprint('user', __name__, url_prefix='/api/users')
 

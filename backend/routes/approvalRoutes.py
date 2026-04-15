@@ -3,7 +3,7 @@
 # 审批相关路由
 from flask import Blueprint
 from controllers.approvalController import get_approvals, get_approval, get_application_approvals, get_approver_approvals, get_approval_statistics, submit_approval
-from middleware.auth_middleware import jwt_required, role_required
+from middleware.authMiddleware import jwt_required, role_required
 
 approvalBlueprint = Blueprint('approval', __name__, url_prefix='/api/approvals')
 

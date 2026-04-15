@@ -3,8 +3,8 @@
 # 认证相关路由
 from flask import Blueprint
 from controllers.authController import register, login, refresh, get_current_user, change_password, update_account_settings, verify_phone, reset_password, bootstrap_admin, generate_bootstrap_key, get_bootstrap_status, get_dev_users, dev_switch_user
-from middleware.auth_middleware import jwt_required
-from middleware.validation_middleware import validate_request
+from middleware.authMiddleware import jwt_required
+from middleware.validationMiddleware import validate_request
 
 authBlueprint = Blueprint('auth', __name__, url_prefix='/api/auth')
 

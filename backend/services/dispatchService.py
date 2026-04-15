@@ -2,7 +2,7 @@
 
 from sqlalchemy import and_
 from models.index import db, Dispatch, Vehicle, User, CarApplication, RoleEnum, Trip
-from controllers.common_helpers import enum_value
+from controllers.commonHelpers import enum_value
 
 
 class DispatchServiceError(Exception):

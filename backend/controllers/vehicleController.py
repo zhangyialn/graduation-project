@@ -4,7 +4,7 @@ from flask import request, jsonify
 from flask_jwt_extended import get_jwt_identity
 from flask_bcrypt import generate_password_hash
 from models.index import db, Vehicle, User, RoleEnum, CarApplication, Dispatch
-from controllers.common_helpers import enum_value as _enum_value
+from controllers.commonHelpers import enum_value as _enum_value
 
 
 LOCKED_APPLICATION_STATUSES = ['pending', 'approved', 'dispatched']

@@ -2,8 +2,8 @@
 
 from datetime import datetime
 from models.index import db, Dispatch, Vehicle, User, CarApplication, RoleEnum
-from controllers.common_helpers import enum_value, normalize_identity
-from services.trip_fuel_service import calculate_trip_expense, upsert_trip_expense
+from controllers.commonHelpers import enum_value, normalize_identity
+from services.tripFuelService import calculate_trip_expense, upsert_trip_expense
 
 
 class TripCompletionError(Exception):

@@ -3,7 +3,7 @@
 from flask import Blueprint
 
 from controllers.translateController import translate_text, reverse_geocode_free, detect_login_location_free
-from middleware.validation_middleware import validate_request
+from middleware.validationMiddleware import validate_request
 
 
 translateBlueprint = Blueprint('translate', __name__, url_prefix='/api/tools')

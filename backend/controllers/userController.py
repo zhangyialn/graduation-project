@@ -5,8 +5,8 @@ from flask import request, jsonify
 from models.index import db, User, Department, RoleEnum, Vehicle
 from flask_bcrypt import generate_password_hash, check_password_hash
 from flask_jwt_extended import get_jwt_identity
-from services.user_import_service import import_users_from_excel_file, UserImportError
-from controllers.controller_utils import transactional_endpoint
+from services.userImportService import import_users_from_excel_file, UserImportError
+from controllers.controllerUtils import transactional_endpoint
 
 
 ALLOWED_IMPORT_ROLES = {RoleEnum.user.value, RoleEnum.approver.value, RoleEnum.driver.value}

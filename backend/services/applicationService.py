@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from models.index import CarApplication, User, Vehicle, RoleEnum
-from controllers.common_helpers import enum_value
+from controllers.commonHelpers import enum_value
 
 
 LOCKED_APPLICATION_STATUSES = ['pending', 'approved', 'dispatched']

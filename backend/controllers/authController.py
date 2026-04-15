@@ -12,7 +12,7 @@ from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 import hashlib
 import secrets
 import time
-from controllers.common_helpers import normalize_identity as _normalize_identity
+from controllers.commonHelpers import normalize_identity as _normalize_identity
 
 
 BOOTSTRAP_NONCE_USED_AT = {}

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from models.index import Approval, CarApplication, Dispatch, User, Vehicle, RoleEnum
-from controllers.common_helpers import enum_value, normalize_identity
+from controllers.commonHelpers import enum_value, normalize_identity
 
 
 class ApprovalWorkflowError(Exception):

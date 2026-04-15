@@ -3,7 +3,7 @@
 # 出车记录相关路由
 from flask import Blueprint
 from controllers.tripController import get_trips, end_trip, get_fuel_prices, create_fuel_prices_batch, get_trip_management_list, pickup_passenger, submit_driver_trip_report, rate_trip, get_my_trips, get_external_oil_prices
-from middleware.auth_middleware import jwt_required
+from middleware.authMiddleware import jwt_required
 
 tripBlueprint = Blueprint('trip', __name__, url_prefix='/api/trips')
 

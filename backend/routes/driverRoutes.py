@@ -2,7 +2,7 @@
 
 from flask import Blueprint
 from controllers.driverController import get_my_dashboard, update_my_status, update_my_vehicle_status, bind_vehicle_by_plate
-from middleware.auth_middleware import role_required
+from middleware.authMiddleware import role_required
 
 
 driverBlueprint = Blueprint('driver', __name__, url_prefix='/api/drivers')

@@ -3,7 +3,7 @@
 # 用车申请相关路由
 from flask import Blueprint
 from controllers.applicationController import get_applications, get_application, create_application, update_application, cancel_application, get_my_applications, get_pending_applications, get_recommended_drivers
-from middleware.auth_middleware import jwt_required
+from middleware.authMiddleware import jwt_required
 
 applicationBlueprint = Blueprint('application', __name__, url_prefix='/api/applications')
 

@@ -6,10 +6,10 @@ from flask_jwt_extended import get_jwt_identity
 from models.index import db, Trip, Expense, Dispatch, Vehicle, FuelPrice, CarApplication, User, RoleEnum
 from datetime import datetime
 import requests
-from controllers.common_helpers import enum_value as _enum_value, normalize_identity as _normalize_identity, parse_optional_pagination as _parse_optional_pagination, pagination_meta as _pagination_meta
-from services.trip_fuel_service import external_oil_cache, is_force_refresh, fetch_external_oil_prices, prepare_fuel_price_batch_items, upsert_fuel_prices_batch
-from services.trip_completion_service import complete_trip, TripCompletionError
-from controllers.controller_utils import transactional_endpoint
+from controllers.commonHelpers import enum_value as _enum_value, normalize_identity as _normalize_identity, parse_optional_pagination as _parse_optional_pagination, pagination_meta as _pagination_meta
+from services.tripFuelService import external_oil_cache, is_force_refresh, fetch_external_oil_prices, prepare_fuel_price_batch_items, upsert_fuel_prices_batch
+from services.tripCompletionService import complete_trip, TripCompletionError
+from controllers.controllerUtils import transactional_endpoint
 
 # 获取所有出车记录
 # 查询出车记录列表

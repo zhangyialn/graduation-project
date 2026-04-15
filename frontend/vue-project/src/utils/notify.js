@@ -38,16 +38,6 @@ export const notifyWarning = (message, duration = 2000) => {
   });
 };
 
-export const notifyInfo = (message, duration = 2200) => {
-  if (!message) return;
-  ElMessage({
-    ...baseOptions,
-    type: 'info',
-    message,
-    duration
-  });
-};
-
 export const resolveApiErrorMessage = (error, fallback = '请求失败') => {
   const data = error?.response?.data;
   const errors = Array.isArray(data?.errors) ? data.errors : [];

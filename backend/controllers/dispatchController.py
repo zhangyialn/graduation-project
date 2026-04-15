@@ -3,9 +3,6 @@
 # 调度管理控制器
 from flask import request, jsonify
 from models.index import db, Dispatch, Vehicle, User, CarApplication, RoleEnum, Trip
-from flask_jwt_extended import jwt_required
-from datetime import datetime
-from controllers.recommendation_utils import build_driver_recommendations
 
 
 # 兼容 Enum/字符串状态读取
@@ -24,18 +21,6 @@ def get_dispatches():
         else:
             dispatches = Dispatch.query.all()
         return jsonify({'success': True, 'data': [dispatch.to_dict() for dispatch in dispatches]})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
-
-
-# 获取单个调度
-# 查询单条调度详情
-def get_dispatch(id):
-    try:
-        dispatch = Dispatch.query.get(id)
-        if not dispatch:
-            return jsonify({'success': False, 'message': '调度不存在'})
-        return jsonify({'success': True, 'data': dispatch.to_dict()})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -204,40 +189,3 @@ def cancel_dispatch(id):
         return jsonify({'success': False, 'message': str(e)})
 
 
-# 获取待调度列表（已批准但未调度的申请）
-# 查询待调度申请（已批准但未调度）
-def get_pending_dispatches():
-    try:
-        applications = CarApplication.query.filter_by(status='approved').all()
-        return jsonify({'success': True, 'data': [app.to_dict() for app in applications]})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
-
-
-# 为申请推荐司机与车辆（按座位匹配和负载评分）
-def recommend_dispatch(application_id):
-    try:
-        application = CarApplication.query.get(application_id)
-        if not application:
-            return jsonify({'success': False, 'message': '申请不存在'}), 404
-
-        if _enum_value(application.status) != 'approved':
-            return jsonify({'success': False, 'message': '仅已批准申请可推荐调度'}), 400
-
-        ranked = build_driver_recommendations(
-            passenger_count=application.passenger_count,
-            destination=application.destination,
-            specific_driver_id=application.driver_id
-        )
-        best = ranked[0] if ranked else None
-
-        return jsonify({
-            'success': True,
-            'data': {
-                'application_id': application_id,
-                'best': best,
-                'candidates': ranked[:5]
-            }
-        })
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500

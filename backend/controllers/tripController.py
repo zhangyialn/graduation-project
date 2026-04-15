@@ -23,6 +23,15 @@ _external_oil_cache = {
     'fetched_at': None
 }
 
+_FUEL_TYPE_COMPAT_GROUPS = {
+    '汽油': ['汽油', '92号汽油', '95号汽油', '98号汽油'],
+    '92号汽油': ['汽油', '92号汽油', '95号汽油', '98号汽油'],
+    '95号汽油': ['汽油', '92号汽油', '95号汽油', '98号汽油'],
+    '98号汽油': ['汽油', '92号汽油', '95号汽油', '98号汽油'],
+    '柴油': ['柴油', '0号柴油'],
+    '0号柴油': ['柴油', '0号柴油']
+}
+
 
 # 兼容 Enum/字符串状态读取
 def _enum_value(value):
@@ -66,6 +75,71 @@ def _pagination_meta(total, page, limit):
         'has_next': page < pages,
         'has_prev': page > 1
     }
+
+
+def _find_latest_fuel_price(vehicle_fuel_type):
+    # 先精确油号查询，查不到再走油品族兜底，保持和历史费用口径兼容。
+    normalized_fuel_type = str(vehicle_fuel_type or '汽油').strip() or '汽油'
+    latest_price = FuelPrice.query.filter_by(
+        fuel_type=normalized_fuel_type
+    ).order_by(FuelPrice.effective_date.desc()).first()
+    if latest_price:
+        return latest_price
+
+    compat_group = _FUEL_TYPE_COMPAT_GROUPS.get(normalized_fuel_type)
+    if not compat_group:
+        return None
+
+    return FuelPrice.query.filter(
+        FuelPrice.fuel_type.in_(compat_group)
+    ).order_by(FuelPrice.effective_date.desc()).first()
+
+
+def _should_force_refresh_external_oil_cache():
+    return str(request.args.get('force') or '').strip() in ['1', 'true', 'True']
+
+
+def _get_external_oil_cache_if_valid(now_ts, force_refresh=False):
+    if force_refresh:
+        return None
+    if _external_oil_cache['data'] and _external_oil_cache['expires_at'] > now_ts:
+        return {
+            'success': True,
+            'data': _external_oil_cache['data'],
+            'cached': True,
+            'cached_at': _external_oil_cache['fetched_at']
+        }
+    return None
+
+
+def _store_external_oil_cache(raw_by_fuel, now_ts):
+    fetched_at = datetime.utcnow().isoformat()
+    _external_oil_cache['data'] = raw_by_fuel
+    _external_oil_cache['expires_at'] = now_ts + EXTERNAL_OIL_CACHE_TTL_SECONDS
+    _external_oil_cache['fetched_at'] = fetched_at
+    return fetched_at
+
+
+def _prepare_fuel_price_batch_items(raw_items, default_effective_date=None, default_source=None):
+    items = []
+    for raw in raw_items:
+        region_name = str(raw.get('region_name') or '').strip() or '未知省份'
+        fuel_type = raw.get('fuel_type')
+        price_value = raw.get('price')
+        effective_date = raw.get('effective_date') or default_effective_date
+        source = raw.get('source') or default_source
+
+        if not fuel_type or price_value is None or not effective_date:
+            return None
+
+        items.append({
+            'region_name': region_name,
+            'fuel_type': fuel_type,
+            'price': price_value,
+            'effective_date': effective_date,
+            'source': source
+        })
+    return items
 
 
 # 获取所有出车记录
@@ -167,42 +241,6 @@ def get_trip_management_list():
             payload['pagination'] = _pagination_meta(total, page, limit)
         return jsonify(payload)
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
-
-
-# 获取单个出车记录
-# 查询单条出车记录
-def get_trip(id):
-    try:
-        trip = Trip.query.get(id)
-        if not trip:
-            return jsonify({'success': False, 'message': '出车记录不存在'})
-        return jsonify({'success': True, 'data': trip.to_dict()})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
-
-
-# 创建出车记录
-# 创建出车记录（绑定调度）
-def create_trip():
-    try:
-        data = request.json
-        
-        # 检查调度是否存在
-        dispatch = Dispatch.query.get(data['dispatch_id'])
-        if not dispatch:
-            return jsonify({'success': False, 'message': '调度不存在'})
-        
-        trip = Trip(
-            dispatch_id=data['dispatch_id'],
-            passenger_picked_up=False,
-            status='started'
-        )
-        db.session.add(trip)
-        db.session.commit()
-        return jsonify({'success': True, 'data': trip.to_dict()})
-    except Exception as e:
-        db.session.rollback()
         return jsonify({'success': False, 'message': str(e)})
 
 
@@ -325,19 +363,7 @@ def end_trip(id):
         
         # 计算费用（兼容精细油号：92/95/98号汽油、0号柴油）
         vehicle_fuel_type = vehicle.fuel_type if vehicle else '汽油'
-        latest_price = FuelPrice.query.filter_by(
-            fuel_type=vehicle_fuel_type
-        ).order_by(FuelPrice.effective_date.desc()).first()
-
-        if not latest_price:
-            if vehicle_fuel_type in ['汽油', '92号汽油', '95号汽油', '98号汽油']:
-                latest_price = FuelPrice.query.filter(
-                    FuelPrice.fuel_type.in_(['汽油', '92号汽油', '95号汽油', '98号汽油'])
-                ).order_by(FuelPrice.effective_date.desc()).first()
-            elif vehicle_fuel_type in ['柴油', '0号柴油']:
-                latest_price = FuelPrice.query.filter(
-                    FuelPrice.fuel_type.in_(['柴油', '0号柴油'])
-                ).order_by(FuelPrice.effective_date.desc()).first()
+        latest_price = _find_latest_fuel_price(vehicle_fuel_type)
 
         request_fuel_price = data.get('fuel_price')
         fuel_price_value = float(request_fuel_price) if request_fuel_price is not None else float(latest_price.price) if latest_price else 0.0
@@ -560,47 +586,6 @@ def get_my_trips():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-# 获取费用详情
-# 查询行程费用明细
-def get_trip_expense(id):
-    try:
-        expense = Expense.query.filter_by(trip_id=id).first()
-        if not expense:
-            return jsonify({'success': False, 'message': '费用记录不存在'})
-        return jsonify({'success': True, 'data': expense.to_dict()})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
-
-
-# 更新费用（仅支持燃油相关字段）
-# 更新行程费用（燃油费用口径）
-def update_trip_expense(id):
-    try:
-        expense = Expense.query.filter_by(trip_id=id).first()
-        if not expense:
-            return jsonify({'success': False, 'message': '费用记录不存在'})
-        
-        data = request.json or {}
-        if data.get('fuel_cost') is not None:
-            expense.fuel_cost = float(data.get('fuel_cost'))
-        if data.get('fuel_price') is not None:
-            expense.fuel_price = float(data.get('fuel_price'))
-        if data.get('mileage_km') is not None:
-            expense.mileage_km = float(data.get('mileage_km'))
-        if data.get('cost_per_km') is not None:
-            expense.cost_per_km = float(data.get('cost_per_km'))
-        expense.total_cost = float(expense.fuel_cost or 0)
-        trip = Trip.query.get(id)
-        if trip:
-            trip.total_cost = expense.total_cost
-        
-        db.session.commit()
-        return jsonify({'success': True, 'data': expense.to_dict()})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)})
-
-
 # ==================== 燃油价格管理 ====================
 
 
@@ -620,16 +605,12 @@ def _fetch_single_external_oil_payload(fuel_field, region_code):
 def get_external_oil_prices():
     try:
         now_ts = int(datetime.utcnow().timestamp())
-        force_refresh = str(request.args.get('force') or '').strip() in ['1', 'true', 'True']
+        force_refresh = _should_force_refresh_external_oil_cache()
 
         # 命中短缓存直接返回，减少第三方接口整体耗时与失败概率。
-        if (not force_refresh) and _external_oil_cache['data'] and _external_oil_cache['expires_at'] > now_ts:
-            return jsonify({
-                'success': True,
-                'data': _external_oil_cache['data'],
-                'cached': True,
-                'cached_at': _external_oil_cache['fetched_at']
-            })
+        cached_payload = _get_external_oil_cache_if_valid(now_ts, force_refresh=force_refresh)
+        if cached_payload:
+            return jsonify(cached_payload)
 
         raw_by_fuel = {}
         with ThreadPoolExecutor(max_workers=len(GUI_GUI_YA_REGION_MAP)) as executor:
@@ -642,15 +623,13 @@ def get_external_oil_prices():
                 fuel_field, payload = future.result()
                 raw_by_fuel[fuel_field] = payload
 
-        _external_oil_cache['data'] = raw_by_fuel
-        _external_oil_cache['expires_at'] = now_ts + EXTERNAL_OIL_CACHE_TTL_SECONDS
-        _external_oil_cache['fetched_at'] = datetime.utcnow().isoformat()
+        fetched_at = _store_external_oil_cache(raw_by_fuel, now_ts)
 
         return jsonify({
             'success': True,
             'data': raw_by_fuel,
             'cached': False,
-            'cached_at': _external_oil_cache['fetched_at']
+            'cached_at': fetched_at
         })
     except requests.exceptions.RequestException as e:
         return jsonify({'success': False, 'message': f'请求油价服务失败: {str(e)}'}), 502
@@ -703,24 +682,13 @@ def create_fuel_prices_batch():
         if len(raw_items) > 1000:
             return jsonify({'success': False, 'message': '单次最多提交1000条油价记录'}), 400
 
-        items = []
-        for raw in raw_items:
-            region_name = str(raw.get('region_name') or '').strip() or '未知省份'
-            fuel_type = raw.get('fuel_type')
-            price_value = raw.get('price')
-            effective_date = raw.get('effective_date') or default_effective_date
-            source = raw.get('source') or default_source
-
-            if not fuel_type or price_value is None or not effective_date:
-                return jsonify({'success': False, 'message': 'fuel_type、price、effective_date 必填'}), 400
-
-            items.append({
-                'region_name': region_name,
-                'fuel_type': fuel_type,
-                'price': price_value,
-                'effective_date': effective_date,
-                'source': source
-            })
+        items = _prepare_fuel_price_batch_items(
+            raw_items,
+            default_effective_date=default_effective_date,
+            default_source=default_source
+        )
+        if items is None:
+            return jsonify({'success': False, 'message': 'fuel_type、price、effective_date 必填'}), 400
 
         region_set = {item['region_name'] for item in items}
         fuel_set = {item['fuel_type'] for item in items}

@@ -68,16 +68,6 @@ def get_vehicles():
         return jsonify({'success': False, 'message': str(e)})
 
 
-def get_vehicle(id):
-    try:
-        vehicle = Vehicle.query.get(id)
-        if not vehicle or vehicle.is_deleted:
-            return jsonify({'success': False, 'message': '车辆不存在'})
-        return jsonify({'success': True, 'data': vehicle.to_dict()})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
-
-
 def create_vehicle():
     try:
         data = request.json
@@ -146,14 +136,6 @@ def delete_vehicle(id):
         return jsonify({'success': True, 'message': '车辆删除成功'})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)})
-
-
-def get_available_vehicles():
-    try:
-        vehicles = Vehicle.query.filter_by(status='available', is_deleted=False).all()
-        return jsonify({'success': True, 'data': [vehicle.to_dict() for vehicle in vehicles]})
-    except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
 

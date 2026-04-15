@@ -354,14 +354,6 @@ watch(() => form.value.fuel_type, async (value) => {
   await fetchDailyOilPrice();
 });
 
-watch(() => form.value.region_name, (value, oldValue) => {
-  if (!value) return;
-  fuelStore.setRegionName(value);
-  const nextRegion = String(value || '').trim();
-  const prevRegion = String(oldValue || '').trim();
-  if (!nextRegion || nextRegion === prevRegion) return;
-});
-
 watch(() => form.value.selected_date, async () => {
   await renderChart();
 });

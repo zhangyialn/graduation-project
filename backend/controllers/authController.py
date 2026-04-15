@@ -12,19 +12,10 @@ from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 import hashlib
 import secrets
 import time
+from controllers.common_helpers import normalize_identity as _normalize_identity
 
 
 BOOTSTRAP_NONCE_USED_AT = {}
-
-
-def _normalize_identity(identity):
-    if identity is None:
-        return None
-    try:
-        return int(identity)
-    except Exception:
-        return identity
-
 
 # 统一密码校验入口：优先按哈希校验，并兼容历史明文密码
 def _verify_password(user, plain_password):

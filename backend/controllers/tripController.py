@@ -7,6 +7,7 @@ from models.index import db, Trip, Expense, Dispatch, Vehicle, FuelPrice, CarApp
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 import requests
+from controllers.common_helpers import enum_value as _enum_value, normalize_identity as _normalize_identity, parse_optional_pagination as _parse_optional_pagination, pagination_meta as _pagination_meta
 
 
 GUI_GUI_YA_OIL_API_URL = 'http://api.guiguiya.com/api/youjia'
@@ -31,51 +32,6 @@ _FUEL_TYPE_COMPAT_GROUPS = {
     '柴油': ['柴油', '0号柴油'],
     '0号柴油': ['柴油', '0号柴油']
 }
-
-
-# 兼容 Enum/字符串状态读取
-def _enum_value(value):
-    return value.value if hasattr(value, 'value') else value
-
-
-# 将 JWT identity 统一转换为整数，避免字符串/整数比较导致权限判断误差。
-def _normalize_identity(identity):
-    # JWT 里的 identity 可能是字符串，这里统一归一为 int 便于后续比较。
-    if identity is None:
-        return None
-    try:
-        return int(identity)
-    except Exception:
-        return identity
-
-
-# 解析可选分页参数：有参数走分页，无参数保持历史全量返回。
-def _parse_optional_pagination(default_limit=20, max_limit=100):
-    # 与申请/审批接口保持一致：传参分页，不传参兼容旧全量接口。
-    has_pagination = ('page' in request.args) or ('limit' in request.args)
-    if not has_pagination:
-        return None, None, False
-
-    page = request.args.get('page', default=1, type=int) or 1
-    limit = request.args.get('limit', default=default_limit, type=int) or default_limit
-    page = max(page, 1)
-    limit = min(max(limit, 1), max_limit)
-    return page, limit, True
-
-
-# 组装统一分页响应结构，减少前端各页面解析差异。
-def _pagination_meta(total, page, limit):
-    # 输出统一分页元数据，前端列表组件可复用同一解析逻辑。
-    pages = (total + limit - 1) // limit if limit else 0
-    return {
-        'total': total,
-        'page': page,
-        'limit': limit,
-        'pages': pages,
-        'has_next': page < pages,
-        'has_prev': page > 1
-    }
-
 
 def _find_latest_fuel_price(vehicle_fuel_type):
     # 先精确油号查询，查不到再走油品族兜底，保持和历史费用口径兼容。

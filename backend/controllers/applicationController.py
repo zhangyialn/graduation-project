@@ -6,51 +6,10 @@ from flask import request, jsonify
 from models.index import db, CarApplication, User, Vehicle, RoleEnum
 from flask_jwt_extended import get_jwt_identity
 from controllers.recommendation_utils import build_driver_recommendations
+from controllers.common_helpers import enum_value as _enum_value, normalize_identity as _normalize_identity, parse_optional_pagination as _parse_optional_pagination, pagination_meta as _pagination_meta
 
 
 LOCKED_APPLICATION_STATUSES = ['pending', 'approved', 'dispatched']
-
-
-# 解析可选分页参数：有参数走分页，无参数保持历史全量返回。
-def _parse_optional_pagination(default_limit=20, max_limit=100):
-    # 未传分页参数时保持旧行为，避免影响既有前端调用。
-    has_pagination = ('page' in request.args) or ('limit' in request.args)
-    if not has_pagination:
-        return None, None, False
-
-    page = request.args.get('page', default=1, type=int) or 1
-    limit = request.args.get('limit', default=default_limit, type=int) or default_limit
-    page = max(page, 1)
-    limit = min(max(limit, 1), max_limit)
-    return page, limit, True
-
-
-# 组装统一分页响应结构，减少前端各页面解析差异。
-def _pagination_meta(total, page, limit):
-    # 返回统一分页元数据，供前端分页组件直接消费。
-    pages = (total + limit - 1) // limit if limit else 0
-    return {
-        'total': total,
-        'page': page,
-        'limit': limit,
-        'pages': pages,
-        'has_next': page < pages,
-        'has_prev': page > 1
-    }
-
-
-# 兼容 Enum/字符串两种状态值读取
-def _enum_value(value):
-    return value.value if hasattr(value, 'value') else value
-
-
-def _normalize_identity(identity):
-    if identity is None:
-        return None
-    try:
-        return int(identity)
-    except Exception:
-        return identity
 
 
 # 解析 ISO 时间字符串，兼容带 Z 后缀的 UTC 文本

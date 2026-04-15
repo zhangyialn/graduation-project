@@ -6,48 +6,7 @@ from models.index import db, Approval, User, CarApplication, Dispatch, Vehicle, 
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from sqlalchemy.orm import aliased
-
-
-# 兼容 Enum/字符串状态读取
-def _enum_value(value):
-    return value.value if hasattr(value, 'value') else value
-
-
-def _normalize_identity(identity):
-    if identity is None:
-        return None
-    try:
-        return int(identity)
-    except Exception:
-        return identity
-
-
-# 解析可选分页参数：有参数走分页，无参数保持历史全量返回。
-def _parse_optional_pagination(default_limit=20, max_limit=100):
-    # 仅当前端显式传参时才启用分页，默认保持历史全量返回。
-    has_pagination = ('page' in request.args) or ('limit' in request.args)
-    if not has_pagination:
-        return None, None, False
-
-    page = request.args.get('page', default=1, type=int) or 1
-    limit = request.args.get('limit', default=default_limit, type=int) or default_limit
-    page = max(page, 1)
-    limit = min(max(limit, 1), max_limit)
-    return page, limit, True
-
-
-# 组装统一分页响应结构，减少前端各页面解析差异。
-def _pagination_meta(total, page, limit):
-    # 统一分页响应结构，避免各审批接口字段命名不一致。
-    pages = (total + limit - 1) // limit if limit else 0
-    return {
-        'total': total,
-        'page': page,
-        'limit': limit,
-        'pages': pages,
-        'has_next': page < pages,
-        'has_prev': page > 1
-    }
+from controllers.common_helpers import enum_value as _enum_value, normalize_identity as _normalize_identity, parse_optional_pagination as _parse_optional_pagination, pagination_meta as _pagination_meta
 
 
 # 获取所有审批记录

@@ -3,11 +3,7 @@
 # 调度管理控制器
 from flask import request, jsonify
 from models.index import db, Dispatch, Vehicle, User, CarApplication, RoleEnum, Trip
-
-
-# 兼容 Enum/字符串状态读取
-def _enum_value(value):
-    return value.value if hasattr(value, 'value') else value
+from controllers.common_helpers import enum_value as _enum_value
 
 
 # 获取所有调度

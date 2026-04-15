@@ -4,10 +4,7 @@ from flask import request, jsonify
 from flask_jwt_extended import get_jwt_identity
 from models.index import db, Dispatch, Trip, Vehicle, CarApplication, User, RoleEnum
 from datetime import datetime
-
-
-def _enum_value(value):
-    return value.value if hasattr(value, 'value') else value
+from controllers.common_helpers import enum_value as _enum_value
 
 
 def _get_current_driver_user():

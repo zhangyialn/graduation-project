@@ -4,6 +4,7 @@ from flask import request, jsonify
 from flask_jwt_extended import get_jwt_identity
 from flask_bcrypt import generate_password_hash
 from models.index import db, Vehicle, User, RoleEnum, CarApplication, Dispatch
+from controllers.common_helpers import enum_value as _enum_value
 
 
 LOCKED_APPLICATION_STATUSES = ['pending', 'approved', 'dispatched']
@@ -17,11 +18,6 @@ def _build_username(phone):
         suffix += 1
         candidate = f'{base}_{suffix}'
     return candidate
-
-
-def _enum_value(value):
-    return value.value if hasattr(value, 'value') else value
-
 
 def _driver_is_locked(driver_user_id, exclude_application_id=None):
     query = CarApplication.query.filter(

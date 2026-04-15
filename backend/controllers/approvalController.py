@@ -7,6 +7,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy.orm import aliased
 from controllers.common_helpers import enum_value as _enum_value, normalize_identity as _normalize_identity, parse_optional_pagination as _parse_optional_pagination, pagination_meta as _pagination_meta
 from services.approval_workflow_service import submit_approval_workflow, ApprovalWorkflowError
+from controllers.controller_utils import transactional_endpoint
 
 
 # 获取所有审批记录
@@ -153,31 +154,23 @@ def get_approval_statistics():
 
 # 提交审批结果（同意/驳回）
 # 提交审批结果并同步更新申请状态
+@transactional_endpoint(ApprovalWorkflowError)
 def submit_approval(application_id):
-    try:
-        data = request.json or {}
-        current_user_id = _normalize_identity(get_jwt_identity())
-        workflow_result = submit_approval_workflow(application_id, current_user_id, data)
-        application = workflow_result['application']
-        approval = workflow_result['approval']
-        auto_dispatch = workflow_result['auto_dispatch']
+    data = request.json or {}
+    current_user_id = _normalize_identity(get_jwt_identity())
+    workflow_result = submit_approval_workflow(application_id, current_user_id, data)
+    application = workflow_result['application']
+    approval = workflow_result['approval']
+    auto_dispatch = workflow_result['auto_dispatch']
 
-        db.session.add(approval)
+    db.session.add(approval)
 
-        db.session.commit()
-
-        return jsonify({
-            'success': True,
-            'message': '审批提交成功',
-            'data': {
-                'application': application.to_dict(),
-                'approval': approval.to_dict(),
-                'auto_dispatch': auto_dispatch.to_dict() if auto_dispatch else None
-            }
-        })
-    except ApprovalWorkflowError as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': e.message}), e.status_code
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)}), 500
+    return jsonify({
+        'success': True,
+        'message': '审批提交成功',
+        'data': {
+            'application': application.to_dict(),
+            'approval': approval.to_dict(),
+            'auto_dispatch': auto_dispatch.to_dict() if auto_dispatch else None
+        }
+    })

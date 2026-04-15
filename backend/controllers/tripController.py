@@ -9,6 +9,7 @@ import requests
 from controllers.common_helpers import enum_value as _enum_value, normalize_identity as _normalize_identity, parse_optional_pagination as _parse_optional_pagination, pagination_meta as _pagination_meta
 from services.trip_fuel_service import external_oil_cache, is_force_refresh, fetch_external_oil_prices, prepare_fuel_price_batch_items, upsert_fuel_prices_batch
 from services.trip_completion_service import complete_trip, TripCompletionError
+from controllers.controller_utils import transactional_endpoint
 
 # 获取所有出车记录
 # 查询出车记录列表
@@ -153,30 +154,23 @@ def pickup_passenger(id):
 
 
 # 结束行程（仅乘客可结束），并按司机填报里程/油耗计算费用
+@transactional_endpoint(TripCompletionError)
 def end_trip(id):
-    try:
-        trip = Trip.query.get(id)
-        if not trip:
-            return jsonify({'success': False, 'message': '出车记录不存在'})
-        data = request.json or {}
-        current_user_id = _normalize_identity(get_jwt_identity())
-        completion_result = complete_trip(trip, data, current_user_id)
-        expense = completion_result['expense']
-        
-        db.session.commit()
-        return jsonify({
-            'success': True,
-            'data': {
-                'trip': trip.to_dict(),
-                'expense': expense.to_dict()
-            }
-        })
-    except TripCompletionError as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': e.message}), e.status_code
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)})
+    trip = Trip.query.get(id)
+    if not trip:
+        return jsonify({'success': False, 'message': '出车记录不存在'})
+    data = request.json or {}
+    current_user_id = _normalize_identity(get_jwt_identity())
+    completion_result = complete_trip(trip, data, current_user_id)
+    expense = completion_result['expense']
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'trip': trip.to_dict(),
+            'expense': expense.to_dict()
+        }
+    })
 
 
 # 司机填写里程与油耗（不结束行程）

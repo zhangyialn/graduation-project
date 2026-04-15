@@ -24,6 +24,7 @@ def get_dispatches():
 
 # 创建调度（分配车辆和司机）
 # 创建调度：校验申请、司机、车辆和时段冲突
+@transactional_endpoint(DispatchServiceError)
 def create_dispatch():
     data = request.json or {}
     dispatch = create_dispatch_service(data)

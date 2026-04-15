@@ -6,6 +6,7 @@ from models.index import db, User, Department, RoleEnum, Vehicle
 from flask_bcrypt import generate_password_hash, check_password_hash
 from flask_jwt_extended import get_jwt_identity
 from services.user_import_service import import_users_from_excel_file, UserImportError
+from controllers.controller_utils import transactional_endpoint
 
 
 ALLOWED_IMPORT_ROLES = {RoleEnum.user.value, RoleEnum.approver.value, RoleEnum.driver.value}
@@ -245,32 +246,25 @@ def delete_user(id):
 
 # Excel导入用户
 # Excel 批量导入用户
+@transactional_endpoint(UserImportError)
 def import_users_excel():
-    try:
-        file = request.files.get('file')
-        current_user_id = get_jwt_identity()
-        import_result = import_users_from_excel_file(file, current_user_id)
-        batch = import_result['batch']
-        failure_messages = import_result['failure_messages']
+    file = request.files.get('file')
+    current_user_id = get_jwt_identity()
+    import_result = import_users_from_excel_file(file, current_user_id)
+    batch = import_result['batch']
+    failure_messages = import_result['failure_messages']
 
-        db.session.commit()
-        return jsonify({
-            'success': True,
-            'message': '导入完成',
-            'data': {
-                'batch_id': batch.id,
-                'total_rows': batch.total_rows,
-                'success_rows': batch.success_rows,
-                'failed_rows': batch.failed_rows,
-                'failures': failure_messages[:20]
-            }
-        })
-    except UserImportError as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': e.message}), e.status_code
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)}), 500
+    return jsonify({
+        'success': True,
+        'message': '导入完成',
+        'data': {
+            'batch_id': batch.id,
+            'total_rows': batch.total_rows,
+            'success_rows': batch.success_rows,
+            'failed_rows': batch.failed_rows,
+            'failures': failure_messages[:20]
+        }
+    })
 
 
 # 部门管理接口

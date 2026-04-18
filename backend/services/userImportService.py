@@ -164,8 +164,15 @@ def import_users_from_excel_file(file, current_user_id):
             continue
 
         vehicle_raw = row.get('vehicle_id', None)
-        vehicle_id = None if pd.isna(vehicle_raw) else int(vehicle_raw)
+        vehicle_id = None
         if role == RoleEnum.driver:
+            if not pd.isna(vehicle_raw):
+                try:
+                    vehicle_id = int(vehicle_raw)
+                except Exception:
+                    failed_rows += 1
+                    failure_messages.append(f'第{index + 2}行：vehicle_id 必须为整数')
+                    continue
             ok, message = _validate_driver_binding(vehicle_id)
             if not ok:
                 failed_rows += 1

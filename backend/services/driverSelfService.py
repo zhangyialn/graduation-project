@@ -1,6 +1,13 @@
 """司机自助操作领域服务。"""
 
-from models.index import Dispatch, Vehicle, User, RoleEnum
+from models.index import (
+    Dispatch,
+    Vehicle,
+    User,
+    RoleEnum,
+    DriverStatusEnum,
+    VehicleStatusEnum,
+)
 from controllers.commonHelpers import enum_value
 
 
@@ -31,7 +38,7 @@ def update_driver_status(driver, status):
     if status == 'available' and active_dispatch:
         raise DriverSelfServiceError('司机存在进行中的任务，不能设为可用', 400)
 
-    driver.driver_status = status
+    driver.driver_status = DriverStatusEnum(status)
     return driver
 
 
@@ -50,7 +57,7 @@ def update_vehicle_status(driver, status):
     if status == 'available' and active_dispatch:
         raise DriverSelfServiceError('存在进行中的任务，车辆不能设为可用', 400)
 
-    vehicle.status = status
+    vehicle.status = VehicleStatusEnum(status)
     return vehicle
 
 

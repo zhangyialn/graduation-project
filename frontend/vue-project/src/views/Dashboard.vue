@@ -748,6 +748,10 @@ watch(() => user.value?.username, () => {
   flex-direction: column;
   padding: 1.5rem 0 1rem;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .sidebar-header {
@@ -757,6 +761,10 @@ watch(() => user.value?.username, () => {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   padding-bottom: 1.5rem;
   cursor: pointer;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #425430;
 }
 
 .sidebar-header h3 {
@@ -779,6 +787,7 @@ watch(() => user.value?.username, () => {
   flex: 1;
   border-right: none;
   background-color: transparent !important;
+  overflow-y: auto;
 }
 
 :deep(.sidebar-menu .el-menu-item) {

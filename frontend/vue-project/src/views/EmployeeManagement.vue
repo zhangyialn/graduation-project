@@ -63,6 +63,28 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <el-dialog
+        v-model="deleteDialogVisible"
+        title="删除确认"
+        width="420px"
+        align-center
+        class="employee-delete-dialog"
+      >
+        <p class="delete-dialog-text">
+          确认删除员工“{{ pendingDeleteUser?.name }}（{{ pendingDeleteUser?.id }}）”吗？此操作将执行软删除。
+        </p>
+        <template #footer>
+          <div class="delete-dialog-footer">
+            <el-button @click="deleteDialogVisible = false">取消</el-button>
+            <el-button
+              type="danger"
+              :loading="deletingUserId === pendingDeleteUser?.id"
+              @click="confirmDeleteEmployee"
+            >确认删除</el-button>
+          </div>
+        </template>
+      </el-dialog>
     </el-card>
   </div>
 </template>
@@ -71,7 +93,6 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
-import { ElMessageBox } from 'element-plus';
 import { useAuthStore } from '../stores/auth';
 import { notifyError, notifySuccess } from '../utils/notify';
 
@@ -84,6 +105,8 @@ const employeeUsers = ref([]);
 const departments = ref([]);
 const error = ref('');
 const success = ref('');
+const deleteDialogVisible = ref(false);
+const pendingDeleteUser = ref(null);
 const screenWidth = ref(window.innerWidth);
 const isMobile = computed(() => screenWidth.value < 900);
 
@@ -152,24 +175,19 @@ const updateUserDepartment = async (userRow) => {
 
 const deleteEmployee = async (userRow) => {
   if (!userRow?.id) return;
-  try {
-    await ElMessageBox.confirm(
-      `确认删除员工“${userRow.name}（${userRow.id}）”吗？此操作将执行软删除。`,
-      '删除确认',
-      {
-        confirmButtonText: '确认删除',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    );
-  } catch (_cancel) {
-    return;
-  }
+  pendingDeleteUser.value = userRow;
+  deleteDialogVisible.value = true;
+};
 
+const confirmDeleteEmployee = async () => {
+  const userRow = pendingDeleteUser.value;
+  if (!userRow?.id) return;
   try {
     deletingUserId.value = userRow.id;
     await axios.delete(`/api/users/${userRow.id}`);
     success.value = `已删除员工 ${userRow.name}`;
+    deleteDialogVisible.value = false;
+    pendingDeleteUser.value = null;
     await fetchUsers();
   } catch (err) {
     error.value = err.response?.data?.message || '删除员工失败';
@@ -261,6 +279,17 @@ watch(success, (message) => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.delete-dialog-text {
+  color: #2f3a31;
+  line-height: 1.7;
+}
+
+.delete-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 :deep(.change-dept-btn.el-button) {

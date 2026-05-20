@@ -1,7 +1,19 @@
 """行程结束事务编排服务。"""
 
 from datetime import datetime
-from models.index import db, Dispatch, Vehicle, User, CarApplication, RoleEnum
+from models.index import (
+    db,
+    Dispatch,
+    Vehicle,
+    User,
+    CarApplication,
+    RoleEnum,
+    VehicleStatusEnum,
+    DriverStatusEnum,
+    DispatchStatusEnum,
+    ApplicationStatusEnum,
+    TripStatusEnum,
+)
 from controllers.commonHelpers import enum_value, normalize_identity
 from services.tripFuelService import calculate_trip_expense, upsert_trip_expense
 
@@ -56,15 +68,15 @@ def _validate_trip_completion_permission(trip, current_user_id):
 def _sync_related_entity_states(dispatch, application):
     vehicle = Vehicle.query.get(dispatch.vehicle_id)
     if vehicle and enum_value(vehicle.status) == 'in_use':
-        vehicle.status = 'available'
+        vehicle.status = VehicleStatusEnum.available
 
     driver = User.query.filter_by(id=dispatch.driver_id, role=RoleEnum.driver, is_deleted=False).first()
     if driver and enum_value(driver.driver_status) == 'busy':
-        driver.driver_status = 'available'
+        driver.driver_status = DriverStatusEnum.available
 
-    dispatch.status = 'completed'
+    dispatch.status = DispatchStatusEnum.completed
     if application:
-        application.status = 'completed'
+        application.status = ApplicationStatusEnum.completed
 
     return vehicle
 
@@ -86,7 +98,7 @@ def complete_trip(trip, payload, current_user_id):
 
     trip.actual_end_time = datetime.utcnow()
     trip.ended_by = normalize_identity(current_user_id)
-    trip.status = 'completed'
+    trip.status = TripStatusEnum.completed
     trip.distance_km = mileage
     trip.fuel_used_l = fuel_used_value
 

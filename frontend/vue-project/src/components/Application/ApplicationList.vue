@@ -25,7 +25,7 @@
       <el-card v-for="item in applications" :key="item.id" shadow="never" class="mobile-item">
         <div class="mobile-top">
           <p class="mobile-title">申请 #{{ item.id }}</p>
-          <el-tag :type="statusType(item.status)">{{ item.status }}</el-tag>
+          <el-tag :type="statusType(item.status)">{{ statusLabel(item.status) }}</el-tag>
         </div>
         <p class="mobile-line">事由：{{ item.purpose || '-' }}</p>
         <p class="mobile-line">起点：{{ item.start_point || '-' }}</p>
@@ -50,7 +50,7 @@
       <el-table-column prop="destination" label="目的地" />
       <el-table-column prop="status" label="状态" width="100">
         <template #default="scope">
-          <el-tag :type="statusType(scope.row.status)">{{ scope.row.status }}</el-tag>
+          <el-tag :type="statusType(scope.row.status)">{{ statusLabel(scope.row.status) }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="100" fixed="right">
@@ -73,13 +73,13 @@
       @current-change="onApplicationsPageChange"
     />
 
-    <el-divider>我的行程</el-divider>
+    <el-divider v-if="canViewTrips">我的行程</el-divider>
 
-    <div v-if="isMobile" class="mobile-list">
+    <div v-if="canViewTrips && isMobile" class="mobile-list">
       <el-card v-for="item in myTrips" :key="item.application_id" shadow="never" class="mobile-item">
         <div class="mobile-top">
           <p class="mobile-title">行程 #{{ item.trip_id || '-' }}</p>
-          <el-tag :type="statusType(item.trip_status || item.dispatch_status || item.application_status)">{{ item.trip_status || item.dispatch_status || item.application_status }}</el-tag>
+          <el-tag :type="statusType(item.trip_status || item.dispatch_status || item.application_status)">{{ statusLabel(item.trip_status || item.dispatch_status || item.application_status) }}</el-tag>
         </div>
         <p class="mobile-line">事由：{{ item.purpose || '-' }}</p>
         <p class="mobile-line">司机：{{ item.driver_name || '-' }}</p>
@@ -106,7 +106,7 @@
       <el-empty v-if="myTrips.length === 0" description="暂无行程记录" />
     </div>
 
-    <el-table v-else :data="myTrips" style="width: 100%" border empty-text="暂无行程记录">
+    <el-table v-else-if="canViewTrips" :data="myTrips" style="width: 100%" border empty-text="暂无行程记录">
       <el-table-column prop="application_id" label="申请ID" width="90" />
       <el-table-column prop="trip_id" label="行程ID" width="90" />
       <el-table-column prop="purpose" label="事由" min-width="140" />
@@ -116,7 +116,7 @@
       <el-table-column prop="trip_status" label="行程状态" width="120">
         <template #default="scope">
           <el-tag :type="statusType(scope.row.trip_status || scope.row.dispatch_status || scope.row.application_status)">
-            {{ scope.row.trip_status || scope.row.dispatch_status || scope.row.application_status }}
+            {{ statusLabel(scope.row.trip_status || scope.row.dispatch_status || scope.row.application_status) }}
           </el-tag>
         </template>
       </el-table-column>
@@ -156,7 +156,7 @@
       </el-table-column>
     </el-table>
     <el-pagination
-      v-if="tripsTotal > tripsPageSize"
+      v-if="canViewTrips && tripsTotal > tripsPageSize"
       class="pager"
       background
       layout="prev, pager, next, total"
@@ -209,6 +209,7 @@ const currentTripId = ref(null);
 const ratingValue = ref(5);
 const screenWidth = ref(window.innerWidth);
 const isMobile = computed(() => screenWidth.value < 900);
+const canViewTrips = computed(() => authStore.user?.role === 'user');
 
 // 将申请状态映射为标签类型
 const statusType = (status) => {
@@ -224,6 +225,21 @@ const statusType = (status) => {
     cancelled: 'danger'
   };
   return typeMap[status] || 'info';
+};
+
+const statusLabel = (status) => {
+  const labelMap = {
+    pending: '待审批',
+    approved: '已审批',
+    rejected: '已驳回',
+    completed: '已完成',
+    dispatched: '正在调度',
+    started: '已开始',
+    in_progress: '进行中',
+    scheduled: '待调度',
+    cancelled: '已取消'
+  };
+  return labelMap[status] || String(status || '-');
 };
 
 // 统一格式化日期显示
@@ -258,6 +274,11 @@ const fetchApplications = async () => {
 
 // 拉取当前用户行程，用于“结束行程/评分”
 const fetchMyTrips = async () => {
+  if (!canViewTrips.value) {
+    myTrips.value = [];
+    tripsTotal.value = 0;
+    return;
+  }
   try {
     error.value = '';
     const response = await axios.get('/api/trips/my', {
@@ -295,6 +316,7 @@ const onApplicationsPageChange = async (nextPage) => {
 
 // 行程列表分页回调。
 const onTripsPageChange = async (nextPage) => {
+  if (!canViewTrips.value) return;
   // 行程列表翻页只刷新行程区块数据。
   tripsPage.value = nextPage;
   await fetchMyTrips();
@@ -352,7 +374,11 @@ const updateWidth = () => {
 onMounted(() => {
   // 首屏并行拉取两类数据，保证页面初始化速度。
   pageLoading.value = true;
-  Promise.all([fetchApplications(), fetchMyTrips()]).finally(() => {
+  const tasks = [fetchApplications()];
+  if (canViewTrips.value) {
+    tasks.push(fetchMyTrips());
+  }
+  Promise.all(tasks).finally(() => {
     pageLoading.value = false;
   });
   window.addEventListener('resize', updateWidth);

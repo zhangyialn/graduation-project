@@ -164,6 +164,8 @@ def submit_approval(application_id):
     auto_dispatch = workflow_result['auto_dispatch']
 
     db.session.add(approval)
+    if auto_dispatch and not getattr(auto_dispatch, 'id', None):
+        db.session.add(auto_dispatch)
 
     return jsonify({
         'success': True,

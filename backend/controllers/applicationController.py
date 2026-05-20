@@ -2,7 +2,7 @@
 
 # 用车申请控制器
 from flask import request, jsonify
-from models.index import db, CarApplication, User
+from models.index import db, CarApplication, User, ApplicationStatusEnum
 from flask_jwt_extended import get_jwt_identity
 from controllers.recommendationUtils import build_driver_recommendations
 from controllers.commonHelpers import enum_value as _enum_value, normalize_identity as _normalize_identity, parse_optional_pagination as _parse_optional_pagination, pagination_meta as _pagination_meta
@@ -152,7 +152,7 @@ def cancel_application(id):
         if _enum_value(application.status) not in ['pending', 'approved']:
             return jsonify({'success': False, 'message': '当前状态无法取消'})
         
-        application.status = 'cancelled'
+        application.status = ApplicationStatusEnum.cancelled
         db.session.commit()
         return jsonify({'success': True, 'data': application.to_dict()})
     except Exception as e:
@@ -234,17 +234,6 @@ def get_recommended_drivers():
         passenger_count = max(1, passenger_count)
         destination = request.args.get('destination', type=str) or ''
         ranked = build_driver_recommendations(passenger_count=passenger_count, destination=destination)
-
-        # 推荐结果与创建申请使用同一口径：仅返回当前可申请的司机。
-        applyable_ranked = []
-        for item in ranked:
-            driver_id = item.get('driver_id')
-            if driver_id in [None, '']:
-                continue
-            ok, _message, _driver = _validate_driver_available(int(driver_id))
-            if ok:
-                applyable_ranked.append(item)
-
-        return jsonify({'success': True, 'data': applyable_ranked})
+        return jsonify({'success': True, 'data': ranked})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500

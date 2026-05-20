@@ -40,7 +40,7 @@
               :loading="recommendingDrivers"
               @click="fetchRecommendedDrivers"
             >智能推荐司机</el-button>
-            <span class="recommend-tip" v-if="recommendedDrivers.length > 0">已按推荐指数降序展示前5候选</span>
+            <span class="recommend-tip" v-if="recommendedDrivers.length > 0">已按推荐指数降序展示候选</span>
           </div>
 
           <div v-if="recommendedDrivers.length > 0" class="recommendation-list">
@@ -133,6 +133,7 @@ const error = ref('');
 const success = ref('');
 const loading = ref(false);
 const recommendingDrivers = ref(false);
+const recommendationRequestSeq = ref(0);
 const locating = ref(false);
 const applicationForm = ref(null);
 const LOCATION_CACHE_KEY = 'application-start-point-location-cache';
@@ -171,6 +172,8 @@ const fetchAvailableDrivers = async () => {
 
 // 拉取推荐司机（按评分/经验/座位/目的地历史综合排序）
 const fetchRecommendedDrivers = async () => {
+  const requestSeq = recommendationRequestSeq.value + 1;
+  recommendationRequestSeq.value = requestSeq;
   try {
     recommendingDrivers.value = true;
     const normalizedPassengerCount = Math.max(1, Math.floor(Number(form.passenger_count) || 1));
@@ -179,15 +182,26 @@ const fetchRecommendedDrivers = async () => {
       destination: (form.destination || '').trim()
     };
     const response = await axios.get('/api/applications/recommend-drivers', { params });
+    if (requestSeq !== recommendationRequestSeq.value) {
+      return;
+    }
+
     const rows = response.data?.data || [];
-    recommendedDrivers.value = rows.slice(0, 5);
+  recommendedDrivers.value = rows;
+
     if (!recommendedDrivers.value.length) {
       notifyWarning('暂无可推荐司机，请手动选择');
     }
   } catch (err) {
+    if (requestSeq !== recommendationRequestSeq.value) {
+      return;
+    }
+    recommendedDrivers.value = [];
     notifyWarning(err.response?.data?.message || '获取推荐司机失败，请手动选择');
   } finally {
-    recommendingDrivers.value = false;
+    if (requestSeq === recommendationRequestSeq.value) {
+      recommendingDrivers.value = false;
+    }
   }
 };
 

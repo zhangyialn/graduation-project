@@ -12,7 +12,7 @@
       <el-col :xs="24" :sm="8">
         <el-card shadow="never">
           <p class="meta-title">司机状态</p>
-          <el-tag :type="statusType(driver?.status)">{{ driver?.status || '-' }}</el-tag>
+          <el-tag :type="statusType(driver?.status)">{{ statusLabel(driver?.status) }}</el-tag>
           <el-select v-model="driverStatus" placeholder="更新司机状态" class="mt" style="width:100%">
             <el-option label="可用" value="available" />
             <el-option label="不可用" value="unavailable" />
@@ -25,7 +25,7 @@
         <el-card shadow="never">
           <p class="meta-title">车辆状态</p>
           <p>车牌：{{ vehicle?.plate_number || '-' }}</p>
-          <el-tag :type="statusType(vehicle?.status)">{{ vehicle?.status || '-' }}</el-tag>
+          <el-tag :type="statusType(vehicle?.status)">{{ statusLabel(vehicle?.status) }}</el-tag>
           <el-select v-model="vehicleStatus" placeholder="更新车辆状态" class="mt" style="width:100%">
             <el-option label="可用" value="available" />
             <el-option label="维修中" value="maintenance" />
@@ -72,7 +72,7 @@
       <el-table-column prop="destination" label="目的地" min-width="140" />
       <el-table-column prop="dispatch_status" label="调度状态" width="120">
         <template #default="scope">
-          <el-tag :type="statusType(scope.row.dispatch_status)">{{ scope.row.dispatch_status }}</el-tag>
+          <el-tag :type="statusType(scope.row.dispatch_status)">{{ statusLabel(scope.row.dispatch_status) }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="actual_start_time" label="行程开始" width="180">
@@ -179,6 +179,16 @@ const statusType = (status) => ({
   completed: 'success',
   busy: 'warning'
 }[status] || 'info');
+
+const statusLabel = (status) => ({
+  available: '可用',
+  unavailable: '不可用',
+  maintenance: '维修中',
+  scheduled: '待调度',
+  in_progress: '进行中',
+  completed: '已完成',
+  busy: '忙碌'
+}[status] || String(status || '-'));
 
 // 时间格式化显示
 const formatDate = (value) => formatBeijingDateTime(value);

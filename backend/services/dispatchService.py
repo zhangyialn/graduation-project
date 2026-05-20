@@ -1,7 +1,20 @@
 """调度领域服务。"""
 
 from sqlalchemy import and_
-from models.index import db, Dispatch, Vehicle, User, CarApplication, RoleEnum, Trip
+from models.index import (
+    db,
+    Dispatch,
+    Vehicle,
+    User,
+    CarApplication,
+    RoleEnum,
+    Trip,
+    VehicleStatusEnum,
+    DriverStatusEnum,
+    ApplicationStatusEnum,
+    DispatchStatusEnum,
+    TripStatusEnum,
+)
 from controllers.commonHelpers import enum_value
 
 
@@ -80,9 +93,9 @@ def create_dispatch(data):
     )
     db.session.add(dispatch)
 
-    vehicle.status = 'in_use'
-    driver.driver_status = 'busy'
-    application.status = 'dispatched'
+    vehicle.status = VehicleStatusEnum.in_use
+    driver.driver_status = DriverStatusEnum.busy
+    application.status = ApplicationStatusEnum.dispatched
     return dispatch
 
 
@@ -100,11 +113,11 @@ def start_dispatch(dispatch_id):
         trip = Trip(
             dispatch_id=dispatch.id,
             passenger_picked_up=False,
-            status='started'
+            status=TripStatusEnum.started
         )
         db.session.add(trip)
 
-    dispatch.status = 'in_progress'
+    dispatch.status = DispatchStatusEnum.in_progress
     return dispatch
 
 
@@ -121,18 +134,18 @@ def cancel_dispatch(dispatch_id):
     if trip and (trip.passenger_picked_up or trip.actual_start_time is not None):
         raise DispatchServiceError('司机已接到乘客，不能取消调度', 400)
 
-    dispatch.status = 'cancelled'
+    dispatch.status = DispatchStatusEnum.cancelled
 
     vehicle = Vehicle.query.get(dispatch.vehicle_id)
     if vehicle:
-        vehicle.status = 'available'
+        vehicle.status = VehicleStatusEnum.available
 
     driver = User.query.filter_by(id=dispatch.driver_id, role=RoleEnum.driver, is_deleted=False).first()
     if driver:
-        driver.driver_status = 'available'
+        driver.driver_status = DriverStatusEnum.available
 
     application = CarApplication.query.get(dispatch.application_id)
     if application and enum_value(application.status) == 'dispatched':
-        application.status = 'approved'
+        application.status = ApplicationStatusEnum.approved
 
     return dispatch

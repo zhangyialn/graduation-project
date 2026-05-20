@@ -3,7 +3,7 @@
 from flask import request, jsonify
 from flask_jwt_extended import get_jwt_identity
 from flask_bcrypt import generate_password_hash
-from models.index import db, Vehicle, User, RoleEnum, CarApplication, Dispatch
+from models.index import db, Vehicle, User, RoleEnum, CarApplication, Dispatch, DriverStatusEnum
 from controllers.commonHelpers import enum_value as _enum_value
 
 
@@ -170,6 +170,10 @@ def create_driver():
         if User.query.filter_by(role=RoleEnum.driver, vehicle_id=vehicle_id, is_deleted=False).first():
             return jsonify({'success': False, 'message': '该车辆已被其他司机绑定'}), 400
 
+        driver_status_text = str(data.get('status', 'available') or 'available').strip()
+        if driver_status_text not in ['available', 'unavailable']:
+            return jsonify({'success': False, 'message': '司机状态仅支持 available/unavailable'}), 400
+
         driver = User(
             username=_build_username(phone),
             password=generate_password_hash(phone).decode('utf-8'),
@@ -178,7 +182,7 @@ def create_driver():
             role=RoleEnum.driver,
             vehicle_id=vehicle_id,
             license_number=license_number,
-            driver_status=data.get('status', 'available'),
+            driver_status=DriverStatusEnum(driver_status_text),
             hire_date=data.get('hire_date'),
             must_change_password=True,
             created_by=get_jwt_identity()
@@ -215,6 +219,9 @@ def update_driver(id):
             driver.vehicle_id = vehicle_id
 
         new_status = data.get('status')
+        if new_status and new_status not in ['available', 'unavailable']:
+            return jsonify({'success': False, 'message': '司机状态仅支持 available/unavailable'}), 400
+
         if new_status and new_status != _enum_value(driver.driver_status) and _driver_has_active_dispatch(driver.id):
             return jsonify({'success': False, 'message': '司机已被调度，结束行程前不能修改状态'}), 400
 
@@ -232,7 +239,8 @@ def update_driver(id):
             driver.license_number = data.get('license_number')
 
         driver.name = data.get('name', driver.name)
-        driver.driver_status = new_status or driver.driver_status
+        if new_status:
+            driver.driver_status = DriverStatusEnum(new_status)
         driver.hire_date = data.get('hire_date', driver.hire_date)
 
         db.session.commit()
@@ -264,9 +272,11 @@ def delete_driver(id):
 
 def get_available_drivers():
     try:
-        drivers = User.query.filter_by(role=RoleEnum.driver, driver_status='available', is_deleted=False).all()
+        drivers = User.query.filter_by(role=RoleEnum.driver, is_deleted=False).all()
         result = []
         for driver in drivers:
+            if _enum_value(driver.driver_status) != 'available':
+                continue
             vehicle = Vehicle.query.get(driver.vehicle_id) if driver.vehicle_id else None
             if not vehicle or vehicle.is_deleted:
                 continue

@@ -55,7 +55,8 @@ def build_driver_dashboard(driver):
     for dispatch in active_dispatches:
         application = CarApplication.query.get(dispatch.application_id)
         applicant = User.query.get(application.applicant_id) if application else None
-        trip = Trip.query.filter_by(dispatch_id=dispatch.id).first()
+        # Always use the latest trip record for this dispatch.
+        trip = Trip.query.filter_by(dispatch_id=dispatch.id).order_by(Trip.id.desc()).first()
         if not trip and enum_value(dispatch.status) == 'in_progress':
             trip = Trip(
                 dispatch_id=dispatch.id,
@@ -77,7 +78,8 @@ def build_driver_dashboard(driver):
     for dispatch in completed_dispatches:
         application = CarApplication.query.get(dispatch.application_id)
         applicant = User.query.get(application.applicant_id) if application else None
-        trip = Trip.query.filter_by(dispatch_id=dispatch.id).first()
+        # Always use the latest trip record for this dispatch.
+        trip = Trip.query.filter_by(dispatch_id=dispatch.id).order_by(Trip.id.desc()).first()
         if not trip:
             continue
 

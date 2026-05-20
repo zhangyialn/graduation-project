@@ -13,11 +13,11 @@
       <el-card v-for="item in dispatches" :key="item.id" shadow="never" class="mobile-item">
         <div class="mobile-top">
           <p class="mobile-title">调度 #{{ item.id }}</p>
-          <el-tag :type="statusType(item.status)">{{ item.status }}</el-tag>
+          <el-tag :type="statusType(item.status)">{{ statusLabel(item.status) }}</el-tag>
         </div>
-        <p class="mobile-line">申请ID：{{ item.application_id ?? '-' }}</p>
-        <p class="mobile-line">车辆ID：{{ item.vehicle_id ?? '-' }}</p>
-        <p class="mobile-line">司机ID：{{ item.driver_id ?? '-' }}</p>
+        <p class="mobile-line">申请人：{{ item.applicant_name || '-' }}</p>
+        <p class="mobile-line">车辆车牌号：{{ item.vehicle_plate_number || `ID:${item.vehicle_id ?? '-'}` }}</p>
+        <p class="mobile-line">司机姓名：{{ item.driver_name || `ID:${item.driver_id ?? '-'}` }}</p>
         <div class="mobile-actions">
           <el-button type="success" size="small" @click="startDispatch(item.id)" v-if="item.status === 'scheduled'">开始</el-button>
           <el-button type="danger" size="small" @click="cancelDispatch(item.id)" v-if="canCancelDispatch(item)">取消</el-button>
@@ -27,12 +27,18 @@
 
     <el-table v-else :data="dispatches" style="width: 100%" border>
       <el-table-column prop="id" label="调度ID" width="80" />
-      <el-table-column prop="application_id" label="申请ID" width="100" />
-      <el-table-column prop="vehicle_id" label="车辆ID" width="100" />
-      <el-table-column prop="driver_id" label="司机ID" width="100" />
+      <el-table-column prop="applicant_name" label="申请人" width="120">
+        <template #default="scope">{{ scope.row.applicant_name || '-' }}</template>
+      </el-table-column>
+      <el-table-column prop="vehicle_plate_number" label="车辆车牌号" width="140">
+        <template #default="scope">{{ scope.row.vehicle_plate_number || `ID:${scope.row.vehicle_id ?? '-'}` }}</template>
+      </el-table-column>
+      <el-table-column prop="driver_name" label="司机姓名" width="120">
+        <template #default="scope">{{ scope.row.driver_name || `ID:${scope.row.driver_id ?? '-'}` }}</template>
+      </el-table-column>
       <el-table-column prop="status" label="状态" width="100">
         <template #default="scope">
-          <el-tag :type="statusType(scope.row.status)">{{ scope.row.status }}</el-tag>
+          <el-tag :type="statusType(scope.row.status)">{{ statusLabel(scope.row.status) }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="200" fixed="right">
@@ -73,6 +79,16 @@ const statusType = (status) => {
     cancelled: 'danger'
   };
   return typeMap[status] || 'info';
+};
+
+const statusLabel = (status) => {
+  const labelMap = {
+    scheduled: '待调度',
+    in_progress: '进行中',
+    completed: '已完成',
+    cancelled: '已取消'
+  };
+  return labelMap[status] || String(status || '-');
 };
 
 // 仅未开始调度可取消

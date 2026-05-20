@@ -180,7 +180,7 @@ def build_driver_recommendations(passenger_count, destination=None, specific_dri
     passenger_count = max(1, passenger_count)
     destination = str(destination or '').strip()
 
-    query = User.query.filter_by(role=RoleEnum.driver, is_deleted=False, driver_status='available')
+    query = User.query.filter_by(role=RoleEnum.driver, is_deleted=False)
     if specific_driver_id:
         query = query.filter_by(id=int(specific_driver_id))
 
@@ -188,10 +188,11 @@ def build_driver_recommendations(passenger_count, destination=None, specific_dri
     ranked = []
 
     for driver in drivers:
+        if _enum_value(driver.driver_status) != 'available':
+            continue
+
         vehicle = Vehicle.query.get(driver.vehicle_id) if driver.vehicle_id else None
         if not vehicle or vehicle.is_deleted:
-            continue
-        if _enum_value(vehicle.status) != 'available':
             continue
 
         seat_count = int(vehicle.seat_count or 0)

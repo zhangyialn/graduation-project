@@ -1,7 +1,19 @@
 """审批工作流服务。"""
 
 from datetime import datetime
-from models.index import Approval, CarApplication, Dispatch, User, Vehicle, RoleEnum
+from models.index import (
+    Approval,
+    CarApplication,
+    Dispatch,
+    User,
+    Vehicle,
+    RoleEnum,
+    ApprovalStatusEnum,
+    ApplicationStatusEnum,
+    DispatchStatusEnum,
+    DriverStatusEnum,
+    VehicleStatusEnum,
+)
 from controllers.commonHelpers import enum_value, normalize_identity
 
 
@@ -35,15 +47,17 @@ def submit_approval_workflow(application_id, current_user_id, payload):
         raise ApprovalWorkflowError('不能审批自己提交的申请', 403)
 
     approval_time = datetime.utcnow()
+    approval_status = ApprovalStatusEnum.approved if status == 'approved' else ApprovalStatusEnum.rejected
+    application_status = ApplicationStatusEnum.approved if status == 'approved' else ApplicationStatusEnum.rejected
     approval = Approval(
         application_id=application_id,
         approver_id=current_user_id,
-        status=status,
+        status=approval_status,
         comment=comment,
         approved_at=approval_time
     )
 
-    application.status = status
+    application.status = application_status
     application.approval_comment = comment
     if start_point is not None:
         application.start_point = start_point
@@ -77,12 +91,12 @@ def submit_approval_workflow(application_id, current_user_id, payload):
                     vehicle_id=vehicle.id,
                     driver_id=driver.id,
                     dispatcher_id=current_user_id,
-                    status='scheduled'
+                    status=DispatchStatusEnum.scheduled
                 )
 
-            application.status = 'dispatched'
-            driver.driver_status = 'busy'
-            vehicle.status = 'in_use'
+            application.status = ApplicationStatusEnum.dispatched
+            driver.driver_status = DriverStatusEnum.busy
+            vehicle.status = VehicleStatusEnum.in_use
 
     return {
         'application': application,

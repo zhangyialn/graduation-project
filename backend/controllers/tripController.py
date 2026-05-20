@@ -284,8 +284,11 @@ def get_my_trips():
         driver_map = {item.id: item for item in drivers}
 
         dispatch_ids = [item.id for item in dispatches]
-        trips = Trip.query.filter(Trip.dispatch_id.in_(dispatch_ids)).all() if dispatch_ids else []
-        trip_map = {item.dispatch_id: item for item in trips}
+        trips = Trip.query.filter(Trip.dispatch_id.in_(dispatch_ids)).order_by(Trip.id.desc()).all() if dispatch_ids else []
+        trip_map = {}
+        for item in trips:
+            if item.dispatch_id not in trip_map:
+                trip_map[item.dispatch_id] = item
 
         rows = []
         for application in applications:

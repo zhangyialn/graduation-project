@@ -3,7 +3,7 @@
 # 出车记录和费用管理控制器
 from flask import request, jsonify
 from flask_jwt_extended import get_jwt_identity
-from models.index import db, Trip, Expense, Dispatch, Vehicle, FuelPrice, CarApplication, User, RoleEnum
+from models.index import db, Trip, Expense, Dispatch, Vehicle, FuelPrice, CarApplication, User, RoleEnum, DispatchStatusEnum, TripStatusEnum
 from datetime import datetime
 import requests
 from controllers.commonHelpers import enum_value as _enum_value, normalize_identity as _normalize_identity, parse_optional_pagination as _parse_optional_pagination, pagination_meta as _pagination_meta
@@ -206,6 +206,14 @@ def submit_driver_trip_report(id):
         trip.driver_report_distance_km = distance_km
         trip.driver_report_fuel_used_l = fuel_used
         trip.driver_reported_at = datetime.utcnow()
+        if not trip.passenger_picked_up:
+            trip.passenger_picked_up = True
+        if trip.actual_start_time is None:
+            trip.actual_start_time = datetime.utcnow()
+        if _enum_value(trip.status) != 'started':
+            trip.status = TripStatusEnum.started
+        if _enum_value(dispatch.status) == 'scheduled':
+            dispatch.status = DispatchStatusEnum.in_progress
         db.session.commit()
 
         return jsonify({'success': True, 'message': '司机填报成功', 'data': trip.to_dict()})
@@ -267,9 +275,7 @@ def get_my_trips():
         if not current_user:
             return jsonify({'success': False, 'message': '用户不存在'}), 404
 
-        role_value = _enum_value(current_user.role)
-        if role_value not in ['user', 'admin']:
-            return jsonify({'success': False, 'message': '仅普通用户可查看我的行程'}), 403
+        # 允许所有已登录角色查看本人行程（申请人本人），权限由后端接口校验。
 
         applications = CarApplication.query.filter_by(applicant_id=current_user_id).all()
         if not applications:
@@ -277,8 +283,11 @@ def get_my_trips():
 
         application_map = {item.id: item for item in applications}
         application_ids = list(application_map.keys())
-        dispatches = Dispatch.query.filter(Dispatch.application_id.in_(application_ids)).all()
-        dispatch_map = {item.application_id: item for item in dispatches}
+        dispatches = Dispatch.query.filter(Dispatch.application_id.in_(application_ids)).order_by(Dispatch.id.desc()).all()
+        dispatch_map = {}
+        for item in dispatches:
+            if item.application_id not in dispatch_map:
+                dispatch_map[item.application_id] = item
         driver_ids = list({item.driver_id for item in dispatches if item.driver_id})
         drivers = User.query.filter(User.id.in_(driver_ids)).all() if driver_ids else []
         driver_map = {item.id: item for item in drivers}

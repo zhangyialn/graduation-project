@@ -25,15 +25,32 @@
       <el-card v-for="item in applications" :key="item.id" shadow="never" class="mobile-item">
         <div class="mobile-top">
           <p class="mobile-title">申请 #{{ item.id }}</p>
-          <el-tag :type="statusType(item.status)">{{ statusLabel(item.status) }}</el-tag>
+          <el-tag :type="statusType(getApplicationDisplayStatus(item))">
+            {{ statusLabel(getApplicationDisplayStatus(item)) }}
+          </el-tag>
         </div>
         <p class="mobile-line">事由：{{ item.purpose || '-' }}</p>
         <p class="mobile-line">起点：{{ item.start_point || '-' }}</p>
         <p class="mobile-line">司机ID：{{ item.driver_id || '-' }}</p>
         <p class="mobile-line">目的地：{{ item.destination || '-' }}</p>
         <p class="mobile-line">出发时间：{{ formatDate(item.start_time) }}</p>
-        <div class="mobile-actions" v-if="item.status === 'pending'">
-          <el-button type="danger" size="small" @click="cancelApplication(item.id)">取消申请</el-button>
+        <div class="mobile-actions">
+          <el-button v-if="item.status === 'pending'" type="danger" size="small" @click="cancelApplication(item.id)">取消申请</el-button>
+          <template v-else-if="getApplicationActions(item).canEnd || getApplicationActions(item).canRate">
+            <el-button
+              v-if="getApplicationActions(item).canEnd"
+              type="success"
+              size="small"
+              :loading="tripSubmitting"
+              @click="endTrip(getApplicationActions(item).tripRow?.trip_id)"
+            >结束行程</el-button>
+            <el-button
+              v-if="getApplicationActions(item).canRate"
+              type="warning"
+              size="small"
+              @click="openRateDialog(getApplicationActions(item).tripRow)"
+            >评分</el-button>
+          </template>
         </div>
       </el-card>
       <el-empty v-if="applications.length === 0" description="暂无申请记录" />
@@ -50,15 +67,32 @@
       <el-table-column prop="destination" label="目的地" />
       <el-table-column prop="status" label="状态" width="100">
         <template #default="scope">
-          <el-tag :type="statusType(scope.row.status)">{{ statusLabel(scope.row.status) }}</el-tag>
+          <el-tag :type="statusType(getApplicationDisplayStatus(scope.row))">
+            {{ statusLabel(getApplicationDisplayStatus(scope.row)) }}
+          </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="100" fixed="right">
+      <el-table-column label="操作" width="220" fixed="right">
         <template #default="scope">
           <el-button type="danger" size="small" @click="cancelApplication(scope.row.id)" v-if="scope.row.status === 'pending'">
             <el-icon><Close /></el-icon>
             取消
           </el-button>
+          <template v-else-if="getApplicationActions(scope.row).canEnd || getApplicationActions(scope.row).canRate">
+            <el-button
+              v-if="getApplicationActions(scope.row).canEnd"
+              type="success"
+              size="small"
+              :loading="tripSubmitting"
+              @click="endTrip(getApplicationActions(scope.row).tripRow?.trip_id)"
+            >结束行程</el-button>
+            <el-button
+              v-if="getApplicationActions(scope.row).canRate"
+              type="warning"
+              size="small"
+              @click="openRateDialog(getApplicationActions(scope.row).tripRow)"
+            >评分</el-button>
+          </template>
         </template>
       </el-table-column>
     </el-table>
@@ -209,7 +243,7 @@ const currentTripId = ref(null);
 const ratingValue = ref(5);
 const screenWidth = ref(window.innerWidth);
 const isMobile = computed(() => screenWidth.value < 900);
-const canViewTrips = computed(() => authStore.user?.role === 'user');
+const canViewTrips = computed(() => ['user', 'driver', 'approver', 'admin'].includes(authStore.user?.role));
 
 // 将申请状态映射为标签类型
 const statusType = (status) => {
@@ -221,6 +255,7 @@ const statusType = (status) => {
     dispatched: 'primary',
     started: 'info',
     in_progress: 'info',
+    waiting_end: 'warning',
     scheduled: 'warning',
     cancelled: 'danger'
   };
@@ -233,13 +268,35 @@ const statusLabel = (status) => {
     approved: '已审批',
     rejected: '已驳回',
     completed: '已完成',
-    dispatched: '正在调度',
+    dispatched: '已调度',
     started: '已开始',
-    in_progress: '进行中',
+    in_progress: '等待结束',
+    waiting_end: '等待结束',
     scheduled: '待调度',
     cancelled: '已取消'
   };
   return labelMap[status] || String(status || '-');
+};
+
+const getApplicationDisplayStatus = (application) => {
+  if (!application?.id) return application?.status;
+  const tripRow = getApplicationTripRow(application.id);
+  if (tripRow?.trip_status === 'completed') return 'completed';
+  if (tripRow?.can_end_by_user) return 'waiting_end';
+  if (tripRow?.dispatch_status) return tripRow.dispatch_status === 'in_progress' ? 'dispatched' : tripRow.dispatch_status;
+  return application.status;
+};
+
+const getApplicationTripRow = (applicationId) => tripsByApplicationId.value.get(applicationId);
+
+const getApplicationActions = (application) => {
+  const tripRow = getApplicationTripRow(application?.id);
+  return {
+    tripRow,
+    canEnd: !!tripRow?.can_end_by_user,
+    canRate: !!tripRow?.can_rate,
+    status: getApplicationDisplayStatus(application)
+  };
 };
 
 // 统一格式化日期显示
@@ -294,6 +351,16 @@ const fetchMyTrips = async () => {
     error.value = err.response?.data?.message || '获取我的行程失败';
   }
 };
+
+const tripsByApplicationId = computed(() => {
+  const map = new Map();
+  myTrips.value.forEach((row) => {
+    if (row?.application_id) {
+      map.set(row.application_id, row);
+    }
+  });
+  return map;
+});
 
 // 取消待审批申请后刷新列表
 const cancelApplication = async (id) => {
